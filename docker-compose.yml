@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: crop
+      POSTGRES_PASSWORD: crop_dev_password
+      POSTGRES_DB: crop
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crop"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # AOF with fsync-every-second is the durability floor for the audit input buffer
+    # (docs/architecture.md): a Redis restart loses at most ~1s of buffered HID events,
+    # never a critical audit event (those are written straight to Postgres, never buffered).
+    command: redis-server --appendonly yes --appendfsync everysec
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    # CCTV room-feed path only. The PiKVM console video never touches this container --
+    # see docs/architecture.md for why that path is a direct relay instead.
+    ports:
+      - "8554:8554" # RTSP
+      - "8889:8889" # WHEP (WebRTC playback)
+    volumes:
+      - ./infra/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+
+volumes:
+  postgres-data:
+  redis-data:

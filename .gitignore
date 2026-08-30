@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+.turbo
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage
+apps/api/prisma/migrations/**/migration.sql.bak
+infra/postgres-data
+infra/redis-data
+infra/mediamtx-data
+apps/api/storage

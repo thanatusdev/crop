@@ -1,0 +1,55 @@
+import { Inject } from "@nestjs/common";
+import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { AuditAction } from "@crop/shared";
+import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
+import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
+import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
+import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../../ports/pikvm-gateway.port.js";
+import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../../ports/session-repository.port.js";
+import { SESSION_RUNTIME, type SessionRuntimePort } from "../../ports/session-runtime.port.js";
+import { EndSessionCommand } from "./end-session.command.js";
+
+@CommandHandler(EndSessionCommand)
+export class EndSessionHandler implements ICommandHandler<EndSessionCommand, void> {
+  constructor(
+    @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
+    @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
+    @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
+    private readonly commandBus: CommandBus,
+    private readonly metrics: MetricsService
+  ) {}
+
+  async execute(command: EndSessionCommand): Promise<void> {
+    const session = await this.sessions.findById(command.sessionId);
+    if (!session) throw new NotFoundError("Session", command.sessionId);
+    if (!session.isParticipant(command.requestedByUserId)) {
+      throw new ForbiddenError("Only the operator or supervisor of this session may end it");
+    }
+
+    // Safety first, always: `release()` tears the connection down via `PiKvmDevice.disconnect()`,
+    // which itself releases every physically-held key/button before closing anything -- see
+    // that class. A separate explicit `releaseAllInput()` call here was redundant (it doubled
+    // the real network round-trip against a slow/unreachable device, caught by an e2e test
+    // timing out against a deliberately-unreachable fixture host) and relied on nothing else
+    // changing that invariant. Equipment can only ever have one active session at a time
+    // (`sessions_one_active_per_equipment`, prisma/migrations/*), so `release()` here always
+    // actually disconnects rather than just decrementing a shared reference count.
+    await this.pikvm.release(session.equipmentId);
+
+    await this.sessions.end(session.id, "ENDED");
+    this.runtime.clear(session.id);
+    this.metrics.sessionsActive.dec();
+
+    await this.commandBus.execute(
+      new RecordAuditEventCommand({
+        tenantId: command.tenantId,
+        userId: command.requestedByUserId,
+        sessionId: session.id,
+        action: AuditAction.SESSION_END,
+        resourceType: "Equipment",
+        resourceId: session.equipmentId,
+        details: {},
+      })
+    );
+  }
+}
