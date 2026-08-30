@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Same images, users, ports, and databases as docker-compose.yml (Postgres on 5433, not
+    # the Postgres default 5432 -- see README) and as apps/api/test/setup-env.ts /
+    # apps/api/test/global-setup.ts, which hardcode these exact connection strings rather
+    # than reading them from env. Deliberately no `mediamtx` service here: nothing under
+    # test (unit tests or the e2e suite) talks to it -- only the browser's CCTV WHEP player
+    # does, at runtime, well outside anything CI exercises.
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: crop
+          POSTGRES_PASSWORD: crop_dev_password
+          POSTGRES_DB: crop
+        ports:
+          - "5433:5432"
+        options: >-
+          --health-cmd "pg_isready -U crop"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Not relied upon as a postinstall side effect of `@prisma/client` -- explicit, so this
+      # step's absence would be a loud CI failure rather than a silently-stale generated client.
+      - name: Generate Prisma client
+        run: pnpm --filter @crop/api exec prisma generate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Unit tests (packages/shared, packages/pikvm, apps/web)
+        run: pnpm test
+
+      # Not part of the `pnpm test` (turbo `test`) pipeline above: apps/api's own "test"
+      # script is a deliberate no-op (see its package.json) because this suite needs the
+      # Postgres/Redis services above and a compiled `dist/` (it re-runs `nest build` itself,
+      # see docs/architecture.md's e2e module-loading section) rather than the fast,
+      # dependency-free unit tests `turbo run test` is meant for.
+      - name: e2e tests (apps/api, against real Postgres + Redis)
+        run: pnpm --filter @crop/api test:e2e
