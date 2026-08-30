@@ -4,6 +4,7 @@ import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 
 import { AuthController } from "./presentation/auth.controller.js";
+import { UsersController } from "./presentation/users.controller.js";
 import { JwtAccessStrategy } from "./presentation/strategies/jwt-access.strategy.js";
 import { JwtAuthGuard } from "./presentation/guards/jwt-auth.guard.js";
 import { RolesGuard } from "./presentation/guards/roles.guard.js";
@@ -27,6 +28,9 @@ import { LoginHandler } from "./application/commands/login/login.handler.js";
 import { VerifyMfaHandler } from "./application/commands/verify-mfa/verify-mfa.handler.js";
 import { RefreshTokensHandler } from "./application/commands/refresh-tokens/refresh-tokens.handler.js";
 import { LogoutHandler } from "./application/commands/logout/logout.handler.js";
+import { LockUserHandler } from "./application/commands/lock-user/lock-user.handler.js";
+import { UnlockUserHandler } from "./application/commands/unlock-user/unlock-user.handler.js";
+import { AdminResetPasswordHandler } from "./application/commands/admin-reset-password/admin-reset-password.handler.js";
 import { ConfirmMfaEnrollmentHandler } from "./application/commands/enroll-mfa/confirm-mfa-enrollment.handler.js";
 import { GetUserByIdHandler } from "./application/queries/get-user-by-id/get-user-by-id.handler.js";
 import { AuditModule } from "../audit/audit.module.js";
@@ -37,13 +41,16 @@ const COMMAND_AND_QUERY_HANDLERS = [
   VerifyMfaHandler,
   RefreshTokensHandler,
   LogoutHandler,
+  LockUserHandler,
+  UnlockUserHandler,
+  AdminResetPasswordHandler,
   ConfirmMfaEnrollmentHandler,
   GetUserByIdHandler,
 ];
 
 @Module({
   imports: [CqrsModule, PassportModule.register({ defaultStrategy: "jwt" }), JwtModule.register({}), AuditModule],
-  controllers: [AuthController],
+  controllers: [AuthController, UsersController],
   providers: [
     JwtAccessStrategy,
     JwtAuthGuard,

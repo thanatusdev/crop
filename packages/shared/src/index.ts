@@ -13,3 +13,4 @@ export * from "./contracts/session.js";
 export * from "./contracts/equipment.js";
 export * from "./contracts/queue.js";
 export * from "./contracts/audit.js";
+export * from "./contracts/users.js";

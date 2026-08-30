@@ -287,6 +287,118 @@ by:
   instead of silently working forever -- standard refresh-token-rotation practice, and cheap
   here since the revocation store already exists for logout.
 
+## Account lockout and admin-forced password reset
+
+There is no self-service "forgot password" or "register" HTTP endpoint anywhere in the app --
+`RegisterUserCommand` has never had one; only the seed script calls it directly through the
+`CommandBus`. User administration is therefore already an out-of-band, admin-driven activity,
+so the lockout and password-reset features added in this phase follow that same shape instead
+of introducing a parallel self-service flow (which would also need an SMTP/mailer dependency
+that doesn't exist anywhere in this codebase):
+
+- **`POST /users/:id/lock` / `POST /users/:id/unlock`** (`UsersController`, CLINIC_ADMIN /
+  PLATFORM_ADMIN only, tenant-scoped the same way `EquipmentController` is -- each handler
+  re-checks `belongsToTenant`, never trusting the controller alone). Sets/clears
+  `User.lockedAt`. `LoginHandler` and `VerifyMfaHandler` both reject a locked account (the
+  latter specifically to close the window where an admin locks an account *between* a
+  password check and MFA completion); `RefreshTokensHandler` rejects it too.
+- **Bounded-window tradeoff, not an oversight**: access tokens are verified by signature and
+  expiry alone (`JwtAccessStrategy`), with no DB round trip -- that's deliberate, so a lock
+  doesn't retroactively invalidate an access token minted before it. A locked user's existing
+  session can keep working for up to `JWT_ACCESS_TTL_SECONDS` (15 minutes by default) after
+  an admin locks them; only the next refresh or login is where it actually bites. Checking a
+  Postgres flag on every authenticated request (including every HID input WebSocket message)
+  to close that window entirely would cost far more than it buys for a control this rarely
+  exercised; if instant revocation is ever required, `JWT_ACCESS_TTL_SECONDS` is the knob to
+  turn down, not a new DB hit added to the hot path.
+- **`POST /users/:id/reset-password`** (same role/tenant rules) hashes and sets a new
+  password directly -- no email, no reset token, no expiring link to secure. It deliberately
+  does *not* also lock the account or revoke existing refresh tokens (that's what
+  `lock`/`unlock` are for; an admin responding to a suspected credential leak should call
+  both, not rely on one endpoint to do everything).
+- `GetUserByIdQuery` existed before this phase too, also with no HTTP endpoint and, like
+  `GetEquipmentQuery` originally, **no tenant check in its handler at all** -- the same
+  "unwired code has an unnoticed bug" pattern documented elsewhere in this file. Fixed by
+  giving it the one real caller it always should have had (`GET /users/:id`, used by an
+  admin to check lock/MFA status before acting) and the same `belongsToTenant` check
+  `GetEquipmentHandler` already had.
+- `UserDto` (the shape `GET /users/:id` returns) deliberately excludes `passwordHash` and
+  `mfaSecret` even though the `User` domain entity exposes both -- an admin's "manage users"
+  view is not a raw row dump.
+
+## Security headers, CORS, and dependency audit
+
+- **Helmet + scoped CORS were already correctly configured** (`main.ts`): `helmet()` with
+  defaults, `enableCors({ origin: CORS_ORIGIN, credentials: true })`. No changes needed there.
+- **`Cross-Origin-Resource-Policy: same-origin`** (one of helmet's defaults) looked like it
+  might block the frontend's cross-origin `fetch()` calls (frontend on `:5173`, API on
+  `:3000` -- genuinely different origins) into reading blob responses (snapshot images via
+  `useAuthenticatedImage`) or even plain JSON. It doesn't: CORP only blocks **`no-cors`**
+  cross-origin loads (a bare `<img src>` with no `fetch`/CORS involved); a `fetch()` in the
+  default `cors` mode against a server that already sends a matching
+  `Access-Control-Allow-Origin` is unaffected. Verified empirically with a real headless
+  Chromium instance (Playwright) making both a JSON and a blob-shaped cross-origin `fetch()`
+  from `http://localhost:5173` to `http://localhost:3000` -- both succeeded, no
+  `Cross-Origin-Resource-Policy`-related failures. Documented here specifically so nobody
+  "fixes" this again on a hunch without checking first.
+- **Session fixation / CSRF do not apply to this API's auth model.** There is no
+  server-side session store and no cookie-based auth anywhere -- every authenticated request
+  carries a bearer access token the browser must attach itself (`Authorization` header), and
+  the one WS-auth exception (`MediaStreamTicketService`'s short-lived, 30-second ticket for
+  the `/stream` upgrade, which browsers can't attach headers to) is minted server-side
+  *after* full login, scoped to a specific already-authenticated `userId`+`sessionId`, not a
+  pre-authentication value an attacker could plant and later hijack -- the two preconditions
+  classic session fixation needs (a session identifier that exists before authentication, and
+  ambient credentials like cookies a browser sends automatically) are both absent. CSRF is
+  moot for the same reason: there is no ambient credential for a third-party site to ride
+  along on.
+- **Dependency audit** (`pnpm audit`): 6 advisories, all inside dev/build-only tooling
+  (`vitest`/`vite`/`esbuild`, exercised only by the test runner's own dev server, which this
+  project never starts) and one (`deepmerge-ts`, via `@prisma/config`) inside the Prisma CLI's
+  config-file loader, never on the request path of the running API. `pnpm audit --prod`
+  confirms exactly one finding (the same `deepmerge-ts` one) in the tree that actually ships;
+  it's exploitable only by merging an attacker-controlled, deeply-nested `prisma.config.ts` --
+  not a realistic threat model here, and there's no newer 6.x `prisma` release that pulls a
+  patched version (`prisma@6.19.3` is already latest-6.x; the fix needs Prisma 7's
+  driver-adapter pattern, rejected elsewhere in this doc for MVP simplicity). Accepted, not
+  ignored: revisit when evaluating a Prisma 7 migration.
+
+## A real browser had never actually loaded this app until this phase
+
+Every previous milestone's verification -- e2e tests, load tests, manual smoke tests -- drove
+the API directly (`supertest`, raw `curl`, a `socket.io-client`/`ws` script) or built the
+frontend (`vite build`) without ever loading it in an actual browser. Doing exactly that with
+a headless Chromium (Playwright) surfaced a real, previously-invisible bug:
+
+**`pnpm dev`'s Vite dev server could not run the frontend at all.** `packages/shared` compiles
+to CommonJS (its `package.json` has no `"type": "module"`, so `tsc`'s `NodeNext` output
+defaults to CJS -- exactly what `apps/api`'s own CommonJS build wants via plain `require()`,
+which is why nothing on the API side ever caught this). Vite's dev server normally
+CJS→ESM-interops third-party CommonJS dependencies automatically during its esbuild-based
+`optimizeDeps` pre-bundling step, but a pnpm workspace package resolved through a symlink
+apparently doesn't reliably get swept into that automatic discovery -- it was instead served
+raw through Vite's `/@fs/` filesystem passthrough, handing the browser literal
+`exports.TargetOs = ...` CommonJS source to satisfy a native ESM `import { TargetOs } from
+"@crop/shared"`. The browser's console error was blunt about it: *"The requested module...
+does not provide an export named 'TargetOs'"* -- meaning `LoginPage` (and everything else
+importing from `@crop/shared`) failed before rendering anything at all.
+
+`vite build` (production) was never affected -- confirmed by inspecting the built bundle,
+which already had `TargetOs` correctly inlined -- because Rollup's own CommonJS-interop
+plugin, used only for the production build path, handles this correctly regardless of how
+the dependency was resolved. Only the day-to-day `pnpm dev` workflow was broken, silently,
+for the entire life of the project so far.
+
+**Fix**: `apps/web/vite.config.ts` now explicitly lists `@crop/shared` in
+`optimizeDeps.include`, forcing it through the same esbuild pre-bundling/interop path a normal
+`node_modules` CJS dependency gets automatically. Verified by re-running the full
+credentials→MFA→dashboard→sign-out flow through real Playwright-driven Chromium against
+`pnpm dev`'s actual dev server (not a workaround script) -- confirming a correctly-rendered
+dashboard, equipment card, and patient queue, and a real server-side-revoked logout.
+
+If `@crop/pikvm` (also CJS, but consumed only by `apps/api`, never by the browser) ever
+gains a browser-facing consumer, expect the identical failure mode and the identical fix.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

@@ -16,4 +16,7 @@ export interface UserRepositoryPort {
   create(data: CreateUserData): Promise<User>;
   activateMfa(userId: string): Promise<void>;
   recordLogin(userId: string): Promise<void>;
+  lock(userId: string): Promise<void>;
+  unlock(userId: string): Promise<void>;
+  updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
 }

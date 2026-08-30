@@ -39,6 +39,18 @@ export class PrismaUserRepository implements UserRepositoryPort {
     await this.prisma.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
   }
 
+  async lock(userId: string): Promise<void> {
+    await this.prisma.user.update({ where: { id: userId }, data: { lockedAt: new Date() } });
+  }
+
+  async unlock(userId: string): Promise<void> {
+    await this.prisma.user.update({ where: { id: userId }, data: { lockedAt: null } });
+  }
+
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  }
+
   private toDomain(row: {
     id: string;
     tenantId: string;
@@ -48,6 +60,7 @@ export class PrismaUserRepository implements UserRepositoryPort {
     mfaSecret: string | null;
     mfaEnabledAt: Date | null;
     lastLoginAt: Date | null;
+    lockedAt: Date | null;
   }): User {
     return new User({
       id: row.id,
@@ -58,6 +71,7 @@ export class PrismaUserRepository implements UserRepositoryPort {
       mfaSecret: row.mfaSecret,
       mfaEnabledAt: row.mfaEnabledAt,
       lastLoginAt: row.lastLoginAt,
+      lockedAt: row.lockedAt,
     });
   }
 }

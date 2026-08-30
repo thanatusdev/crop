@@ -81,6 +81,7 @@ model User {
   mfaSecret    String? // base32 TOTP secret, set once during MFA enrollment
   mfaEnabledAt DateTime?
   lastLoginAt  DateTime?
+  lockedAt     DateTime? // set by an admin (see LockUserHandler); null means not locked
   createdAt    DateTime  @default(now())
 
   operatedSessions   Session[] @relation("OperatorSessions")

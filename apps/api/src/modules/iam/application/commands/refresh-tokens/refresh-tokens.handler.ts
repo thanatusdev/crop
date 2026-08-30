@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 import { CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
-import { NotFoundError, UnauthorizedError } from "../../../../../shared/domain/errors.js";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "../../../../../shared/domain/errors.js";
 import { TOKEN_REVOCATION, type TokenRevocationPort } from "../../ports/token-revocation.port.js";
 import { TOKEN_SERVICE, type TokenServicePort } from "../../ports/token-service.port.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
@@ -25,6 +25,13 @@ export class RefreshTokensHandler implements ICommandHandler<RefreshTokensComman
     // deactivation must take effect immediately, not after the old access token expires.
     const user = await this.users.findById(claims.sub);
     if (!user) throw new NotFoundError("User", claims.sub);
+
+    // This is the earliest point a lock imposed *after* the access token was issued
+    // actually takes effect (access tokens carry no lock state of their own -- see
+    // LockUserHandler's docstring on the bounded-window tradeoff this implies).
+    if (user.isLocked()) {
+      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+    }
 
     const accessToken = this.tokens.signAccessToken({
       sub: user.id,

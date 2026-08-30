@@ -1,7 +1,7 @@
 import { Inject, Logger } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
-import { TooManyRequestsError, UnauthorizedError } from "../../../../../shared/domain/errors.js";
+import { ForbiddenError, TooManyRequestsError, UnauthorizedError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { PASSWORD_HASHER, type PasswordHasherPort } from "../../ports/password-hasher.port.js";
 import { MFA_SERVICE, type MfaServicePort } from "../../ports/mfa-service.port.js";
@@ -54,6 +54,17 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     const invalidCredentials = () => new UnauthorizedError("Invalid credentials");
 
     if (!user) throw invalidCredentials();
+
+    // Checked before the password: a locked account should be told plainly, not sent down
+    // the "invalid credentials" path where a legitimate but locked-out user would keep
+    // trying (and confusingly, keep burning their own rate-limit budget) assuming they'd
+    // just mistyped it. Unlike a nonexistent email, this does confirm the account exists --
+    // an accepted tradeoff on an internal clinical platform with no self-service signup for
+    // an attacker to correlate this against, not a public consumer app.
+    if (user.isLocked()) {
+      await this.audit(user.tenantId, user.id, AuditAction.LOGIN_FAILURE, { reason: "account_locked" });
+      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+    }
 
     const passwordOk = await this.hasher.verify(user.passwordHash, command.password);
     if (!passwordOk) {
