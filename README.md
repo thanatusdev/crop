@@ -163,8 +163,12 @@ why the initial symptom pointed entirely the wrong way, in `docs/architecture.md
 ```bash
 pnpm --filter @crop/shared test   # coordinate math, modifier remap, hash chain (incl. the tamper-detection case)
 pnpm --filter @crop/pikvm test    # auth/TOTP building, stuck-key release tracking, no-crash-on-connection-error
-pnpm --filter @crop/api test:e2e  # tenant isolation, RBAC, session/WS-gateway lifecycle + takeover against real Postgres/Redis
+pnpm --filter @crop/api test:e2e  # tenant isolation, RBAC, session/WS-gateway lifecycle, auth hardening + takeover against real Postgres/Redis
 ```
+
+`.github/workflows/ci.yml` runs all of the above (typecheck, build, unit tests, e2e) on every
+push/PR against real Postgres and Redis service containers on the same ports/credentials as
+`docker-compose.yml` -- not mocked infrastructure, same tradeoff as the e2e suite itself.
 
 `test:e2e` boots the real application (compiled, against a dedicated `crop_test` database it
 creates and migrates itself) and drives it entirely through HTTP/WebSocket with `supertest`
