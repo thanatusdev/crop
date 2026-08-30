@@ -1,0 +1,209 @@
+// CROP - Clinical Remote Operation Platform
+// Prisma schema. See docs/architecture.md for the rationale behind AuditLog's append-only
+// enforcement (done in a raw-SQL migration, not expressible in Prisma's schema language)
+// and Session.controllerUserId (the field that actually enforces takeover).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantType {
+  CLINIC
+  OPERATOR_PROVIDER
+  PLATFORM
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  CLINIC_ADMIN
+  SUPERVISOR
+  OPERATOR
+  AUDITOR
+}
+
+enum EquipmentStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  MAINTENANCE
+}
+
+enum TargetOs {
+  WINDOWS
+  MACOS
+  LINUX
+}
+
+enum MouseMode {
+  ABSOLUTE
+  RELATIVE
+}
+
+enum SessionStatus {
+  PENDING
+  ACTIVE
+  ENDED
+  ABORTED
+}
+
+enum QueueStatus {
+  WAITING
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model Tenant {
+  id        String     @id @default(uuid())
+  name      String
+  type      TenantType
+  createdAt DateTime   @default(now())
+
+  users     User[]
+  equipment Equipment[]
+  auditLogs AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  email        String    @unique
+  passwordHash String
+  role         UserRole
+  mfaSecret    String? // base32 TOTP secret, set once during MFA enrollment
+  mfaEnabledAt DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  operatedSessions   Session[] @relation("OperatorSessions")
+  supervisedSessions Session[] @relation("SupervisorSessions")
+  auditLogs          AuditLog[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model Equipment {
+  id                       String          @id @default(uuid())
+  tenantId                 String
+  tenant                   Tenant          @relation(fields: [tenantId], references: [id])
+  name                     String
+  status                   EquipmentStatus @default(OFFLINE)
+  pikvmHost                String // e.g. https://10.0.1.50
+  pikvmUser                String
+  pikvmPasswordCiphertext  String // AES-256-GCM, see EncryptionService. Never plaintext.
+  pikvmTotpSecretCiphertext String?
+  cameraUrl                String?
+  targetOs                 TargetOs        @default(WINDOWS)
+  keymap                   String          @default("en-us")
+  mouseMode                MouseMode       @default(ABSOLUTE)
+  screenWidth              Int             @default(1920)
+  screenHeight             Int             @default(1080)
+  // ATX (power) and MSD (virtual USB drive) are intentionally NOT modeled here: the adapter
+  // in packages/pikvm does not implement those endpoints at all, by design.
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  sessions Session[]
+  queue    QueueEntry[]
+
+  @@index([tenantId])
+  @@map("equipment")
+}
+
+model Session {
+  id               String        @id @default(uuid())
+  equipmentId      String
+  equipment        Equipment     @relation(fields: [equipmentId], references: [id])
+  operatorId       String
+  operator         User          @relation("OperatorSessions", fields: [operatorId], references: [id])
+  supervisorId     String?
+  supervisor       User?         @relation("SupervisorSessions", fields: [supervisorId], references: [id])
+  /// Whoever's input is currently accepted. Starts equal to operatorId; a takeover flips this
+  /// to the supervisor. This field -- not supervisorId -- is what the HID gateway checks on
+  /// every input event, which is what makes takeover an enforced control rather than a label.
+  controllerUserId String
+  queueEntryId     String?       @unique
+  queueEntry       QueueEntry?   @relation(fields: [queueEntryId], references: [id])
+  status           SessionStatus @default(PENDING)
+  startedAt        DateTime?
+  endedAt          DateTime?
+  createdAt        DateTime      @default(now())
+
+  auditLogs AuditLog[]
+  snapshots SessionSnapshot[]
+
+  @@index([equipmentId])
+  @@index([operatorId])
+  @@index([status])
+  @@map("sessions")
+}
+
+model QueueEntry {
+  id               String      @id @default(uuid())
+  equipmentId      String
+  equipment        Equipment   @relation(fields: [equipmentId], references: [id])
+  patientFirstName String
+  position         Int
+  status           QueueStatus @default(WAITING)
+  scheduledAt      DateTime?
+  createdAt        DateTime    @default(now())
+
+  session Session?
+
+  @@index([equipmentId, status])
+  @@map("queue_entries")
+}
+
+/// Append-only by construction: a migration revokes UPDATE/DELETE from the application's
+/// database role and adds a trigger that raises on either. Prisma cannot express table
+/// privileges or triggers, hence the raw-SQL migration in prisma/migrations/*_audit_append_only.
+model AuditLog {
+  id           String   @id @default(uuid())
+  /// Per-tenant monotonic sequence; the hash chain is computed over (tenantId, seq), not the
+  /// global id, so verifying one tenant's history never requires another tenant's rows.
+  seq          Int
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  sessionId    String?
+  session      Session? @relation(fields: [sessionId], references: [id])
+  action       String
+  resourceType String
+  resourceId   String?
+  ip           String?
+  userAgent    String?
+  details      Json
+  hash         String
+  prevHash     String?
+  timestamp    DateTime @default(now())
+
+  @@unique([tenantId, seq])
+  @@index([tenantId, timestamp])
+  @@index([sessionId])
+  @@map("audit_logs")
+}
+
+/// Periodic visual evidence captured during a session (PiKVM `/api/streamer/snapshot`),
+/// optionally with OCR text. Turns the audit trail from "coordinates" into "what the
+/// operator could see at time T" -- see docs/architecture.md Part 6.
+model SessionSnapshot {
+  id         String   @id @default(uuid())
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id])
+  imagePath  String // object storage key / local path
+  ocrText    String?
+  capturedAt DateTime @default(now())
+
+  @@index([sessionId, capturedAt])
+  @@map("session_snapshots")
+}

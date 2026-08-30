@@ -1,0 +1,12 @@
+# Minimal MediaMTX config for the CCTV room-feed path only.
+# A webcam publisher (infra/seeds or a small ffmpeg container, see README) pushes RTSP here;
+# apps/web plays it back via WHEP. 1-2s of latency on this feed is acceptable per spec --
+# it is explicitly not the console video path, which has its own sub-200ms budget.
+
+rtspAddress: :8554
+webrtcAddress: :8889
+webrtcAdditionalHosts: [localhost]
+
+paths:
+  cctv:
+    source: publisher

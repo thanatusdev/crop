@@ -1,0 +1,26 @@
+{
+  "name": "crop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Clinical Remote Operation Platform (MVP)",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "pnpm --filter @crop/api prisma migrate deploy",
+    "db:seed": "pnpm --filter @crop/api build && pnpm --filter @crop/api exec tsx ../../infra/seeds/seed.ts",
+    "spike:mock": "pnpm --filter @crop/api exec tsx ../../infra/spike/mock-pikvm-server.ts",
+    "spike:run": "pnpm --filter @crop/api exec tsx ../../infra/spike/pikvm-spike.ts",
+    "loadtest:input": "pnpm --filter @crop/api exec tsx ../../infra/loadtest/input-pipeline.ts"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
