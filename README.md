@@ -187,6 +187,13 @@ detail on each is in `docs/architecture.md`; summary:
 | `EndSessionHandler`/`AbortIdleSessionHandler` each called the device reset endpoint twice | Same timeout investigation, once the redundancy became visible at scale | Doubled real-world latency on the stuck-key safety path against any slow/unreachable device |
 | `MediaStreamServer`'s `ws.Server({server, path})` destroyed sockets Socket.io had already claimed | `pnpm loadtest:input`, the first test to have both video relay and a real Socket.io client active together | Corrupted the WebSocket connection under the platform's own core use case: video + HID input in the same browser session |
 | `AuditAction.LOGOUT` was defined in the enum but never dispatched anywhere | Auth hardening pass, reviewing what a "logout" actually did | No server-side effect at all: a stolen refresh token stayed valid for its full 7-day life even after the legitimate user "logged out" |
+| `GetUserByIdQuery` had no HTTP endpoint and, once given one, no tenant check | Wiring up admin lock/unlock/reset-password endpoints | Would have let one tenant's admin look up another tenant's user by UUID, the same class of bug `GET /sessions/:id` had |
+| `pnpm dev`'s Vite dev server could not run the frontend in a real browser at all | Actually loading the app in headless Chromium (Playwright) instead of only `curl`/`supertest`/`vite build` | Every import from `@crop/shared` (a CJS package) failed in the browser with "does not provide an export named..." — the entire frontend was unusable via the documented `pnpm dev` workflow, silently, for the life of the project so far |
+
+Security-hardening pass added: Redis-backed rate limiting on login/MFA, real logout with
+refresh-token revocation and rotation, and admin-only account lockout/forced password reset.
+`pnpm audit` reviewed too: the only findings are in dev-only tooling or the Prisma CLI's
+config loader, never on the running API's request path — see `docs/architecture.md`.
 
 ## Demo script
 

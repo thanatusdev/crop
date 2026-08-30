@@ -1,7 +1,7 @@
 import { Inject, Logger } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
-import { NotFoundError, TooManyRequestsError, UnauthorizedError } from "../../../../../shared/domain/errors.js";
+import { ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { MFA_SERVICE, type MfaServicePort } from "../../ports/mfa-service.port.js";
 import { RATE_LIMITER, type RateLimiterPort } from "../../ports/rate-limiter.port.js";
@@ -42,6 +42,13 @@ export class VerifyMfaHandler implements ICommandHandler<VerifyMfaCommand, Verif
 
     const user = await this.users.findById(userId);
     if (!user) throw new NotFoundError("User", userId);
+
+    // An admin can lock an account in between LoginHandler issuing the mfaToken and this
+    // step completing it -- re-checked here, not just in LoginHandler, so that window can't
+    // be used to finish logging in on a since-locked account.
+    if (user.isLocked()) {
+      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+    }
 
     if (!user.mfaSecret || !this.mfa.verifyCode(user.mfaSecret, command.code)) {
       await this.audit(user.tenantId, user.id, AuditAction.MFA_FAILURE, {});

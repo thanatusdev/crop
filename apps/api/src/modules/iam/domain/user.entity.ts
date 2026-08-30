@@ -9,6 +9,7 @@ export interface UserProps {
   mfaSecret: string | null;
   mfaEnabledAt: Date | null;
   lastLoginAt: Date | null;
+  lockedAt: Date | null;
 }
 
 /**
@@ -45,6 +46,12 @@ export class User {
 
   isMfaEnrolled(): boolean {
     return this.props.mfaEnabledAt !== null && this.props.mfaSecret !== null;
+  }
+
+  // Nullable timestamp, not a boolean column: `lockedAt` doubles as a "when" for anyone
+  // reviewing why an account can't log in, at no extra cost over a plain flag.
+  isLocked(): boolean {
+    return this.props.lockedAt !== null;
   }
 
   hasAnyRole(...roles: UserRole[]): boolean {
