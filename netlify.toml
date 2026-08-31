@@ -1,0 +1,27 @@
+## Deploys the Vite SPA (apps/web) standalone, separate from the Railway-hosted API/mock
+## PiKVM/Postgres/Redis -- see DEPLOY.md. This file's settings work whether you deploy via
+## Netlify's dashboard ("Deploy from Git", pointed at this repo) or via the CLI -- DEPLOY.md
+## documents the CLI path actually used for this repo's own live demo (bypasses needing to
+## authorize Netlify's GitHub integration at all).
+##
+## VITE_API_URL must be set as a Netlify site environment variable (Site settings ->
+## Environment variables) to the deployed API's public URL, e.g. https://crop-api.up.railway.app
+## -- Vite inlines VITE_* vars at build time (apps/web/src/lib/config.ts), so this can't be
+## set after the fact without triggering a rebuild.
+
+[build]
+  # Left at the repo root (not apps/web) on purpose: @crop/web depends on the @crop/shared
+  # workspace package (main: "./dist/index.js"), which has to be built first -- Netlify's
+  # build needs the whole monorepo checked out to do that, not just apps/web in isolation.
+  command = "corepack enable && corepack prepare pnpm@9.15.0 --activate && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@crop/web..."
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# react-router is client-side routing -- without this, refreshing on e.g. /sessions/:id (or
+# sharing that URL directly) 404s at Netlify's edge before React ever gets a chance to render.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

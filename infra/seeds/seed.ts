@@ -12,6 +12,7 @@ import { NestFactory } from "@nestjs/core";
 import { CommandBus } from "@nestjs/cqrs";
 import * as OTPAuth from "otpauth";
 import { TargetOs, MouseMode, UserRole } from "@crop/shared";
+import { DEMO_PASSWORD } from "./demo-password.js";
 import { AppModule } from "../../apps/api/dist/app.module.js";
 import { PrismaService } from "../../apps/api/dist/shared/infrastructure/prisma/prisma.service.js";
 import { RegisterUserCommand } from "../../apps/api/dist/modules/iam/application/commands/register-user/register-user.command.js";
@@ -60,11 +61,11 @@ async function main(): Promise<void> {
 
   console.log("Seeding users (registering + auto-confirming MFA)...");
   const users: SeededUser[] = [];
-  users.push(await registerAndEnroll(commandBus, alpha.id, "admin@alpha.crop.health", "SenhaForte123!", UserRole.CLINIC_ADMIN));
-  users.push(await registerAndEnroll(commandBus, alpha.id, "operator@alpha.crop.health", "SenhaForte123!", UserRole.OPERATOR));
-  users.push(await registerAndEnroll(commandBus, alpha.id, "supervisor@alpha.crop.health", "SenhaForte123!", UserRole.SUPERVISOR));
-  users.push(await registerAndEnroll(commandBus, alpha.id, "auditor@alpha.crop.health", "SenhaForte123!", UserRole.AUDITOR));
-  users.push(await registerAndEnroll(commandBus, beta.id, "operator@beta.crop.health", "SenhaForte123!", UserRole.OPERATOR));
+  users.push(await registerAndEnroll(commandBus, alpha.id, "admin@alpha.crop.health", DEMO_PASSWORD, UserRole.CLINIC_ADMIN));
+  users.push(await registerAndEnroll(commandBus, alpha.id, "operator@alpha.crop.health", DEMO_PASSWORD, UserRole.OPERATOR));
+  users.push(await registerAndEnroll(commandBus, alpha.id, "supervisor@alpha.crop.health", DEMO_PASSWORD, UserRole.SUPERVISOR));
+  users.push(await registerAndEnroll(commandBus, alpha.id, "auditor@alpha.crop.health", DEMO_PASSWORD, UserRole.AUDITOR));
+  users.push(await registerAndEnroll(commandBus, beta.id, "operator@beta.crop.health", DEMO_PASSWORD, UserRole.OPERATOR));
 
   console.log("Seeding equipment (registering MRI-01 against a real or simulated PiKVM)...");
   const pikvmHost = process.env.SEED_PIKVM_HOST ?? "https://192.168.1.50";
