@@ -5,6 +5,7 @@ build
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.log
 .DS_Store
 coverage
@@ -13,3 +14,7 @@ infra/postgres-data
 infra/redis-data
 infra/mediamtx-data
 apps/api/storage
+.demo
+
+# Local Netlify folder
+.netlify

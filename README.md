@@ -37,11 +37,15 @@ docs/           architecture + PiKVM integration reference
 ## Running it locally
 
 Infrastructure (Postgres, Redis, MediaMTX) runs in Docker; the API and frontend run natively
-with Node for fast iteration and straightforward debugging during a live demo. This is a
-deliberate choice, not a shortcut: containerizing a pnpm workspace with native dependencies
-(`argon2`) correctly is real effort with real ways to get subtly wrong, and isn't worth the
-risk for an MVP demo where nobody is deploying this to a fleet of machines yet. Production
-would add API/web Dockerfiles behind the same Compose file.
+with Node for fast iteration and straightforward debugging during a live demo. `make demo`
+(see below) wraps all of this into one command.
+
+Deploying somewhere shareable instead of running locally? See `DEPLOY.md` --
+`apps/api/Dockerfile` and `infra/spike/Dockerfile` containerize the API and the mock PiKVM
+respectively (both built and verified locally with `docker build`/`docker run`, including
+correctly handling `argon2`'s native build step, which needs `python3`/`make`/`g++` present
+at install time or it fails outright on a slim base image -- see that Dockerfile's own
+comments).
 
 ### 1. Prerequisites
 
@@ -105,7 +109,8 @@ bootstrapped Nest application context — not raw SQL — so seeded accounts beh
 to ones created through the UI. It prints each user's email, password, and TOTP secret:
 **add those secrets to an authenticator app now**, you'll need live codes to log in.
 
-**No PiKVM hardware available?** Run the mock instead (a separate terminal, kept running):
+**No PiKVM hardware available?** Run the mock instead (a separate terminal, kept running) --
+or skip straight to `make demo` (step 8 below), which does exactly this for you:
 
 ```bash
 pnpm spike:mock   # http://localhost:8443, plain HTTP -- see infra/spike/mock-pikvm-server.ts
@@ -147,6 +152,31 @@ Set an equipment's `cameraUrl` to MediaMTX's WHEP playback endpoint for that pat
 `SessionPage` — `SEED_MEDIAMTX_WHEP_URL` does this for MRI-01 when seeding. This is a fully
 separate video path from the PiKVM console (WebRTC via MediaMTX vs. the raw WebSocket relay
 in `docs/architecture.md`) and is allowed the 1-2s of latency the console path is not.
+
+### 8. Or skip all of the above: `make demo`
+
+Every step above (steps 2-6, against the mock PiKVM) is wrapped in a `Makefile` for
+day-to-day use. `make help` lists everything; the ones you'll actually reach for:
+
+```bash
+make demo          # infra + mock PiKVM + API + web, all in the background, no hardware needed
+make totp           # email + password + a *currently valid* TOTP code for every seeded user
+make demo-status    # is everything still up?
+make demo-logs       # tail all three background logs together
+make demo-stop       # stop the background processes (infra containers keep running)
+```
+
+`make demo` is idempotent — re-running it skips any step that's already done (infra already
+up, database already seeded, a server already listening on its port), so it's safe to run
+again after a reboot or if one process died. `make totp` reads TOTP secrets live from the
+database and computes a fresh code every time it's run, rather than reusing whatever
+`db:seed` printed once at seed time (those codes are stale within 30 seconds, and the
+secrets themselves scroll off-screen long before a demo is over).
+
+Everything else — `make up`/`down`, `make migrate`/`reset-db`, `make seed` (against real
+hardware) / `make seed-mock`, `make build`/`typecheck`/`lint`/`test`/`test-e2e`, `make
+psql`/`redis-cli` — maps directly to the commands in the steps above; `make help` documents
+each one inline.
 
 ## Observability and load testing
 
