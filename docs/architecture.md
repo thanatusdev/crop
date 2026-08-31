@@ -454,6 +454,68 @@ every issue below -- this wasn't a manual guess-and-check pass.
   reason `LatencyClockPage` is: this is fundamentally a sighted-operator, pointer-and-keyboard
   tool, the same way MRI/CT console software itself is.
 
+## Supervisor takeover hardening
+
+Takeover had **zero test coverage** before this phase, despite being one of the platform's
+three headline features (README: "mandatory 2FA, enforced supervisor takeover, and a
+hash-chained append-only audit trail"). Writing the first tests for it (`test/takeover.e2e.spec.ts`)
+found two real bugs, one of them serious.
+
+- **`ExecuteTakeoverHandler` had no tenant-isolation check at all -- the most serious bug
+  found in this project so far.** Every other cross-tenant read in this codebase (equipment,
+  sessions, users) had this exact class of bug caught and fixed at some point (see this
+  document's other entries); takeover was the one write path where it was never caught,
+  because it was never tested. Unlike `HID_INPUT`/`PRINT_TEXT` (which only ever act on a
+  `data.session` populated by a prior, tenant-checked `JOIN_SESSION`), the gateway dispatches
+  `TAKEOVER_REQUEST` straight from a client-supplied `sessionId` with no equivalent check of
+  its own -- and the handler trusted it completely. Concretely: any authenticated
+  SUPERVISOR/CLINIC_ADMIN/PLATFORM_ADMIN, in *any* tenant, could take over *any other
+  tenant's* active session purely by guessing or observing a session UUID -- reassigning
+  control of someone else's live clinical equipment, silently (PiKVM itself has no
+  per-tenant concept to reject it at the device side either). Fixed by adding the same
+  `session.tenantId !== command.tenantId` check every other handler in this codebase already
+  has, in `ExecuteTakeoverHandler` itself -- not just in the gateway, following this
+  project's established defense-in-depth pattern of never trusting the transport layer alone.
+- **`setController` was an unconditional write, with no protection against two
+  near-simultaneous takeover attempts.** Both could read the same stale `controllerUserId`,
+  both pass `assertCanBeTakenOverBy`, and both write -- whichever transaction committed last
+  would "win" the database, while the other believed it had won too, and (worse) the
+  in-memory `SessionRuntimePort` -- the actual authority for gating live input, per its own
+  docstring -- could end up pointing at whichever one updated the runtime cache last,
+  independently of which one the database ended up agreeing with. Fixed by turning
+  `SessionRepositoryPort.setController` into a compare-and-swap: it now takes the
+  previously-read `controllerUserId` as a required "only if this is still current" precondition
+  and returns whether it actually applied (`PrismaSessionRepository` implements this with
+  `updateMany`'s `where` clause and its `count`, not `update`, which has no way to express a
+  conditional match on a non-unique column). A lost race now surfaces as a `409 Conflict`
+  ("this session was just taken over by someone else"), and the runtime cache is only ever
+  updated by whichever attempt actually won at the database. Proven two ways in the test
+  suite: a real two-socket WebSocket race (timing-dependent, not guaranteed to actually
+  interleave on every run, but the *outcome* invariant -- exactly one grant, never zero,
+  never two -- is asserted regardless) and a direct, deterministic test of the underlying
+  `updateMany` compare-and-swap itself.
+- **Audit completeness**: `AuditAction.TAKEOVER_REQUESTED` was defined in the enum from the
+  start of the project but never emitted anywhere -- the same "defined but unwired" pattern
+  documented elsewhere in this file (`LOGOUT`, `GetUserByIdQuery`). Now emitted
+  unconditionally, before any check runs, on every takeover attempt -- successful or not.
+  `TAKEOVER_GRANTED` is still added only on success, so "a `TAKEOVER_REQUESTED` with no
+  matching `TAKEOVER_GRANTED`" is now a real, queryable signal of a denied, failed, or
+  race-losing attempt, not just of successful ones. Every `TAKEOVER_REQUESTED` row is
+  attributed to the session's *real* tenant (`session.tenantId`), deliberately never the
+  caller's own claimed tenant -- otherwise a cross-tenant attempt would be misattributed to
+  the attacker's own tenant, invisible to the victim tenant's auditors, defeating the entire
+  point of auditing the attempt at all.
+- **Not built, deliberately flagged rather than silently skipped**: there is no way to hand
+  control *back* to the original operator once a supervisor has taken over, other than
+  ending the session entirely and having the operator start a new one. `ExecuteTakeoverCommand`
+  always transfers control *to the caller*; there is no "transfer control to a specific,
+  different userId" primitive at all, and `TAKEOVER_ALLOWED_ROLES` excludes OPERATOR, so the
+  original operator cannot even take back their own session by calling the same command a
+  second time. This is a real workflow gap (a supervisor intervening briefly, then handing
+  back control, is a reasonable and probably expected clinical workflow) but is a new
+  capability, not a hardening fix of existing behavior -- noted here as a recommended
+  follow-up rather than built speculatively in this phase.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

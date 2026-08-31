@@ -77,11 +77,22 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
     });
   }
 
-  async setController(sessionId: string, controllerUserId: string, supervisorId: string): Promise<void> {
-    await this.prisma.session.update({
-      where: { id: sessionId },
+  async setController(
+    sessionId: string,
+    controllerUserId: string,
+    supervisorId: string,
+    expectedCurrentControllerUserId: string
+  ): Promise<boolean> {
+    // `updateMany`, not `update`: `update` takes a unique-field `where` and always either
+    // applies or throws `RecordNotFound` -- it has no way to express "only if this other
+    // column still has this value", which is exactly the compare-and-swap this needs.
+    // `updateMany`'s `where` clause has no such restriction, and its `count` tells us
+    // whether the condition actually held at the moment Postgres evaluated it.
+    const result = await this.prisma.session.updateMany({
+      where: { id: sessionId, controllerUserId: expectedCurrentControllerUserId },
       data: { controllerUserId, supervisorId },
     });
+    return result.count === 1;
   }
 
   async end(sessionId: string, status: "ENDED" | "ABORTED"): Promise<void> {

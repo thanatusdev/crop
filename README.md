@@ -191,6 +191,9 @@ detail on each is in `docs/architecture.md`; summary:
 | `pnpm dev`'s Vite dev server could not run the frontend in a real browser at all | Actually loading the app in headless Chromium (Playwright) instead of only `curl`/`supertest`/`vite build` | Every import from `@crop/shared` (a CJS package) failed in the browser with "does not provide an export named..." — the entire frontend was unusable via the documented `pnpm dev` workflow, silently, for the life of the project so far |
 | Every page was missing landmark structure (`<main>`, a real `<h1>`), and every form input's `<label>` was an unassociated sibling, not linked via `htmlFor`/`id` | Running `axe-core` against the real, running app in headless Chromium, not a manual read-through | Screen reader users got no page-content landmark and no announced name for any login/MFA/text-entry field |
 | Initial data loads on the dashboard, session, replay, and audit pages had no error handling — only a `finally` clearing the loading flag | Deliberately testing what a failed fetch does, once error handling became the focus of this phase | A network failure or 500 left pages stuck on "Loading..." forever, or silently rendered a misleading empty-state message instead of any error |
+| **`ExecuteTakeoverHandler` had no tenant-isolation check at all** — the most serious bug found in this project | Writing the first-ever test for takeover, one of the platform's three headline features, which had zero test coverage before this phase | Any SUPERVISOR/admin in *any* tenant could take over *any other tenant's* active session by sessionId alone, silently reassigning control of someone else's live clinical equipment |
+| `setController` was an unconditional write with no protection against two near-simultaneous takeover attempts | Reasoning about what "enforced" takeover actually guarantees, once tenant isolation was fixed and testing continued | The database and the in-memory controller cache (the actual authority for gating live input) could end up disagreeing about who was really in control |
+| `AuditAction.TAKEOVER_REQUESTED` was defined in the enum but never emitted anywhere | Same review — the third of four now-fixed "defined but unwired" audit actions found across this project (`LOGOUT`, this one, plus `GetUserByIdQuery`'s missing endpoint) | Denied, failed, or race-losing takeover attempts left no audit trace at all — only successful ones were ever recorded |
 
 Security-hardening pass added: Redis-backed rate limiting on login/MFA, real logout with
 refresh-token revocation and rotation, and admin-only account lockout/forced password reset.
@@ -202,6 +205,12 @@ Frontend accessibility pass added: landmark/heading structure, label association
 single-column layout below 900px, verified with `axe-core` against a live browser — see
 `docs/architecture.md` for the full list and the one deliberately-unfixed exception (the
 console capture zone's inherent keyboard trap, shared by every browser-based remote-KVM tool).
+
+Supervisor-takeover hardening pass added: the tenant-isolation and race-condition fixes
+above, full audit-trail completeness for takeover attempts, and the first test coverage
+takeover has ever had (`test/takeover.e2e.spec.ts`) — see `docs/architecture.md`, which also
+flags one deliberately-unbuilt gap: there is still no way to hand control back to the
+original operator short of ending the session.
 
 ## Demo script
 
