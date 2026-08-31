@@ -1,9 +1,10 @@
-import { Inject } from "@nestjs/common";
+import { Inject, Logger } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
-import { AuditAction } from "@crop/shared";
+import { AuditAction, QueueStatus } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
+import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../../../queue/application/ports/queue-repository.port.js";
 import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../../ports/pikvm-gateway.port.js";
 import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../../ports/session-repository.port.js";
 import { SESSION_RUNTIME, type SessionRuntimePort } from "../../ports/session-runtime.port.js";
@@ -11,10 +12,13 @@ import { EndSessionCommand } from "./end-session.command.js";
 
 @CommandHandler(EndSessionCommand)
 export class EndSessionHandler implements ICommandHandler<EndSessionCommand, void> {
+  private readonly logger = new Logger(EndSessionHandler.name);
+
   constructor(
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
+    @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly metrics: MetricsService
   ) {}
@@ -39,6 +43,18 @@ export class EndSessionHandler implements ICommandHandler<EndSessionCommand, voi
     await this.sessions.end(session.id, "ENDED");
     this.runtime.clear(session.id);
     this.metrics.sessionsActive.dec();
+
+    // See StartSessionHandler's comment on why this matters: without it, the queue entry
+    // stays "WAITING" forever, and its permanently-`@unique` queueEntryId link to *this*
+    // session blocks it from ever being attached to a new one. A completed exam is DONE,
+    // not still waiting. Best-effort, same reasoning as the start-side transition.
+    if (session.queueEntryId) {
+      try {
+        await this.queue.updateStatus(session.queueEntryId, QueueStatus.DONE);
+      } catch (err) {
+        this.logger.warn(`Could not mark queue entry ${session.queueEntryId} DONE: ${(err as Error).message}`);
+      }
+    }
 
     await this.commandBus.execute(
       new RecordAuditEventCommand({

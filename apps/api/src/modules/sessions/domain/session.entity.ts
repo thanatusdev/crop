@@ -11,6 +11,7 @@ export interface SessionProps {
   status: SessionStatus;
   startedAt: Date | null;
   endedAt: Date | null;
+  queueEntryId: string | null;
 }
 
 /**
@@ -54,6 +55,13 @@ export class Session {
 
   get endedAt(): Date | null {
     return this.props.endedAt;
+  }
+
+  /** The patient-queue entry this session was started against, if any -- see
+   * StartSessionHandler/EndSessionHandler/AbortIdleSessionHandler, which use this to keep
+   * the queue entry's own status in sync with the session's lifecycle. */
+  get queueEntryId(): string | null {
+    return this.props.queueEntryId;
   }
 
   isActive(): boolean {

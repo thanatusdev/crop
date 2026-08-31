@@ -20,12 +20,14 @@ export default function SessionPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [printText, setPrintText] = useState("");
+  const [printSent, setPrintSent] = useState(false);
   const [ending, setEnding] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const printSentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isController = session?.controllerUserId === user?.sub;
   const isSupervisorEligible = user?.role === "SUPERVISOR" || user?.role === "CLINIC_ADMIN" || user?.role === "PLATFORM_ADMIN";
@@ -81,9 +83,23 @@ export default function SessionPage() {
       ev.preventDefault();
       socket?.emit(RT_EVENTS.PRINT_TEXT, { text: printText });
       setPrintText("");
+      // The socket emit above is fire-and-forget -- there's no ack, and the actual
+      // PRINT_TEXT audit row (the real confirmation) only lands after a round trip to the
+      // device. This is a best-effort "your click registered" signal, not proof of
+      // delivery: without it, clearing the field on submit with zero other feedback looked
+      // indistinguishable from the click having done nothing at all.
+      setPrintSent(true);
+      if (printSentTimerRef.current) clearTimeout(printSentTimerRef.current);
+      printSentTimerRef.current = setTimeout(() => setPrintSent(false), 2500);
     },
     [socket, printText]
   );
+
+  useEffect(() => {
+    return () => {
+      if (printSentTimerRef.current) clearTimeout(printSentTimerRef.current);
+    };
+  }, []);
 
   async function endSession() {
     if (!sessionId) return;
@@ -234,6 +250,11 @@ export default function SessionPage() {
                 <button className="btn" type="submit" disabled={!isController || !printText}>
                   Send
                 </button>
+                {printSent && (
+                  <p role="status" style={{ color: "#5fdc8a", fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+                    ✓ Sent to equipment
+                  </p>
+                )}
               </form>
             </div>
           </div>

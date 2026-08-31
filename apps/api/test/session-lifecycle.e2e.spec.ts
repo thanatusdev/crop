@@ -165,4 +165,63 @@ describe("Session lifecycle", () => {
       startedSessionIds.map((id) => http.post(`/sessions/${id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201))
     );
   });
+
+  it("moves a queue entry through WAITING -> IN_PROGRESS -> DONE as its session starts and ends, so the same equipment can serve the next patient afterward", async () => {
+    // A real bug found manually demoing this: `Session.queueEntryId` is `@unique` (one
+    // session per queue entry, ever -- not just one *active* one), but nothing ever moved a
+    // queue entry off WAITING when a session started against it. The dashboard's "next
+    // waiting patient" picker kept re-selecting the *same*, already-consumed entry on every
+    // subsequent "Start session" click, which always collided on that unique constraint --
+    // misreported, on top of that, as "Equipment already has an active session" (a
+    // completely different, unrelated conflict). See PrismaSessionRepository/
+    // StartSessionHandler/EndSessionHandler's own comments.
+    const dedicatedEquipmentId = await createOnlineEquipment(http, adminToken, prisma, `Queue-Sync-${crypto.randomUUID()}`);
+
+    const patientRes = await http
+      .post("/queue")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ equipmentId: dedicatedEquipmentId, patientFirstName: "Carlos" })
+      .expect(201);
+    const queueEntryId = patientRes.body.id;
+    expect(patientRes.body.status).toBe("WAITING");
+
+    const sessionRes = await http
+      .post("/sessions")
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .send({ equipmentId: dedicatedEquipmentId, queueEntryId })
+      .expect(201);
+
+    const duringSession = await http
+      .get(`/queue?equipmentId=${dedicatedEquipmentId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(duringSession.body.find((e: { id: string }) => e.id === queueEntryId).status).toBe("IN_PROGRESS");
+
+    await http.post(`/sessions/${sessionRes.body.id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
+
+    const afterEnd = await http
+      .get(`/queue?equipmentId=${dedicatedEquipmentId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(afterEnd.body.find((e: { id: string }) => e.id === queueEntryId).status).toBe("DONE");
+
+    // The actual regression check: starting a brand new session against the SAME equipment
+    // (with no queueEntryId this time, since the one and only patient is now DONE) must not
+    // 409 on a stale, already-consumed queueEntryId anywhere in the stack.
+    const secondSessionRes = await http
+      .post("/sessions")
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .send({ equipmentId: dedicatedEquipmentId })
+      .expect(201);
+    await http.post(`/sessions/${secondSessionRes.body.id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
+  });
+
+  // `AbortIdleSessionHandler`'s equivalent transition (queue entry -> CANCELLED, not back to
+  // WAITING, when a session aborts on idle timeout) is NOT covered by a dedicated e2e test
+  // here: genuinely triggering it means waiting out SESSION_IDLE_TIMEOUT_MS for real, and
+  // this suite deliberately never does multi-minute waits (see this file's other tests, all
+  // driven by real HTTP/device timeouts already in the single-digit seconds). Verified by
+  // code inspection instead -- it's the same `queue.updateStatus()` call, at the same point
+  // in the same lifecycle, as the two paths this test *does* exercise above, just a
+  // different target status. See docs/architecture.md.
 });

@@ -1,8 +1,9 @@
 import { Inject, Logger } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
-import { AuditAction, SessionStatus } from "@crop/shared";
+import { AuditAction, QueueStatus, SessionStatus } from "@crop/shared";
 import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
+import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../../../queue/application/ports/queue-repository.port.js";
 import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../../ports/pikvm-gateway.port.js";
 import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../../ports/session-repository.port.js";
 import { SESSION_RUNTIME, type SessionRuntimePort } from "../../ports/session-runtime.port.js";
@@ -26,6 +27,7 @@ export class AbortIdleSessionHandler implements ICommandHandler<AbortIdleSession
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
+    @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly metrics: MetricsService
   ) {}
@@ -44,6 +46,21 @@ export class AbortIdleSessionHandler implements ICommandHandler<AbortIdleSession
     await this.sessions.end(session.id, "ABORTED");
     this.runtime.clear(session.id);
     this.metrics.sessionsActive.dec();
+
+    // Not back to WAITING: `queueEntryId` is permanently `@unique` on the sessions table
+    // (one session per queue entry, ever), so even with the status reset, this *exact*
+    // queue entry could never be attached to a new session again -- leaving it "WAITING"
+    // would be a lie that invites exactly the retry-forever bug this whole comment thread
+    // (see StartSessionHandler) is about. CANCELLED is the honest status: the exam this
+    // queue entry represents didn't happen, and whoever is coordinating the patient queue
+    // needs to add them again (a fresh queue entry, a fresh session) to retry.
+    if (session.queueEntryId) {
+      try {
+        await this.queue.updateStatus(session.queueEntryId, QueueStatus.CANCELLED);
+      } catch (err) {
+        this.logger.warn(`Could not mark queue entry ${session.queueEntryId} CANCELLED: ${(err as Error).message}`);
+      }
+    }
 
     await this.commandBus.execute(
       new RecordAuditEventCommand({

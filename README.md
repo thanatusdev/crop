@@ -105,6 +105,26 @@ bootstrapped Nest application context — not raw SQL — so seeded accounts beh
 to ones created through the UI. It prints each user's email, password, and TOTP secret:
 **add those secrets to an authenticator app now**, you'll need live codes to log in.
 
+**No PiKVM hardware available?** Run the mock instead (a separate terminal, kept running):
+
+```bash
+pnpm spike:mock   # http://localhost:8443, plain HTTP -- see infra/spike/mock-pikvm-server.ts
+```
+
+then seed against it:
+
+```bash
+SEED_PIKVM_HOST=http://localhost:8443 SEED_PIKVM_USER=admin SEED_PIKVM_PASSWORD=admin pnpm db:seed
+```
+
+Everything works end to end this way — login/MFA, equipment health-polling to ONLINE,
+sessions, HID input, takeover, return-control, print-text, the patient queue, the full audit
+trail — except the video panel, which will correctly show a decode error (the mock sends
+fake frame bytes to exercise the protocol, not real, decodable H.264 — see the mock's own
+docstring). If you restart with a fresh mock/seed and equipment ever gets stuck reporting
+"already has an active session" for no visible reason, see docs/architecture.md's note on
+queue-entry lifecycle — likely fixed already, but worth knowing about if it recurs.
+
 ### 6. Run the API and frontend
 
 ```bash
@@ -198,6 +218,9 @@ detail on each is in `docs/architecture.md`; summary:
 | **The queue module had no tenant isolation on any of its three routes, and no role gate either** — worse than the takeover bug above | A systematic "defined but never wired" audit across the whole codebase, following the exact pattern that found every bug in this table | Any authenticated user, any role, any tenant, could create, list (patient names included), or transition another tenant's patient queue by ID alone |
 | `PrintTextHandler` awaited PiKVM's REST call with no try/catch | Adding the print-text validation below surfaced it: a print attempt against a struggling device threw before ever reaching the audit dispatch | An attempted print action left no trace at all — not even a failure record — if the device was slow or unreachable |
 | `AuditAction.PERMISSION_DENIED`/`EQUIPMENT_CREATED`/`EQUIPMENT_UPDATED`/`QUEUE_ENTRY_CREATED`/`QUEUE_ENTRY_UPDATED` were all defined but never emitted; `PrintTextRequestSchema` validated nothing; a shared, tested `verifyAuditChain` helper was reimplemented by hand instead of called | Same systematic audit | Denied-access attempts, equipment/queue state changes, and print-text input all had gaps in either validation or the audit trail |
+| **A queue entry, once attached to any session — successful, ended, or aborted — could never be attached to a new one, but nothing ever moved it off `WAITING`**, so the dashboard kept re-selecting the same stuck patient forever | Running a live demo and hitting a persistent "Equipment already has an active session" error that a fresh `curl` request against the same equipment proved false | Starting a *second* session for any equipment that had ever served a patient failed permanently, mislabeled with an error message pointing at the wrong subsystem entirely |
+| `infra/` scripts (`seed.ts`, spike/loadtest scripts) have zero typecheck coverage anywhere in this monorepo's toolchain | A `CreateEquipmentCommand`/`CreateQueueEntryCommand` signature change from the cleanup pass broke `seed.ts`, silently, since it's a direct `CommandBus` caller no `tsc` pass ever checks | The regression was invisible to `pnpm typecheck`/`build`/the full e2e suite and only surfaced when `pnpm db:seed` was actually run |
+| "Type text" cleared itself with zero success feedback, indistinguishable from doing nothing (worse paired with the mock PiKVM's permanently-black video panel) | User-reported while demoing; confirmed via the audit trail that it had, in fact, always worked | Purely a UX gap, not a functional bug — now shows a transient "✓ Sent to equipment" confirmation |
 
 Codebase cleanup pass added: the queue tenant-isolation fix above plus everything in the two
 rows after it, a CORS-default drift between the HTTP server and the WebSocket gateway, a
@@ -206,6 +229,12 @@ config option (`MouseMode.RELATIVE`) that looked selectable but had zero impleme
 anywhere in the input pipeline (now rejected until it's actually built), and three genuinely
 dead `AuditAction` values removed outright rather than forced into service — see
 `docs/architecture.md` for the full list, including what was investigated and found clean.
+
+Demoed without real PiKVM hardware using `infra/spike/mock-pikvm-server.ts` (a real
+protocol-conformance test double, `pnpm spike:mock`) — everything works end to end except
+actual video decode, which the mock deliberately never attempts to fake realistically. Found
+the queue/session bug above, plus the `infra/` typecheck gap and the "Type text" feedback
+gap, while running exactly that demo — see `docs/architecture.md`.
 
 Security-hardening pass added: Redis-backed rate limiting on login/MFA, real logout with
 refresh-token revocation and rotation, and admin-only account lockout/forced password reset.
