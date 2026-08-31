@@ -14,6 +14,7 @@ import {
   HidInputEventSchema,
   PrintTextRequestSchema,
   RT_EVENTS,
+  UserRole,
   type AccessTokenClaims,
   type ControllerChangedEvent,
   type EquipmentStatus,
@@ -50,6 +51,21 @@ function room(sessionId: string): string {
 function tenantRoom(tenantId: string): string {
   return `tenant:${tenantId}`;
 }
+
+// Deliberately the same set ExecuteTakeoverHandler/ReturnControlToOperatorHandler use:
+// whoever is eligible to take control away from the operator must also be able to *watch*
+// the session live before doing so (e.g. via DashboardPage's "Rejoin session", which shows
+// for any active session regardless of who's currently viewing it) -- otherwise their socket
+// never joins `room(sessionId)` at all, and they silently never receive SESSION_ENDED/
+// CONTROLLER_CHANGED/SESSION_STATE for a session they can see perfectly well over REST. This
+// used to be gated to `session.isParticipant()` alone, which is only ever true for the
+// operator or a supervisor who has *already* taken over -- a supervisor who merely opened
+// the session to look, without taking over, got silently rejected here, and was left stuck
+// on SessionPage forever once the operator ended the session from their side: their own
+// "End session" button also failed (EndSessionHandler correctly requires `isParticipant`),
+// and with no SESSION_ENDED ever reaching them, nothing ever redirected them away either.
+// Real bug, found by hand, not by an e2e test -- see docs/architecture.md.
+const VIEW_ALLOWED_ROLES: readonly UserRole[] = [UserRole.SUPERVISOR, UserRole.CLINIC_ADMIN, UserRole.PLATFORM_ADMIN];
 
 /**
  * The real-time control plane: session join, HID input, print-text, takeover, and latency
@@ -123,7 +139,12 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   async onJoinSession(@ConnectedSocket() client: Socket, @MessageBody() body: { sessionId: string }): Promise<void> {
     const data = client.data as SocketData;
     const session = await this.queryBus.execute(new GetSessionQuery(body.sessionId, data.user.tenantId));
-    if (!session.isParticipant(data.user.sub)) {
+    // Participants (operator, or a supervisor who already took over) always may; anyone
+    // else needs a takeover-eligible role -- see VIEW_ALLOWED_ROLES's own comment. This is a
+    // *view* gate only: actually sending input still requires holding control, checked
+    // separately (and unconditionally) by onHidInput/onPrintText below, so widening this
+    // does not let a mere viewer act on the equipment.
+    if (!session.isParticipant(data.user.sub) && !VIEW_ALLOWED_ROLES.includes(data.user.role)) {
       client.emit(RT_EVENTS.ERROR, { message: "Not a participant of this session" });
       return;
     }

@@ -1118,6 +1118,47 @@ buffer; and a client-side route transition (`waitForURL` resolving before the ou
 component actually unmounts) that let an axe scan briefly run against the *previous* page's
 still-mounted heading instead of the new page's own loading state.
 
+## A supervisor who only watches a session (never takes over) used to get stuck forever when it ended
+
+Reported directly by a user exercising the real app, not found by any test: a supervisor
+opens an operator's active session to look -- via `DashboardPage`'s "Rejoin session," shown
+for any active session regardless of who's viewing it, not gated to participants or even to
+takeover-eligible roles -- without ever clicking "Take over." The operator later ends the
+session from their own side. The supervisor's screen never updates: no redirect, and their
+own "End session" button silently did nothing either.
+
+Root cause: `SessionsGateway.onJoinSession` gated room membership on `Session.isParticipant()`,
+which is only ever true for the operator or a supervisor who has *already* taken over --
+never true for a supervisor merely watching. Their `JOIN_SESSION` was silently rejected (a
+`RT_EVENTS.ERROR` was emitted, but the frontend never listened for it), so their socket never
+joined `room(sessionId)` and never received `SESSION_ENDED`/`CONTROLLER_CHANGED`/
+`SESSION_STATE` for the rest of the session's lifetime. Separately, `EndSessionHandler`
+correctly requires `isParticipant` too, so their own "End session" click also failed --
+compounding the stuck feeling with a second dead button, previously rendered unconditionally
+regardless of whether it could ever succeed for the current viewer.
+
+Fixed on both sides:
+- `SessionsGateway.onJoinSession` now also admits any takeover-eligible role (`SUPERVISOR`/
+  `CLINIC_ADMIN`/`PLATFORM_ADMIN` -- the same `VIEW_ALLOWED_ROLES` set `ExecuteTakeoverHandler`/
+  `ReturnControlToOperatorHandler` already use for the takeover/return-control decision
+  itself), not only actual participants. This is a *view* gate only: `onHidInput`/
+  `onPrintText` still separately and unconditionally require holding control, so a mere
+  viewer still cannot act on the equipment merely by having joined the room.
+- `SessionPage.tsx`'s "End session" button now only renders for an actual participant
+  (mirroring `Session.isParticipant()` client-side: `session.operatorId === user.sub ||
+  session.supervisorId === user.sub`), so a viewing supervisor no longer sees a button that
+  was always going to fail.
+
+New coverage: `test/session-viewer-join.e2e.spec.ts` -- a supervisor who never took over
+successfully joins and receives a real `SESSION_ENDED` once the operator ends the session
+(reverting the gateway fix while writing this test reproduced the exact reported symptom,
+confirming the test actually catches the regression); the same widened join still never lets
+that supervisor's `HID_INPUT` reach the device, since they're never the controller; and an
+unrelated `OPERATOR` in the same tenant (a role outside `VIEW_ALLOWED_ROLES`, not this
+session's own) is still correctly rejected, proving the fix didn't over-widen the gate.
+Verified live end-to-end against the running local demo, two real logged-in browser contexts,
+in addition to the e2e suite.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not
