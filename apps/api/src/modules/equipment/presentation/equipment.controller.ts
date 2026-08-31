@@ -28,6 +28,7 @@ export class EquipmentController {
     const equipment = await this.commandBus.execute(
       new CreateEquipmentCommand(
         user.tenantId,
+        user.sub,
         body.name,
         body.pikvmHost,
         body.pikvmUser,

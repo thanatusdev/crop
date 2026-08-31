@@ -49,8 +49,10 @@ export const HidInputEventSchema = z.discriminatedUnion("type", [
 
 export type HidInputEvent = z.infer<typeof HidInputEventSchema>;
 
+/** The gateway already knows which session a socket is in from JOIN_SESSION (`data.session`
+ * -- print-text is only ever meaningful once already inside one), so this is deliberately
+ * just the text, not a `sessionId` the client would have to redundantly resend. */
 export const PrintTextRequestSchema = z.object({
-  sessionId: z.string().uuid(),
-  text: z.string().max(1024),
+  text: z.string().min(1).max(1024),
 });
 export type PrintTextRequest = z.infer<typeof PrintTextRequestSchema>;

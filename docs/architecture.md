@@ -565,6 +565,108 @@ it, unconditionally, for the acting socket at the end of both `onTakeoverRequest
 `onReturnControlRequest` -- by definition, a command that just succeeded means the actor is
 now a legitimate participant, whether or not they ever passed the join-time check.
 
+## Codebase cleanup pass
+
+A systematic audit for the same "defined but never wired" pattern documented repeatedly
+elsewhere in this file (`LOGOUT`, the takeover tenant check, `GetUserByIdQuery`) -- every
+`AuditAction` enum value, every Command/Query, every `@crop/shared` barrel export, every Port
+method, every env var, checked against actual call sites rather than just definitions.
+
+- **The single most serious finding in this entire project, worse than the takeover
+  cross-tenant bug: the queue module had no tenant isolation anywhere at all, on any of its
+  three routes, and no role restriction either.** `QueueController.create()`/`list()`/
+  `updateStatus()` took an `equipmentId`/`queueEntryId` straight from the request with zero
+  check that it belonged to the caller's own tenant -- and unlike takeover (SUPERVISOR/admin
+  only), there wasn't even a role gate, so any authenticated user, any role, any tenant,
+  could create, list (patient first names included), or transition another tenant's patient
+  queue purely by guessing or observing an ID. This module had zero test coverage of any
+  kind before this phase, which is exactly why it went unnoticed. Fixed identically to every
+  other tenant-isolation fix in this codebase: `QueueEntry` gained a `tenantId` (derived
+  through its equipment relation, same as `Session`) and a `belongsToTenant` check, enforced
+  in all three handlers -- `CreateQueueEntryHandler`/`UpdateQueueStatusHandler` load the
+  target equipment/entry and check it before writing; `ListQueueByEquipmentHandler` checks
+  the equipment before listing. `AuditAction.QUEUE_ENTRY_CREATED`/`QUEUE_ENTRY_UPDATED`
+  (defined since early on, never emitted) are wired in alongside the fix, deliberately
+  excluding `patientFirstName` from `details` -- same PHI-out-of-audit-details reasoning as
+  `PrintTextHandler`.
+- **`AuditAction.PERMISSION_DENIED`** was defined but never emitted -- `RolesGuard` threw
+  `ForbiddenError` on every role mismatch but never recorded it. Now audits every denial
+  (method, path, required roles, actual role), synchronously, the same "critical event" tier
+  as `LOGIN_FAILURE`. Required turning `RolesGuard.canActivate` async (Nest guards support
+  returning `Promise<boolean>` natively) to inject `CommandBus`.
+- **`AuditAction.EQUIPMENT_CREATED`/`EQUIPMENT_UPDATED`** were defined but never emitted.
+  `EQUIPMENT_CREATED` was straightforward. `EQUIPMENT_UPDATED` needed care: `UpdateEquipmentStatusCommand`
+  is dispatched by `PiKvmHealthPoller` every 10 seconds for every piece of equipment,
+  unconditionally -- naively auditing every dispatch would flood the audit trail with a new
+  row per device every 10 seconds, forever, forever drowning out every actually-meaningful
+  event. `UpdateEquipmentStatusHandler` now reads the equipment's current status first and
+  no-ops (skipping both the write and the audit) unless the status actually changed, so only
+  genuine transitions (ONLINE -> OFFLINE, etc.) get recorded, `userId: null` since this is a
+  system action, not a user one.
+- **`PrintTextRequestSchema` existed in `@crop/shared` from early on but validated nothing** --
+  `sessions.gateway.ts`'s `onPrintText` took an inline `{ text: string }` type with zero
+  runtime check, unlike `HID_INPUT`, which already `.safeParse`s against `HidInputEventSchema`.
+  The schema itself was also wrong for how the gateway actually uses this data (it required
+  a redundant `sessionId` the client never sends, since the gateway already tracks that via
+  `data.session` from `JOIN_SESSION`) -- fixed to just `{ text }`, with a length floor and
+  ceiling, and wired into the handler via `.safeParse`, same pattern as HID input.
+- **A related bug found while adding that validation, in `PrintTextHandler` itself**: the
+  `pikvm.printText()` REST call was awaited with no try/catch. Unlike `sendKey`/`sendMouseMove`
+  (fire-and-forget sends over an already-open HID WebSocket), a REST call *rejects*, not just
+  delays, against an unreachable/struggling device -- and that rejection used to propagate
+  straight out of the handler, skipping the audit dispatch entirely. An attempted print
+  action against a device having a bad moment left no trace at all, not even a failure
+  record. Fixed by catching the rejection, logging a warning, and auditing regardless, with
+  a new `delivered: boolean` field in `details` so "attempted but not delivered" is now a
+  real, visible distinction instead of silence.
+- **`verifyAuditChain`, a tested helper in `@crop/shared`, was reimplemented by hand inside
+  `VerifyAuditChainHandler`** instead of being called -- the two had drifted to disagree
+  structurally (the handler's public result uses the real `seq` column; the shared helper
+  returns an array index), reconciled by looking the broken row's `seq` up from its index
+  rather than assuming the two numbers coincide.
+- **`sessions.gateway.ts`'s CORS default (`"*"`) had silently drifted from `main.ts`'s
+  (`http://localhost:5173`, sourced from `EnvSchema`'s own default)** -- both read
+  `CORS_ORIGIN`, but the gateway can't use `ConfigService` at all (`@WebSocketGateway`'s
+  options are evaluated at class-definition time, before Nest's DI container exists), so it
+  was always going to need its own literal fallback. That fallback now matches the real
+  default instead of silently being more permissive than the rest of the API.
+- **`PIKVM_KEYMAPS`/`DEFAULT_KEYMAP` existed in `@crop/shared` (every layout PiKVM's HTTP API
+  actually supports) but `keymap` was validated as `z.string()` -- any string at all**,
+  including one PiKVM would reject or silently mishandle. `CreateEquipmentRequestSchema` now
+  validates against the real list (`z.enum(PIKVM_KEYMAPS)`).
+- **`MouseMode.RELATIVE` is selectable when creating equipment but has zero implementation
+  anywhere in the actual input pipeline** -- `use-hid-input.ts` always captures and sends
+  absolute coordinates regardless of what's configured, and the WS session-join context
+  never even threads `mouseMode` through in the first place. This is a real half-built
+  feature, not just an unused export, and building it properly (relative-delta capture,
+  a WS payload shape for deltas, PiKVM's relative HID semantics end to end) is a genuine new
+  feature, not a cleanup fix -- so instead of building it speculatively, equipment creation
+  now rejects anything but `ABSOLUTE` (`z.literal(MouseMode.ABSOLUTE)`) until it's actually
+  implemented, so an admin can no longer pick an option that silently does nothing. The enum
+  value itself is kept (removing it would be a breaking schema/DB change for no benefit) and
+  `EquipmentSchema` (the read/response side) still accepts either value, so any equipment
+  already in the database keeps rendering correctly.
+- **`isModifierCode`** (a `Set.has()` one-liner in `@crop/shared`) had zero callers anywhere,
+  including internally -- not even its own test file referenced it. Removed outright; unlike
+  the keymap list above, there was no real call site to wire it into.
+- **Removed three genuinely dead `AuditAction` values** rather than force homes for them:
+  `MFA_SUCCESS` (redundant with `LOGIN_SUCCESS` -- MFA is mandatory, so there is no
+  meaningful "logged in" moment that isn't also "passed MFA"), and
+  `BLOCKED_ATX_ATTEMPT`/`BLOCKED_MSD_ATTEMPT` (ATX/MSD control is never implemented at all,
+  on purpose, so there is no code path that could structurally ever emit either one -- see
+  "What's intentionally not built" below). All three were plain `String` columns in Postgres
+  with zero historical rows using these values, so removing them was a pure type-level
+  change with no migration needed.
+- Added `LOG_LEVEL` to `EnvSchema` for documentation/consistency, even though (like
+  `CORS_ORIGIN` inside `SessionsGateway`) `PinoLoggerService` can't actually read it through
+  `ConfigService` -- that logger is deliberately constructed in `main.ts` before
+  `NestFactory.create()` runs, which is before env validation ever executes.
+
+**Investigated and found clean, no changes needed**: every Port interface's every method is
+both implemented and called from at least one handler or scheduler; every page/component
+under `apps/web/src` is reachable from `App.tsx`'s routes; no `TODO`/`FIXME`/`XXX`/`HACK`
+comments exist anywhere in the codebase.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

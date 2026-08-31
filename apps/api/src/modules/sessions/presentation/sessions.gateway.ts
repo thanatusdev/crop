@@ -12,6 +12,7 @@ import {
 import type { Server, Socket } from "socket.io";
 import {
   HidInputEventSchema,
+  PrintTextRequestSchema,
   RT_EVENTS,
   type AccessTokenClaims,
   type ControllerChangedEvent,
@@ -53,7 +54,15 @@ function room(sessionId: string): string {
  */
 @WebSocketGateway({
   path: "/rt",
-  cors: { origin: process.env.CORS_ORIGIN ?? "*" },
+  // Can't inject ConfigService here -- `@WebSocketGateway`'s options are evaluated at class
+  // *definition* time (module import), before Nest's DI container exists, so this has to
+  // fall back to raw `process.env` like main.ts's `.env`-file-loading concern already does
+  // for a couple of other vars (see docs/architecture.md). The fallback value itself, not
+  // just the lookup, must stay in sync with `EnvSchema`'s own `CORS_ORIGIN` default in
+  // env.validation.ts -- it silently drifted to `"*"` here at some point while main.ts used
+  // the real default (`http://localhost:5173`), which would have made this specific gateway
+  // permissive to every origin while the rest of the API stayed properly scoped.
+  cors: { origin: process.env.CORS_ORIGIN ?? "http://localhost:5173" },
   // Compression adds CPU overhead per message for negligible savings on tiny, frequent JSON
   // payloads (a HID event is a few dozen bytes) -- not worth it on a channel where latency,
   // not bandwidth, is the constraint. Unrelated to (and not a fix for) the WS-framing bug
@@ -138,9 +147,19 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage(RT_EVENTS.PRINT_TEXT)
-  async onPrintText(@ConnectedSocket() client: Socket, @MessageBody() body: { text: string }): Promise<void> {
+  async onPrintText(@ConnectedSocket() client: Socket, @MessageBody() body: unknown): Promise<void> {
     const data = client.data as SocketData;
     if (!data.session) return;
+
+    // `PrintTextRequestSchema` existed in @crop/shared from early on but was never actually
+    // used to validate anything -- this handler took whatever shape TypeScript's structural
+    // typing happened to let through, with no runtime check at all (unlike HID_INPUT, which
+    // already `.safeParse`s against `HidInputEventSchema`). A max length matters here
+    // specifically: PrintTextHandler forwards this straight to PiKVM's `/api/hid/print`
+    // per-character, so an unbounded string is an unbounded number of HID events sent to
+    // real clinical equipment for one WS message.
+    const parsed = PrintTextRequestSchema.safeParse(body);
+    if (!parsed.success) return;
 
     await this.commandBus.execute(
       new PrintTextCommand(
@@ -149,7 +168,7 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
         data.session.equipmentId,
         data.user.sub,
         data.session.keymap,
-        body.text
+        parsed.data.text
       )
     );
   }

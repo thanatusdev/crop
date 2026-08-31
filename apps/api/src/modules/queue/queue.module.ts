@@ -9,11 +9,15 @@ import { CreateQueueEntryHandler } from "./application/commands/create-queue-ent
 import { UpdateQueueStatusHandler } from "./application/commands/update-queue-status/update-queue-status.handler.js";
 import { ListQueueByEquipmentHandler } from "./application/queries/list-queue-by-equipment/list-queue-by-equipment.handler.js";
 
+import { EquipmentModule } from "../equipment/equipment.module.js";
+import { AuditModule } from "../audit/audit.module.js";
+
 const COMMAND_AND_QUERY_HANDLERS = [CreateQueueEntryHandler, UpdateQueueStatusHandler, ListQueueByEquipmentHandler];
 
 @Module({
-  imports: [CqrsModule],
+  imports: [CqrsModule, EquipmentModule, AuditModule],
   controllers: [QueueController],
   providers: [{ provide: QUEUE_REPOSITORY, useClass: PrismaQueueRepository }, ...COMMAND_AND_QUERY_HANDLERS],
 })
 export class QueueModule {}
+
