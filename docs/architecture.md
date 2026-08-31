@@ -516,6 +516,55 @@ found two real bugs, one of them serious.
   capability, not a hardening fix of existing behavior -- noted here as a recommended
   follow-up rather than built speculatively in this phase.
 
+## Returning control to the operator
+
+Built as its own command, `ReturnControlToOperatorCommand`/`Handler`, structured identically
+to `ExecuteTakeoverHandler` (same order of operations, same tenant check, same CAS-protected
+`setController`, same unconditional-`REQUESTED`-then-conditional-`GRANTED` audit pattern) --
+see that handler's docstring, all of which applies here unchanged. The differences that
+matter:
+
+- It always targets `session.operatorId`, never the caller. There is no general "transfer
+  control to any given user" primitive, deliberately: this is the one narrow capability that
+  was actually missing, not an invitation to build arbitrary control handoff.
+- **Any** SUPERVISOR/CLINIC_ADMIN/PLATFORM_ADMIN may call it, not only whoever currently holds
+  control -- mirroring takeover's own permissiveness (any eligible role may take over, not
+  just a specific designated one), and matching a real scenario: the supervisor who took
+  over might have disconnected, and someone else should still be able to hand control back.
+- The operator can never call this to reclaim their own session unilaterally (`OPERATOR` is
+  excluded from the allowed-roles list, same as takeover) -- if they could, a takeover would
+  be trivially reversible by the very person it was needed against.
+- `supervisorId` is passed through unchanged during the CAS, not cleared: the session keeps
+  its record of who was involved as supervisor even after they're no longer the one holding
+  input, which is what keeps them a `Session.isParticipant()` (able to rejoin, view replay,
+  take over again later) afterward.
+
+**A real, previously-invisible bug found while building and manually verifying this
+feature**: `onJoinSession` only populates a socket's `data.session` (required by every other
+handler -- `onHidInput`, `onPrintText` both no-op silently without it) and joins it to the
+session's Socket.io room *if the caller already passes `session.isParticipant()`*. A
+supervisor taking over a session they were never part of before -- the normal case, since
+becoming a participant is what taking over *does* -- fails that check on their initial
+`JOIN_SESSION` (sent automatically on every session-page mount, before any takeover
+attempt), and nothing ever retried it afterward. The practical effect: **a supervisor who
+successfully took over could not actually send any HID input or receive the
+`CONTROLLER_CHANGED`/`SESSION_STATE` confirmation of their own takeover** -- the takeover
+succeeded completely at the database and audit-log level (confirmed both by the e2e suite
+and by direct API checks), but the UI of the person who just took over never found out, and
+even if it had, their keystrokes would have gone nowhere. This is a bug in the *original*
+takeover feature, not something introduced by return-control -- it was never caught earlier
+because takeover had no test coverage at all until the previous phase, and that phase's
+tests (correctly, for what they were testing) drove the takeover command directly rather
+than through two real, simultaneously-connected browser sessions. Found specifically by
+manually verifying this feature end-to-end with two real Playwright-driven browser contexts
+(one operator, one supervisor) -- the same technique that has now found three separate,
+previously-invisible bugs across this project (the Vite dev-server CJS/ESM failure, the
+missing takeover tenant check, and this one). Fixed by extracting a shared `joinRoom` helper
+(equipment lookup + `data.session` populate + room join) out of `onJoinSession` and calling
+it, unconditionally, for the acting socket at the end of both `onTakeoverRequest` and
+`onReturnControlRequest` -- by definition, a command that just succeeded means the actor is
+now a legitimate participant, whether or not they ever passed the join-time check.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

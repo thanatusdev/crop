@@ -8,6 +8,7 @@ export const RT_EVENTS = {
   HID_INPUT: "hid:input",
   PRINT_TEXT: "hid:print",
   TAKEOVER_REQUEST: "session:takeover:request",
+  RETURN_CONTROL_REQUEST: "session:return_control:request",
   LATENCY_PING: "latency:ping",
   JOIN_SESSION: "session:join",
 

@@ -24,6 +24,7 @@ import { SnapshotStorageService } from "./infrastructure/snapshot-storage.servic
 import { StartSessionHandler } from "./application/commands/start-session/start-session.handler.js";
 import { EndSessionHandler } from "./application/commands/end-session/end-session.handler.js";
 import { ExecuteTakeoverHandler } from "./application/commands/execute-takeover/execute-takeover.handler.js";
+import { ReturnControlToOperatorHandler } from "./application/commands/return-control-to-operator/return-control-to-operator.handler.js";
 import { ProcessHidInputHandler } from "./application/commands/process-hid-input/process-hid-input.handler.js";
 import { PrintTextHandler } from "./application/commands/print-text/print-text.handler.js";
 import { CaptureSessionSnapshotHandler } from "./application/commands/capture-session-snapshot/capture-session-snapshot.handler.js";
@@ -41,6 +42,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
   StartSessionHandler,
   EndSessionHandler,
   ExecuteTakeoverHandler,
+  ReturnControlToOperatorHandler,
   ProcessHidInputHandler,
   PrintTextHandler,
   CaptureSessionSnapshotHandler,

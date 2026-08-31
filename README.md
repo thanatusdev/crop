@@ -194,6 +194,7 @@ detail on each is in `docs/architecture.md`; summary:
 | **`ExecuteTakeoverHandler` had no tenant-isolation check at all** — the most serious bug found in this project | Writing the first-ever test for takeover, one of the platform's three headline features, which had zero test coverage before this phase | Any SUPERVISOR/admin in *any* tenant could take over *any other tenant's* active session by sessionId alone, silently reassigning control of someone else's live clinical equipment |
 | `setController` was an unconditional write with no protection against two near-simultaneous takeover attempts | Reasoning about what "enforced" takeover actually guarantees, once tenant isolation was fixed and testing continued | The database and the in-memory controller cache (the actual authority for gating live input) could end up disagreeing about who was really in control |
 | `AuditAction.TAKEOVER_REQUESTED` was defined in the enum but never emitted anywhere | Same review — the third of four now-fixed "defined but unwired" audit actions found across this project (`LOGOUT`, this one, plus `GetUserByIdQuery`'s missing endpoint) | Denied, failed, or race-losing takeover attempts left no audit trace at all — only successful ones were ever recorded |
+| A supervisor who takes over a session they weren't already part of (the normal case) never got joined to the session's Socket.io room or had their input context set up | Manually verifying the new "return control" feature through two real, simultaneous browser sessions — an operator and a supervisor | The takeover succeeded completely at the database/audit level, but the supervisor's own UI never found out, and even if it had, their HID input would have gone nowhere |
 
 Security-hardening pass added: Redis-backed rate limiting on login/MFA, real logout with
 refresh-token revocation and rotation, and admin-only account lockout/forced password reset.
@@ -208,9 +209,13 @@ console capture zone's inherent keyboard trap, shared by every browser-based rem
 
 Supervisor-takeover hardening pass added: the tenant-isolation and race-condition fixes
 above, full audit-trail completeness for takeover attempts, and the first test coverage
-takeover has ever had (`test/takeover.e2e.spec.ts`) — see `docs/architecture.md`, which also
-flags one deliberately-unbuilt gap: there is still no way to hand control back to the
-original operator short of ending the session.
+takeover has ever had (`test/takeover.e2e.spec.ts`) — see `docs/architecture.md`.
+
+Return-control-to-operator feature added: a supervisor/admin can hand control back to the
+operator without ending the session (`test/return-control.e2e.spec.ts`), closing the gap the
+takeover-hardening phase flagged. Verified through two real, simultaneously-connected
+browser sessions (an operator and a supervisor, live WebSocket updates on both sides) — the
+same technique that found the room-join bug in the row above.
 
 ## Demo script
 
@@ -228,6 +233,9 @@ original operator short of ending the session.
 5. **Takeover** — open a second browser as `supervisor@alpha.crop.health`, join the same
    session, click "Take over". The operator's window shows the takeover banner and its input
    stops working immediately.
+5a. **Return control** — in the supervisor's window, click "Return control to operator".
+    The operator's takeover banner disappears immediately and their input works again,
+    without either browser ever ending the session.
 6. **Emergency release** — click "Emergency release" in the session sidebar; confirm no key
    is left stuck on the target (this is the same safety mechanism that fires automatically on
    disconnect, takeover, and idle timeout — see `docs/pikvm-integration.md`).

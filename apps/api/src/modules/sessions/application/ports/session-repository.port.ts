@@ -34,7 +34,7 @@ export interface SessionRepositoryPort {
   setController(
     sessionId: string,
     controllerUserId: string,
-    supervisorId: string,
+    supervisorId: string | null,
     expectedCurrentControllerUserId: string
   ): Promise<boolean>;
   end(sessionId: string, status: "ENDED" | "ABORTED"): Promise<void>;
