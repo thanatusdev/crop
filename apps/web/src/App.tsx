@@ -5,6 +5,8 @@ import DashboardPage from "./pages/DashboardPage.js";
 import SessionPage from "./pages/SessionPage.js";
 import SessionReplayPage from "./pages/SessionReplayPage.js";
 import AuditPage from "./pages/AuditPage.js";
+import AdminUsersPage from "./pages/AdminUsersPage.js";
+import AdminEquipmentPage from "./pages/AdminEquipmentPage.js";
 import LatencyClockPage from "./pages/LatencyClockPage.js";
 
 function ProtectedLayout() {
@@ -27,6 +29,8 @@ export default function App() {
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
             <Route path="/sessions/:sessionId/replay" element={<SessionReplayPage />} />
             <Route path="/audit" element={<AuditPage />} />
+            <Route path="/admin/users" element={<AdminUsersPage />} />
+            <Route path="/admin/equipment" element={<AdminEquipmentPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

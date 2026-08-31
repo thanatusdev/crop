@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { EquipmentDto, QueueEntryDto, SessionState } from "@crop/shared";
-import { api } from "../lib/api-client.js";
+import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
 
 interface EquipmentWithQueue extends EquipmentDto {
@@ -16,10 +16,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [newPatientName, setNewPatientName] = useState<Record<string, string>>({});
+  const [queueActionId, setQueueActionId] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
 
   // Mirrors AuditController's @Roles -- avoids sending an OPERATOR into a guaranteed 403.
   const canViewAudit =
     user?.role === "AUDITOR" || user?.role === "SUPERVISOR" || user?.role === "CLINIC_ADMIN" || user?.role === "PLATFORM_ADMIN";
+  // Mirrors UsersController's/EquipmentController's POST @Roles -- same reasoning.
+  const canManageAdmin = user?.role === "CLINIC_ADMIN" || user?.role === "PLATFORM_ADMIN";
 
   useEffect(() => {
     void load();
@@ -64,6 +69,36 @@ export default function DashboardPage() {
     }
   }
 
+  async function addPatient(equipmentId: string, ev: React.FormEvent) {
+    ev.preventDefault();
+    const patientFirstName = (newPatientName[equipmentId] ?? "").trim();
+    if (!patientFirstName) return;
+    setQueueError(null);
+    setQueueActionId(equipmentId);
+    try {
+      await api.post("/queue", { equipmentId, patientFirstName });
+      setNewPatientName((prev) => ({ ...prev, [equipmentId]: "" }));
+      await load();
+    } catch (err) {
+      setQueueError(err instanceof ApiError ? err.message : "Could not add this patient to the queue.");
+    } finally {
+      setQueueActionId(null);
+    }
+  }
+
+  async function cancelQueueEntry(queueEntryId: string) {
+    setQueueError(null);
+    setQueueActionId(queueEntryId);
+    try {
+      await api.post(`/queue/${queueEntryId}/status`, { status: "CANCELLED" });
+      await load();
+    } catch (err) {
+      setQueueError(err instanceof ApiError ? err.message : "Could not cancel this queue entry.");
+    } finally {
+      setQueueActionId(null);
+    }
+  }
+
   return (
     <div>
       <header className="topbar">
@@ -76,6 +111,16 @@ export default function DashboardPage() {
             <button className="btn secondary" onClick={() => navigate("/audit")}>
               Audit log
             </button>
+          )}
+          {canManageAdmin && (
+            <>
+              <button className="btn secondary" onClick={() => navigate("/admin/users")}>
+                Manage users
+              </button>
+              <button className="btn secondary" onClick={() => navigate("/admin/equipment")}>
+                Manage equipment
+              </button>
+            </>
           )}
           <button className="btn secondary" onClick={logout}>
             Sign out
@@ -128,6 +173,11 @@ export default function DashboardPage() {
                 </div>
 
                 <h3 style={{ marginBottom: 6, marginTop: 12, fontSize: "0.95em" }}>Patient queue</h3>
+                {queueError && (
+                  <p className="error" role="alert">
+                    {queueError}
+                  </p>
+                )}
                 {item.queue.length === 0 ? (
                   <p style={{ color: "#9aa4b2", fontSize: 13 }}>Empty.</p>
                 ) : (
@@ -138,6 +188,7 @@ export default function DashboardPage() {
                           <th scope="col">#</th>
                           <th scope="col">Patient</th>
                           <th scope="col">Status</th>
+                          <th scope="col">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -146,12 +197,37 @@ export default function DashboardPage() {
                             <td>{q.position}</td>
                             <td>{q.patientFirstName}</td>
                             <td>{q.status}</td>
+                            <td>
+                              {q.status === "WAITING" && (
+                                <button
+                                  className="link-button"
+                                  disabled={queueActionId === q.id}
+                                  onClick={() => cancelQueueEntry(q.id)}
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 )}
+                <form onSubmit={(ev) => addPatient(item.id, ev)} style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <label className="visually-hidden" htmlFor={`add-patient-${item.id}`}>
+                    Add a patient to {item.name}'s queue
+                  </label>
+                  <input
+                    id={`add-patient-${item.id}`}
+                    placeholder="Patient name"
+                    value={newPatientName[item.id] ?? ""}
+                    onChange={(e) => setNewPatientName((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                  />
+                  <button className="btn secondary" type="submit" disabled={queueActionId === item.id}>
+                    Add to queue
+                  </button>
+                </form>
               </div>
             );
           })

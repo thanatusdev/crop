@@ -33,6 +33,7 @@ import { UnlockUserHandler } from "./application/commands/unlock-user/unlock-use
 import { AdminResetPasswordHandler } from "./application/commands/admin-reset-password/admin-reset-password.handler.js";
 import { ConfirmMfaEnrollmentHandler } from "./application/commands/enroll-mfa/confirm-mfa-enrollment.handler.js";
 import { GetUserByIdHandler } from "./application/queries/get-user-by-id/get-user-by-id.handler.js";
+import { ListUsersByTenantHandler } from "./application/queries/list-users-by-tenant/list-users-by-tenant.handler.js";
 import { AuditModule } from "../audit/audit.module.js";
 
 const COMMAND_AND_QUERY_HANDLERS = [
@@ -46,6 +47,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
   AdminResetPasswordHandler,
   ConfirmMfaEnrollmentHandler,
   GetUserByIdHandler,
+  ListUsersByTenantHandler,
 ];
 
 @Module({
