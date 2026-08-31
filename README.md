@@ -8,6 +8,106 @@ behind its MVP-scope tradeoffs, and [`docs/pikvm-integration.md`](docs/pikvm-int
 for the PiKVM wire protocol and every edge case (keyboard layouts, coordinate math, the
 stuck-key safety mechanism) this integration depends on.
 
+## Features
+
+### Authentication & security
+- **Mandatory 2FA (TOTP)** for every account, no exceptions and no self-service registration
+  — a new account is admin-created with a temp password, and the *new user's own* first
+  login walks them through enrollment (scan the QR/enter the code) via the same flow every
+  seeded account goes through.
+- **Redis-backed rate limiting** on login and MFA verification, keyed by target account.
+- **Account lockout** (admin-triggered) and **admin-forced password reset**, both taking
+  effect on the account's very next refresh/login, not just future ones.
+- **Refresh-token rotation and revocation** — a real logout invalidates the token
+  server-side; a leaked-and-reused old refresh token fails outright instead of silently
+  working forever.
+- **Multi-tenant isolation enforced at every query/command**, not by a single blanket guard
+  — a resource that belongs to another tenant is a 403, never a 404 or a silent leak.
+
+### Remote control sessions
+- **Start/end a session** against any of your tenant's `ONLINE` equipment (one active
+  session per piece of equipment, enforced; up to `MAX_CONCURRENT_SESSIONS_PER_OPERATOR`
+  concurrent sessions per operator).
+- **Real-time HID input forwarding** (keyboard + mouse) over a dedicated WebSocket channel,
+  gated live on who currently holds control.
+- **Type text**, not per-keystroke — accented/non-Latin characters render correctly via
+  PiKVM's own per-equipment keymap, and the action is confirmed on-screen the moment it's
+  sent.
+- **Emergency release** ("unstick keys") on demand, and automatically on disconnect,
+  takeover, and idle timeout.
+- **Supervisor/admin takeover** of an in-progress session, and **returning control back to
+  the operator** without ending the session — both update every connected participant's UI
+  live, not just the two people involved.
+- **Idle-session auto-abort**: a session nobody's touched for `SESSION_IDLE_TIMEOUT_MS`
+  frees its equipment automatically, audited with `reason: idle_timeout`.
+- **Live input-latency HUD** (measured round-trip time, not an estimate) on every session.
+- **Session snapshots**, captured periodically for the session's duration, and a **replay
+  viewer** afterward that scrubs through them with the surrounding audit events (input
+  batches, print actions) shown alongside each frame.
+- **Optional room-camera picture-in-picture** via a separate WebRTC/WHEP path (MediaMTX) —
+  intentionally never the same pipe as the console video, and allowed the latency the
+  console path isn't.
+
+### Patient queue
+- **Add a patient** to a piece of equipment's queue; **cancel** a still-`WAITING` entry.
+- **Automatic status transitions** (`WAITING` → `IN_PROGRESS` → `DONE`) as a session against
+  that entry starts and ends — no manual bookkeeping.
+- **Live push**: another user's queue change appears on your dashboard immediately, no
+  reload needed.
+
+### Equipment management (Clinic Admin / Platform Admin)
+- **Register equipment** — PiKVM host/credentials, target OS, keymap (validated against
+  PiKVM's real supported layouts), screen size, optional room-camera URL.
+- **Edit equipment settings** after creation, including rotating its PiKVM credentials
+  (leave the password blank to keep the existing one unchanged).
+- **Automatic health polling** every 10 seconds reflects real device reachability as
+  `ONLINE`/`OFFLINE`/`DEGRADED` — this is never a value nobody updates after creation.
+- **Manual maintenance mode**: pull a device out of rotation (blocks new sessions the same
+  way `OFFLINE` does) without the health poller silently reverting it back within the next
+  poll cycle.
+- **Live status push**: an equipment's status changing — automatically or manually — reaches
+  every connected dashboard immediately.
+
+### Audit trail
+- **Hash-chained, append-only** — enforced by a database trigger that blocks `UPDATE`/
+  `DELETE` on the audit table regardless of which role or connection touches it, not just by
+  application-level convention.
+- **Every significant action recorded**: login/logout/MFA outcomes, session lifecycle,
+  takeover/return-control, print-text (length and delivery status only, never the actual
+  text), equipment/queue/user/tenant changes, and every permission-denied attempt.
+- **One-click hash-chain verification** — a tampered row is caught immediately, and pinpoints
+  the exact sequence number where the chain breaks.
+- **Full audit log viewer** with deep links straight into a session's replay.
+
+### User management (Clinic Admin)
+- **List and create users** within your own tenant; new accounts self-enroll MFA on their
+  own first login — no mailer exists or is needed for this.
+- **Lock/unlock** an account and **force a password reset**, both effective immediately.
+
+### Tenant management (Platform Admin / superadmin)
+- **Create and list tenants** (clinics) — the first capability in this codebase gated to
+  Platform Admin alone, not shared with Clinic Admin like every other admin action.
+- **Deactivate/reactivate a tenant**, immediately locking out (or restoring) every one of its
+  users' ability to log in — implemented as a reversible flag, deliberately never a real
+  delete, since that would cascade into erasing that tenant's own append-only audit history.
+- **Bootstrap a new tenant's first admin from outside it** via a tenant picker only a
+  Platform Admin sees; every other role stays confined to its own tenant no matter what it
+  sends.
+- **No cross-tenant "god view"** — a Platform Admin's own user/equipment lists stay scoped to
+  their own (platform) tenant, same as anyone else; tenant lifecycle and provisioning are in
+  scope, browsing another tenant's day-to-day data is not.
+- The **first superadmin account has no HTTP endpoint at all** — created only by a
+  standalone, idempotent script (`make bootstrap-superadmin`), safe to re-run.
+
+### Observability
+- **Structured JSON logs** (`pino`), every line tagged with the originating request's
+  correlation id.
+- **Prometheus metrics** at `/metrics`, including this platform's own input-processing
+  overhead, active-session count, audit-flush timing, and per-equipment PiKVM connection
+  errors.
+- **A load-testing script** driving real concurrent Socket.io sessions at a configurable
+  input rate against the real running API.
+
 ## Stack
 
 - **API**: NestJS + TypeScript, Clean Architecture (`domain` / `application` / `infrastructure`
