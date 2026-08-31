@@ -23,13 +23,20 @@ stuck-key safety mechanism) this integration depends on.
   working forever.
 - **Multi-tenant isolation enforced at every query/command**, not by a single blanket guard
   — a resource that belongs to another tenant is a 403, never a 404 or a silent leak.
+- **Standard security headers (`helmet`) and strict, credentialed CORS**; no cookie-based
+  auth anywhere (every request carries a bearer token the browser attaches itself), so
+  session fixation and CSRF don't apply to this API's auth model at all, not just
+  "mitigated." Dependencies audited (`pnpm audit --prod`): no findings on the running API's
+  actual request path.
 
 ### Remote control sessions
 - **Start/end a session** against any of your tenant's `ONLINE` equipment (one active
   session per piece of equipment, enforced; up to `MAX_CONCURRENT_SESSIONS_PER_OPERATOR`
   concurrent sessions per operator).
 - **Real-time HID input forwarding** (keyboard + mouse) over a dedicated WebSocket channel,
-  gated live on who currently holds control.
+  gated live on who currently holds control, staying under a ~200ms end-to-end latency
+  budget (PiKVM capture/encode + relay + browser decode — see `docs/architecture.md`'s
+  stage-by-stage breakdown).
 - **Type text**, not per-keystroke — accented/non-Latin characters render correctly via
   PiKVM's own per-equipment keymap, and the action is confirmed on-screen the moment it's
   sent.
@@ -47,6 +54,13 @@ stuck-key safety mechanism) this integration depends on.
 - **Optional room-camera picture-in-picture** via a separate WebRTC/WHEP path (MediaMTX) —
   intentionally never the same pipe as the console video, and allowed the latency the
   console path isn't.
+- **A standalone, unauthenticated "proof clock" page** (`/latency-clock`) — opened on the
+  target machine itself, not the operator's, so a single photograph of both screens side by
+  side is a latency measurement nobody has to take on trust.
+- **One unreachable device can never take down another tenant's session** — every
+  hardware-facing connection is timeout-bounded and safe-by-construction against an
+  unhandled connection error; an offline/misconfigured PiKVM degrades to `DEGRADED`/
+  `OFFLINE` for its own equipment, not a process crash affecting everyone else.
 
 ### Patient queue
 - **Add a patient** to a piece of equipment's queue; **cancel** a still-`WAITING` entry.
@@ -72,6 +86,11 @@ stuck-key safety mechanism) this integration depends on.
 - **Hash-chained, append-only** — enforced by a database trigger that blocks `UPDATE`/
   `DELETE` on the audit table regardless of which role or connection touches it, not just by
   application-level convention.
+- **Two-tier durability**: critical events (login, MFA, session start/end, takeover,
+  lock/unlock, permission-denied) are written synchronously — they can never be lost.
+  High-frequency input (up to 60 HID events/sec/session) is buffered in Redis off the hot
+  path and flushed every `AUDIT_FLUSH_INTERVAL_MS` (5s default), so a Redis restart loses at
+  most seconds of the least compliance-critical category, never a critical row.
 - **Every significant action recorded**: login/logout/MFA outcomes, session lifecycle,
   takeover/return-control, print-text (length and delivery status only, never the actual
   text), equipment/queue/user/tenant changes, and every permission-denied attempt.
@@ -99,6 +118,29 @@ stuck-key safety mechanism) this integration depends on.
 - The **first superadmin account has no HTTP endpoint at all** — created only by a
   standalone, idempotent script (`make bootstrap-superadmin`), safe to re-run.
 
+### Accessibility
+Verified with `axe-core` against a live, running app in headless Chromium — not a manual
+read-through — across every page.
+- **Proper landmark and heading structure** on every page (`<header>`/`<main>`, exactly one
+  `<h1>`, a real `h1 > h2 > h3` order) — screen reader users get a real "start of content"
+  landmark and page title everywhere, not just on some pages.
+- **Every form input has a real associated `<label>`** (`htmlFor`/`id`, not an unlinked
+  sibling or a placeholder standing in for one) — login, MFA, "type text," and the session
+  replay scrubber included.
+- **Visible keyboard-focus indicator** on every interactive element, including the console
+  capture zone.
+- **Live-region announcements** (`role="alert"`/`role="status"`/`aria-live`) on error
+  banners, the takeover banner, and connection-status changes, so a screen reader announces
+  them when they change instead of requiring a sighted user to be looking at the right
+  moment.
+- **Every initial data load has a real error state** with a Retry action, not just a
+  `finally` clearing a loading flag — a failed fetch used to leave some pages stuck on
+  "Loading…" forever.
+- **Responsive layout** below 900px (the dashboard/audit/session-metadata views collapse to
+  a single column) — the console view itself is the one deliberate exception, since it
+  fundamentally needs a real pointer and physical keyboard, the same as any browser-based
+  remote-KVM tool.
+
 ### Observability
 - **Structured JSON logs** (`pino`), every line tagged with the originating request's
   correlation id.
@@ -107,6 +149,13 @@ stuck-key safety mechanism) this integration depends on.
   errors.
 - **A load-testing script** driving real concurrent Socket.io sessions at a configurable
   input rate against the real running API.
+
+### Demoable without any real PiKVM hardware
+A protocol-conformance mock (`pnpm spike:mock` / `make demo`) speaks PiKVM's actual HTTP+WS
+protocol well enough that login, sessions, HID input, takeover, print-text, the patient
+queue, equipment health, and the full audit trail all work end to end against it — only real
+video decode doesn't (see `docs/architecture.md`). Everything in this README's demo script
+runs this way.
 
 ## Stack
 
