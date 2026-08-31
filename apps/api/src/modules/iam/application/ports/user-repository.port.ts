@@ -13,6 +13,7 @@ export interface CreateUserData {
 export interface UserRepositoryPort {
   findByEmail(email: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
+  findByTenant(tenantId: string): Promise<User[]>;
   create(data: CreateUserData): Promise<User>;
   activateMfa(userId: string): Promise<void>;
   recordLogin(userId: string): Promise<void>;

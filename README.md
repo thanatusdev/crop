@@ -251,6 +251,8 @@ detail on each is in `docs/architecture.md`; summary:
 | **A queue entry, once attached to any session — successful, ended, or aborted — could never be attached to a new one, but nothing ever moved it off `WAITING`**, so the dashboard kept re-selecting the same stuck patient forever | Running a live demo and hitting a persistent "Equipment already has an active session" error that a fresh `curl` request against the same equipment proved false | Starting a *second* session for any equipment that had ever served a patient failed permanently, mislabeled with an error message pointing at the wrong subsystem entirely |
 | `infra/` scripts (`seed.ts`, spike/loadtest scripts) have zero typecheck coverage anywhere in this monorepo's toolchain | A `CreateEquipmentCommand`/`CreateQueueEntryCommand` signature change from the cleanup pass broke `seed.ts`, silently, since it's a direct `CommandBus` caller no `tsc` pass ever checks | The regression was invisible to `pnpm typecheck`/`build`/the full e2e suite and only surfaced when `pnpm db:seed` was actually run |
 | "Type text" cleared itself with zero success feedback, indistinguishable from doing nothing (worse paired with the mock PiKVM's permanently-black video panel) | User-reported while demoing; confirmed via the audit trail that it had, in fact, always worked | Purely a UX gap, not a functional bug — now shows a transient "✓ Sent to equipment" confirmation |
+| **The dashboard had no admin UI at all** — CLINIC_ADMIN saw the identical screen every other role saw, no way to list/create users or add equipment through the UI | User-reported while demoing ("how does admin work?") | `GET/POST /users`, admin-facing lock/unlock/reset-password, equipment creation, and patient-queue management (add/cancel) were all either fully implemented server-side with zero frontend caller, or missing entirely (no way to *list* users to act on) |
+| `POST /queue/:id/status` returned HTTP 201 with a completely empty body instead of 204, unlike every other "do a thing, no return value" endpoint in this codebase | Giving that route its first-ever caller from an actual browser, while building the queue-management UI above | `supertest`'s `.expect(201)` never noticed (doesn't check for a body); a real browser's `fetch().json()` throws outright on an empty 2xx body — the new UI hit this immediately |
 
 Codebase cleanup pass added: the queue tenant-isolation fix above plus everything in the two
 rows after it, a CORS-default drift between the HTTP server and the WebSocket gateway, a
@@ -319,6 +321,13 @@ same technique that found the room-join bug in the row above.
    the equipment freed, visible as a `SESSION_ABORT` audit entry with `reason: idle_timeout`.
 10. **Tenant isolation** — log in as `operator@beta.crop.health`: Clinica Alpha's equipment,
     sessions, and audit log are completely invisible.
+11. **Admin: manage users and equipment** — log in as `admin@alpha.crop.health`. "Manage
+    users" and "Manage equipment" buttons appear (operators and supervisors never see
+    these). Create a new OPERATOR account — you're shown the temp password once, exactly
+    like the seed script prints to console, since there's no mailer here or anywhere else in
+    this app. Log in as that new user in a second browser: their *own* first login walks
+    them through 2FA enrollment via the same flow every seeded account went through,
+    automatically, with nothing admin-specific required from that side at all.
 
 ## What's out of scope for this MVP
 

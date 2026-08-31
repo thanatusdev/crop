@@ -18,6 +18,11 @@ export class PrismaUserRepository implements UserRepositoryPort {
     return row ? this.toDomain(row) : null;
   }
 
+  async findByTenant(tenantId: string): Promise<User[]> {
+    const rows = await this.prisma.user.findMany({ where: { tenantId }, orderBy: { email: "asc" } });
+    return rows.map((row) => this.toDomain(row));
+  }
+
   async create(data: CreateUserData): Promise<User> {
     const row = await this.prisma.user.create({
       data: {

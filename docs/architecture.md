@@ -755,6 +755,73 @@ real idle-timeout-triggered test (that would mean actually waiting out
 inspection instead, since it's the identical `queue.updateStatus()` call pattern the other
 two paths already prove works.
 
+## The admin dashboard had no admin UI at all
+
+Reported live: a CLINIC_ADMIN saw the exact same "Equipment" screen every other role sees --
+no way to list or create users, no way to add equipment through the UI. The gap turned out
+to be real and total, not a misunderstanding of some hidden setting.
+
+**What was already there, unused**: `GET /users/:id`, `POST /users/:id/lock`,
+`POST /users/:id/unlock`, `POST /users/:id/reset-password`, and `POST /equipment` were all
+already fully implemented, CLINIC_ADMIN/PLATFORM_ADMIN-gated, and tenant-isolated (see
+"Account lockout and admin-forced password reset" above) -- no frontend page had ever called
+any of them. `DashboardPage.tsx` had exactly one role-conditional element in the whole app
+(show/hide the "Audit log" button); the router had none at all. Strong evidence this was an
+oversight rather than a deliberate cut: `packages/shared/src/contracts/users.ts` already had
+a `UserSchema`/`UserDto` with a comment literally describing "what an admin's manage users
+view is allowed to see" -- someone designed the data shape for this screen and it never got
+built.
+
+**A real, smaller gap found while closing that one**: there was no way to *list* a tenant's
+users at all -- only `GET /users/:id`, a lookup by an ID you'd already have to know from
+somewhere else. Lock/unlock/reset-password had nothing to point them at. Added
+`UserRepositoryPort.findByTenant()` + `GET /users` (mirrors `EquipmentRepositoryPort.listByTenant`
+exactly).
+
+**User creation turned out much smaller than expected.** There is still no self-service
+registration endpoint and still no mailer anywhere in this codebase (unchanged from the
+reasoning above) -- but `LoginHandler` already re-derives a fresh `provisioningUri` from
+whatever `mfaSecret` is already stored on the user row, every time someone with
+`mfaEnabledAt: null` logs in, completely independent of how that row was created. So a new
+`POST /users` endpoint just needs email/password/role; the *new user's own* first login,
+against the *existing, unmodified* `LoginPage` enrollment flow, handles MFA setup with zero
+new code. The admin relays the email/temp-password out of band (Slack, in person) exactly
+like the seed script's console output always implied a human would, just from a button
+instead of a terminal.
+
+One deliberate restriction: `CreateUserRequestSchema`'s `role` field excludes
+PLATFORM_ADMIN. `POST /users` always creates the account inside the *calling admin's own
+tenant*, and a tenant-scoped platform admin is a contradiction in terms -- that role means
+"operates across every tenant," not "operates within one clinic." The seed script follows
+the same rule already (it never mints one either).
+
+**Equipment creation and patient-queue management got UI too**, since they had the identical
+shape of problem: `POST /equipment` and `POST /queue`/`POST /queue/:id/status` were already
+fully implemented and already had zero frontend callers. Equipment creation became its own
+admin-gated page (`/admin/equipment`); queue management (add a patient, cancel a WAITING
+entry) landed directly on `DashboardPage`'s existing per-equipment queue table instead, open
+to any authenticated role -- `QueueController` was never role-gated to admins in the first
+place (an operator/receptionist workflow, not an admin one), so the UI shouldn't invent a
+restriction the API never had.
+
+**A second, independent bug found by finally giving `POST /queue/:id/status` its first-ever
+caller from an actual browser**: it returned HTTP 201 with a completely empty body, instead
+of 204 like every other "do a thing, return nothing" endpoint in this codebase (lock/unlock/
+reset-password all correctly use `@HttpCode(HttpStatus.NO_CONTENT)`). The existing
+supertest-based e2e coverage never caught this because `supertest`'s `.expect(201)` doesn't
+care whether a body exists -- but a browser's `fetch` + `res.json()` throws outright on an
+empty body with a 2xx-but-not-204 status, which is exactly what the new frontend code hit
+immediately. Fixed by adding the same `@HttpCode(HttpStatus.NO_CONTENT)` the other endpoints
+already use, and updating the one existing test asserting `.expect(201)` to `.expect(204)`
+to match. A good reminder that "supertest says 2xx" and "a real browser can actually parse
+the response" are not the same claim.
+
+New e2e coverage: `test/admin-user-management.e2e.spec.ts` -- tenant-scoped listing with no
+`passwordHash`/`mfaSecret` leakage, RBAC on both new routes, the PLATFORM_ADMIN-creation
+rejection, and a full real-HTTP round trip proving a freshly admin-created user can log in
+and complete MFA enrollment entirely on their own, with the admin never seeing a
+provisioning URI or secret at any point.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

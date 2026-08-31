@@ -109,7 +109,7 @@ describe("Queue: multi-tenant isolation", () => {
       .post(`/queue/${createRes.body.id}/status`)
       .set("Authorization", `Bearer ${alphaAdminToken}`)
       .send({ status: "IN_PROGRESS" })
-      .expect(201);
+      .expect(204);
 
     const auditRes = await http
       .get(`/audit?limit=200`)

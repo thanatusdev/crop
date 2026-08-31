@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { CommandBus, QueryBus } from "@nestjs/cqrs";
 import {
   CreateQueueEntryRequestSchema,
@@ -47,11 +47,12 @@ export class QueueController {
   }
 
   @Post(":id/status")
+  @HttpCode(HttpStatus.NO_CONTENT)
   async updateStatus(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
     @Body(new ZodValidationPipe(UpdateQueueStatusRequestSchema)) body: UpdateQueueStatusRequest
-  ) {
+  ): Promise<void> {
     await this.commandBus.execute(new UpdateQueueStatusCommand(user.tenantId, user.sub, id, body.status));
   }
 }
