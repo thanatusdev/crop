@@ -20,6 +20,7 @@ import { CreateEquipmentCommand } from "../../apps/api/dist/modules/equipment/ap
 import { CreateQueueEntryCommand } from "../../apps/api/dist/modules/queue/application/commands/create-queue-entry/create-queue-entry.command.js";
 
 interface SeededUser {
+  userId: string;
   email: string;
   password: string;
   role: UserRole;
@@ -39,13 +40,13 @@ async function registerAndEnroll(
   password: string,
   role: UserRole
 ): Promise<SeededUser> {
-  const { enrollmentToken, provisioningUri } = await commandBus.execute(
+  const { userId, enrollmentToken, provisioningUri } = await commandBus.execute(
     new RegisterUserCommand(tenantId, email, password, role)
   );
   const totpSecret = extractSecret(provisioningUri);
   const code = new OTPAuth.TOTP({ secret: totpSecret }).generate();
   await commandBus.execute(new ConfirmMfaEnrollmentCommand(enrollmentToken, code));
-  return { email, password, role, totpSecret };
+  return { userId, email, password, role, totpSecret };
 }
 
 async function main(): Promise<void> {
@@ -73,9 +74,13 @@ async function main(): Promise<void> {
   // anything is publishing to it just gives the demo a permanently-"connecting" PiP box.
   const cctvWhepUrl = process.env.SEED_MEDIAMTX_WHEP_URL ?? null;
 
+  const alphaAdmin = users[0]!; // admin@alpha.crop.health, registered first, above
+  const betaOperator = users[4]!; // operator@beta.crop.health -- beta has no admin seeded
+
   const mri = await commandBus.execute(
     new CreateEquipmentCommand(
       alpha.id,
+      alphaAdmin.userId,
       "MRI-01",
       pikvmHost,
       pikvmUser,
@@ -92,6 +97,7 @@ async function main(): Promise<void> {
   const ct = await commandBus.execute(
     new CreateEquipmentCommand(
       beta.id,
+      betaOperator.userId,
       "CT-01",
       pikvmHost,
       pikvmUser,
@@ -106,9 +112,9 @@ async function main(): Promise<void> {
   );
 
   console.log("Seeding patient queue...");
-  await commandBus.execute(new CreateQueueEntryCommand(mri.id, "Maria", null));
-  await commandBus.execute(new CreateQueueEntryCommand(mri.id, "Joao", null));
-  await commandBus.execute(new CreateQueueEntryCommand(ct.id, "Ana", null));
+  await commandBus.execute(new CreateQueueEntryCommand(alpha.id, alphaAdmin.userId, mri.id, "Maria", null));
+  await commandBus.execute(new CreateQueueEntryCommand(alpha.id, alphaAdmin.userId, mri.id, "Joao", null));
+  await commandBus.execute(new CreateQueueEntryCommand(beta.id, betaOperator.userId, ct.id, "Ana", null));
 
   await app.close();
 
