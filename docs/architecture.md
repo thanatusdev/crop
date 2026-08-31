@@ -918,6 +918,96 @@ CLINIC_ADMIN's `tenantId` gets ignored), the PLATFORM_ADMIN-creation refusal hol
 a PLATFORM_ADMIN caller, and all four new audit actions firing and attributed to the correct
 tenant.
 
+## Closing the backend<->frontend coverage gap: equipment lifecycle and live push
+
+Requested directly: an audit of every backend route/WS event against what the frontend
+actually calls, to find out what's missing. The audit (exhaustive -- every controller route,
+every WS event, every command/query's dispatch sites, cross-referenced against every
+`api.*`/`socket.*` call in `apps/web/src`) turned up two real gaps, both closed in this
+phase, plus a couple of harmless dead ends left alone (see below).
+
+**Equipment had create-only lifecycle, inconsistent with Users and Tenants.** Users got
+lock/unlock; Tenants just got deactivate/reactivate (see above); Equipment had neither an
+edit path nor a manual status override, on either end, since the MVP's first phase.
+`EquipmentStatus.MAINTENANCE` had existed in the shared enum from day one as a pure,
+never-set placeholder -- the same "defined but never wired" shape as several bugs found
+earlier in this project, just never actually triggered because nothing ever *tried* to set
+it.
+
+- `EquipmentDto` gained `pikvmHost`/`pikvmUser` (not secrets -- an address and a login name,
+  not a credential) specifically so an edit form has something to show/prefill; the password
+  and PiKVM TOTP secret still never round-trip to a client, and never will.
+- `PATCH /equipment/:id` (`UpdateEquipmentCommand`), every field optional, `pikvmPassword`
+  absent/blank meaning "leave the stored credential unchanged" -- identical convention to
+  `AdminResetPasswordRequestSchema`.
+- `POST /equipment/:id/maintenance` / `.../maintenance/clear` (`EnterMaintenanceCommand`/
+  `ClearMaintenanceCommand`), both of which delegate to the *existing*
+  `UpdateEquipmentStatusCommand` (extended with an optional `actingUserId`, null for
+  `PiKvmHealthPoller`'s own automatic transitions) rather than writing status directly --
+  this is what makes the audit dispatch and the live-push broadcast below fire correctly for
+  a manual toggle too, not just for poller-driven ones, with zero duplicated logic.
+- `PiKvmHealthPoller.pollAll()` now filters out any equipment currently in `MAINTENANCE`
+  before polling it at all. Without this, the very next cycle (at most 10s later) would
+  silently revert a manual override, making the whole feature pointless. Clearing
+  maintenance reverts to `OFFLINE`, not directly to `ONLINE` -- `ClearMaintenanceHandler` has
+  no way to know the device's actual current reachability without a real health check, and
+  guessing `ONLINE` would be a lie the poller's own next cycle (now unblocked) will correct
+  either way within 10 seconds.
+- Reused the existing `EQUIPMENT_UPDATED` audit action for edits and both maintenance
+  transitions, distinguished by `details`, rather than minting three new enum values --
+  matching how `UpdateEquipmentStatusHandler` already treated a poller-driven status change
+  as an `EQUIPMENT_UPDATED` variant, not a separate action.
+- `AdminEquipmentPage` gained an actual equipment list (it was create-only, no list at all)
+  with per-row Edit and Enter/Clear-maintenance actions, mirroring `AdminUsersPage`'s
+  create-form-plus-list-with-actions shape. One new CSS badge variant (`.badge.maintenance`)
+  alongside the existing online/offline/degraded three.
+
+**`RT_EVENTS.QUEUE_UPDATED`/`EQUIPMENT_STATUS_CHANGED` existed as constants from the start,
+emitted and listened for by nothing.** Without them, two simultaneous dashboards only ever
+saw each other's queue changes or an equipment status flip after a manual reload -- correct
+data, just never *live*.
+
+The interesting part was avoiding a real module cycle: `SessionsModule` already imports
+`QueueModule` (for `StartSessionHandler`/`EndSessionHandler`'s queue-status transitions), so
+having `QueueModule`/`EquipmentModule` call directly into `SessionsGateway` (which lives in
+`SessionsModule`) to broadcast would need the import running the other way too -- a genuine
+cycle. Fixed by using the *other* half of `@nestjs/cqrs`, which this codebase had only ever
+used for Commands/Queries until now: `CreateQueueEntryHandler`/`UpdateQueueStatusHandler`/
+`UpdateEquipmentStatusHandler` publish a plain `QueueUpdatedEvent`/`EquipmentStatusChangedEvent`
+via `EventBus`, and two new `@EventsHandler` classes living inside `SessionsModule` (where
+`SessionsGateway` already is, so no new import needed there) react and call two new public
+broadcast methods on the gateway. CQRS event handlers are discovered globally regardless of
+which module declares them, so `QueueModule`/`EquipmentModule` have no idea anything is
+listening -- fully decoupled, no cycle.
+
+Broadcasts are tenant-scoped: `SessionsGateway.handleConnection` now auto-joins every socket
+to a `tenant:${tenantId}` room the moment it authenticates (the JWT/tenantId is already
+verified right there), so a broadcast can never reach a different tenant's clients -- tested
+explicitly, not just assumed. `DashboardPage` (which previously opened no WebSocket
+connection at all) now opens one via the existing `createSessionSocket()` helper (not
+actually session-specific despite the name) purely to listen for these two events, reacting
+by re-running its existing `load()` re-fetch -- the simplest correct reaction, consistent
+with how it already reloads after every local action.
+
+**Left alone, on purpose:** `GET /users/:id` is real and tenant-scoped correctly, but the
+frontend only ever needed the list endpoint -- not a gap, just an unused-by-the-UI route.
+`RT_EVENTS.ERROR` is emitted by the gateway (a non-participant's `JOIN_SESSION` attempt) but
+never listened for client-side -- a real small gap, but session access is already gated by
+the REST layer before a client would normally reach this path at all, so it's a rare edge
+case rather than a functional problem; left as a known minor gap rather than folded into this
+already-broad pass.
+
+New e2e coverage: `test/equipment-lifecycle.e2e.spec.ts` (edit/maintenance RBAC and tenant
+isolation, the password-blank-means-unchanged behavior verified directly against the stored
+ciphertext, idempotency both directions, and that a session can't be started against
+`MAINTENANCE` equipment) and `test/realtime-push.e2e.spec.ts` (a real Socket.io client
+receiving both new events over a real WebSocket connection, plus the tenant-isolation
+negative case -- a different tenant's connected socket never receives it). The
+poller-actually-skips-maintenance-equipment behavior itself is verified by code inspection
+only, not an automated test: exercising it for real would mean waiting out a full
+`EVERY_10_SECONDS` cron cycle inside the e2e suite, the same category of tradeoff already
+made (and already documented) for `AbortIdleSessionHandler`'s idle-timeout path.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

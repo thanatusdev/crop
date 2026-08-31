@@ -33,6 +33,8 @@ import { ReleaseAllInputHandler } from "./application/commands/release-all-input
 import { GetActiveSessionsHandler } from "./application/queries/get-active-sessions/get-active-sessions.handler.js";
 import { GetSessionHandler } from "./application/queries/get-session/get-session.handler.js";
 import { ListSessionSnapshotsHandler } from "./application/queries/list-session-snapshots/list-session-snapshots.handler.js";
+import { BroadcastQueueUpdatedHandler } from "./application/events/broadcast-queue-updated.handler.js";
+import { BroadcastEquipmentStatusChangedHandler } from "./application/events/broadcast-equipment-status-changed.handler.js";
 
 import { IamModule } from "../iam/iam.module.js";
 import { EquipmentModule } from "../equipment/equipment.module.js";
@@ -52,6 +54,8 @@ const COMMAND_AND_QUERY_HANDLERS = [
   GetActiveSessionsHandler,
   GetSessionHandler,
   ListSessionSnapshotsHandler,
+  BroadcastQueueUpdatedHandler,
+  BroadcastEquipmentStatusChangedHandler,
 ];
 
 @Module({

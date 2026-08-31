@@ -142,6 +142,11 @@ select:focus-visible,
   color: #ffd76b;
 }
 
+.badge.maintenance {
+  background: #1d2f3d;
+  color: #6fb1ff;
+}
+
 .equipment-row {
   display: flex;
   justify-content: space-between;

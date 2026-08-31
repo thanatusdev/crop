@@ -7,6 +7,8 @@ export function toEquipmentDto(equipment: Equipment): EquipmentDto {
     tenantId: equipment.tenantId,
     name: equipment.name,
     status: equipment.status,
+    pikvmHost: equipment.pikvmHost,
+    pikvmUser: equipment.pikvmUser,
     targetOs: equipment.targetOs,
     keymap: equipment.keymap,
     mouseMode: equipment.mouseMode,

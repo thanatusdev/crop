@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { EquipmentDto, QueueEntryDto, SessionState } from "@crop/shared";
+import { RT_EVENTS, type EquipmentDto, type QueueEntryDto, type SessionState } from "@crop/shared";
 import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
+import { createSessionSocket } from "../lib/socket-client.js";
 
 interface EquipmentWithQueue extends EquipmentDto {
   queue: QueueEntryDto[];
@@ -32,6 +33,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  // Live push: another user adding/cancelling a queue entry, or the health poller flipping
+  // an equipment's status, would otherwise only ever show up here after a manual reload --
+  // RT_EVENTS.QUEUE_UPDATED/EQUIPMENT_STATUS_CHANGED exist specifically so this doesn't have
+  // to be true. Reusing createSessionSocket (not actually session-specific, just an
+  // authenticated /rt connection) rather than introducing a second connection helper --
+  // SessionsGateway.handleConnection auto-joins every socket to its own tenant's room, so no
+  // extra subscribe step is needed here beyond just connecting.
+  useEffect(() => {
+    const sock = createSessionSocket();
+    sock.connect();
+    sock.on(RT_EVENTS.QUEUE_UPDATED, () => void load());
+    sock.on(RT_EVENTS.EQUIPMENT_STATUS_CHANGED, () => void load());
+    return () => {
+      sock.disconnect();
+    };
   }, []);
 
   async function load() {

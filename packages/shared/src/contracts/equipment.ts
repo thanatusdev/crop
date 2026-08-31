@@ -7,6 +7,12 @@ export const EquipmentSchema = z.object({
   tenantId: z.string().uuid(),
   name: z.string().min(1),
   status: z.nativeEnum(EquipmentStatus),
+  // Host/username are not secrets (an address and a login name, not a credential) --
+  // deliberately included so an edit form has something to show/prefill. pikvmPassword and
+  // the PiKVM TOTP secret never appear here and never will; see UpdateEquipmentRequestSchema
+  // for why those stay write-only.
+  pikvmHost: z.string(),
+  pikvmUser: z.string(),
   targetOs: z.nativeEnum(TargetOs),
   keymap: z.string(),
   mouseMode: z.nativeEnum(MouseMode),
@@ -41,3 +47,25 @@ export const CreateEquipmentRequestSchema = z.object({
   cameraUrl: z.string().url().optional(),
 });
 export type CreateEquipmentRequest = z.infer<typeof CreateEquipmentRequestSchema>;
+
+/**
+ * Every field optional -- a real partial update, not "resend everything." `pikvmPassword`
+ * absent or blank means "leave the stored credential unchanged," the same UX precedent as
+ * AdminResetPasswordRequestSchema: nothing here ever echoes the *current* password back for
+ * an admin to see, so there's no way to distinguish "unchanged" from "intentionally blank"
+ * other than treating blank as unchanged, matching how every other credential-bearing form
+ * in this app already behaves.
+ */
+export const UpdateEquipmentRequestSchema = z.object({
+  name: z.string().min(1).optional(),
+  pikvmHost: z.string().min(1).optional(),
+  pikvmUser: z.string().min(1).optional(),
+  pikvmPassword: z.string().min(1).optional(),
+  targetOs: z.nativeEnum(TargetOs).optional(),
+  keymap: z.enum(PIKVM_KEYMAPS).optional(),
+  mouseMode: z.literal(MouseMode.ABSOLUTE).optional(),
+  screenWidth: z.number().int().positive().optional(),
+  screenHeight: z.number().int().positive().optional(),
+  cameraUrl: z.string().url().nullable().optional(),
+});
+export type UpdateEquipmentRequest = z.infer<typeof UpdateEquipmentRequestSchema>;

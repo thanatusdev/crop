@@ -81,6 +81,7 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
 export const api = {
   get: <T>(path: string) => requestJson<T>(path),
   post: <T>(path: string, body?: unknown, opts: RequestOptions = {}) => requestJson<T>(path, { ...opts, method: "POST", body }),
+  patch: <T>(path: string, body?: unknown, opts: RequestOptions = {}) => requestJson<T>(path, { ...opts, method: "PATCH", body }),
   /** For binary responses (snapshot images) -- everything else in the API returns JSON. */
   getBlob: async (path: string): Promise<Blob> => (await request(path)).blob(),
 };

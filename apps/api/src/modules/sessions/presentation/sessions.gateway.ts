@@ -16,6 +16,7 @@ import {
   RT_EVENTS,
   type AccessTokenClaims,
   type ControllerChangedEvent,
+  type EquipmentStatus,
   type HidInputEvent,
   type TargetOs,
 } from "@crop/shared";
@@ -44,6 +45,10 @@ interface SocketData {
 
 function room(sessionId: string): string {
   return `session:${sessionId}`;
+}
+
+function tenantRoom(tenantId: string): string {
+  return `tenant:${tenantId}`;
 }
 
 /**
@@ -91,6 +96,12 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     try {
       const user = this.tokens.verifyAccessToken(token);
       (client.data as SocketData).user = user;
+      // Every connected client auto-joins its own tenant's room -- this is what lets
+      // broadcastQueueUpdated/broadcastEquipmentStatusChanged reach every dashboard for that
+      // tenant without a separate explicit "subscribe to my tenant" message, and without
+      // ever reaching a different tenant's clients (queue contents and equipment status are
+      // exactly the kind of thing that must never leak across tenants).
+      void client.join(tenantRoom(user.tenantId));
     } catch {
       client.disconnect(true);
     }
@@ -234,6 +245,18 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   /** Called by SessionsController after a REST-initiated end, so every connected participant's UI updates live. */
   broadcastSessionEnded(sessionId: string): void {
     this.server.to(room(sessionId)).emit(RT_EVENTS.SESSION_ENDED, { sessionId });
+  }
+
+  /** Called by BroadcastQueueUpdatedHandler (an @EventsHandler reacting to QueueUpdatedEvent,
+   * published by the queue module) -- see that event's own docstring for why this indirection
+   * exists instead of QueueModule calling this directly. */
+  broadcastQueueUpdated(tenantId: string, equipmentId: string): void {
+    this.server.to(tenantRoom(tenantId)).emit(RT_EVENTS.QUEUE_UPDATED, { equipmentId });
+  }
+
+  /** Same shape as broadcastQueueUpdated, reacting to EquipmentStatusChangedEvent. */
+  broadcastEquipmentStatusChanged(tenantId: string, equipmentId: string, status: EquipmentStatus): void {
+    this.server.to(tenantRoom(tenantId)).emit(RT_EVENTS.EQUIPMENT_STATUS_CHANGED, { equipmentId, status });
   }
 
   /**

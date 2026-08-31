@@ -1,16 +1,18 @@
 import { Inject } from "@nestjs/common";
-import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../ports/queue-repository.port.js";
+import { QueueUpdatedEvent } from "../../events/queue-updated.event.js";
 import { UpdateQueueStatusCommand } from "./update-queue-status.command.js";
 
 @CommandHandler(UpdateQueueStatusCommand)
 export class UpdateQueueStatusHandler implements ICommandHandler<UpdateQueueStatusCommand, void> {
   constructor(
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus
   ) {}
 
   async execute(command: UpdateQueueStatusCommand): Promise<void> {
@@ -36,5 +38,7 @@ export class UpdateQueueStatusHandler implements ICommandHandler<UpdateQueueStat
         details: { equipmentId: entry.equipmentId, previousStatus, newStatus: command.status },
       })
     );
+
+    this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, entry.equipmentId));
   }
 }
