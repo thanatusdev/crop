@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "echo \"no tests yet\" && exit 0",
+    "test:a11y": "playwright test"
   },
   "dependencies": {
     "@crop/shared": "workspace:*",
@@ -17,9 +18,14 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
+    "otpauth": "^9.5.1",
+    "pg": "^8.23.0",
     "typescript": "^5.7.2",
     "vite": "^8.0.0"
   }

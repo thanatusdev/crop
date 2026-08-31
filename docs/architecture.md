@@ -101,8 +101,10 @@ composition, not just each piece alone.
 
 ## Latency budget
 
-PiKVM V4 measures 35-50ms capture-to-render on a good connection (1080p60, H.264, `gop=0`,
-boost on -- see PiKVM's own `/latency/` docs). Added on top for this platform's relay hop:
+**This table is an estimate, never a measurement this codebase performs.** PiKVM V4's own
+published number (35-50ms capture-to-render on a good connection, 1080p60, H.264, `gop=0`,
+boost on -- see PiKVM's own `/latency/` docs) is combined with a hand-estimated cost for this
+platform's relay hop, added on top:
 
 | Stage | Cost |
 |---|---|
@@ -116,6 +118,18 @@ boost on -- see PiKVM's own `/latency/` docs). Added on top for this platform's 
 Stays under the 200ms requirement with margin, on a LAN or a reasonable internet link. This
 budget is the reason the video relay never transcodes and the HID gateway never blocks the
 hot path on a network round trip (see "Two-tier audit" below).
+
+This is *not* the same thing as the input-latency HUD's `latency:ping`/`latency:pong` number
+(`RT_EVENTS.LATENCY_PING`/`LATENCY_PONG`, apps/api's `SessionsGateway` and apps/web's HUD): the
+HUD measures a real, live Socket.io control-plane round trip -- client sends a timestamp,
+server echoes it straight back, no PiKVM or video in between at all -- which the codebase
+genuinely measures on every session. The table above is glass-to-glass *video* latency
+(capture -> encode -> relay -> decode -> render), which nothing in this codebase instruments;
+video frames carry no timestamp this platform controls end-to-end, and PiKVM's own capture
+pipeline is opaque from the API's side. Treat the HUD number as ground truth for control-plane
+RTT, and the table above as an architectural budget derived from PiKVM's documentation, not as
+two measurements of the same thing.
+
 
 ## Deliberate MVP scope decisions (not oversights)
 
@@ -1007,6 +1021,102 @@ poller-actually-skips-maintenance-equipment behavior itself is verified by code 
 only, not an automated test: exercising it for real would mean waiting out a full
 `EVERY_10_SECONDS` cron cycle inside the e2e suite, the same category of tradeoff already
 made (and already documented) for `AbortIdleSessionHandler`'s idle-timeout path.
+
+## A verification pass: several README/docs claims had never actually been proven
+
+Requested directly, after the README's Features section (see above) was written and
+reviewed: go back through every specific claim in that section and in this document and
+check, for each one, whether it's actually backed by a repeatable automated test or only by
+inspection/prose/a one-off manual check. The investigation (read-only, via a dedicated
+exploration pass) found four real gaps and one genuine documentation error; all five are
+closed in this phase.
+
+**Security headers/CORS were correctly configured, but no test had ever asserted the actual
+response headers -- and the e2e test harness itself didn't even apply them.** `main.ts`'s
+`bootstrap()` called `app.use(helmet())`/`app.enableCors(...)` directly on the Express
+instance, imperatively, after `NestFactory.create()` -- not something `AppModule`'s own
+providers can express. `test/helpers.ts`'s `createTestApp()` only ever did
+`NestFactory.create(AppModule).init()`, never `main.ts`'s `bootstrap()` -- meaning every e2e
+test in this whole suite, from day one, ran against an "app" that actually differed from the
+real deployed one in exactly this respect. Writing `test/security-headers.e2e.spec.ts` against
+`createTestApp()` as it stood failed both of its assertions (`undefined` headers), which is
+what surfaced this. Fixed by extracting the security-relevant middleware into a shared
+`configureApp(app)` (`src/configure-app.ts`), called by both `main.ts`'s `bootstrap()` and
+`createTestApp()`, so the two paths can never drift apart again. The new spec's exact
+assertions were derived from a live `curl` against the real running local demo API, not
+guessed: every `helmet()` default header, plus confirmation that `Access-Control-Allow-Origin`
+always echoes the fixed configured origin and never reflects an arbitrary request's `Origin`
+header (tested with both a matching and a mismatched `Origin`).
+
+**The two-tier audit trail's hash-chain algorithm and event *coverage* were well-tested; its
+*timing* behavior never was.** A regression that made HID input synchronous (defeating the
+whole point of buffering -- see `ProcessHidInputHandler`'s docstring on the 60-events/sec hot
+path) or that broke the flush cron entirely would have passed every existing test.
+`test/audit-two-tier-timing.e2e.spec.ts` proves both halves against a real running app: a
+critical event (`LOGIN_FAILURE`, deliberately PiKVM-free so nothing here is confounded with an
+unrelated network timeout) is queryable with zero wait between the triggering request and the
+query; a real `HID_INPUT` sent over a real Socket.io connection is *not* present at all
+immediately afterward, and only appears as one `INPUT_BATCH` row once
+`AUDIT_FLUSH_INTERVAL_MS` (default 5000ms) has elapsed -- the same ~5.5s wait convention
+already used elsewhere in this suite for flush-adjacent timing.
+
+**`PiKvmMediaRelay` had the identical crash-safety pattern as `PiKvmHidClient`, but zero test
+coverage of its own.** `packages/pikvm/tests/media-relay.test.ts` mirrors
+`hid-client.test.ts`'s existing `FakeWebSocket`/crash-safety test exactly (constructs the real
+client, calls `.connect()` with no external `'error'` listener attached, asserts emitting an
+`'error'` event doesn't crash the process), plus two small connect/disconnect sanity checks
+that file didn't have a direct analogue for.
+
+**Nothing had ever proven that one tenant's PiKVM failure can't stall or corrupt a different
+tenant's concurrently running session.** `PiKvmConnectionRegistry` keeps one entry per
+`equipmentId` in a single in-process `Map`, shared across every tenant's sessions in one API
+instance -- structurally sound by inspection (see "Resilience" above), but the only prior
+evidence of actual cross-tenant isolation was a one-off manual hardware spike, once, by hand.
+`test/cross-tenant-pikvm-isolation.e2e.spec.ts` sets up two tenants, each with its own
+equipment and session, and exploits a real, already-existing block: `EndSessionHandler` awaits
+`PiKvmGatewayPort.release()`, which itself awaits a real HTTP round trip to the device --
+against this suite's standard unreachable fixture host, that stalls the *HTTP response* for
+~5s. The test fires tenant A's session-end *without awaiting it*, then drives tenant B's
+entire independent HID-input-buffer-flush cycle *while A is still mid-stall*, and only then
+awaits A's response -- proving the two are not serialized on any shared lock, not just that B
+"eventually" still works once A finishes.
+
+**The ~70-155ms glass-to-glass video latency table and the input-latency HUD's measured
+round-trip time were being described as if they were the same number.** They aren't: the HUD
+(`latency:ping`/`latency:pong`) is a real, live Socket.io control-plane echo that never
+touches PiKVM or video at all; the table is PiKVM's own published capture/encode number plus a
+hand-estimated relay-hop cost, never measured by this codebase. README.md and this document's
+own "Latency budget" section conflated the two in places (e.g. describing HID input forwarding
+itself as bound by the video table's capture/encode/decode stages). Fixed as a documentation-only
+change -- no new measurement instrumentation was added, per an explicit decision that building
+one wasn't worth it for this phase; the `/latency-clock` proof page remains the one way to
+actually check the estimated table against reality.
+
+**apps/web had zero automated tests of any kind -- accessibility fixes made earlier in this
+project's history were provable only by manual/AI-driven Playwright sessions, never by
+anything a future regression would actually fail.** Added a real, local/on-demand test tier
+(`apps/web/playwright.config.ts`, `apps/web/tests/a11y/`, `pnpm --filter @crop/web test:a11y`)
+using `@axe-core/playwright` against the real running app, logged in through the real
+mandatory-2FA flow (TOTP codes generated live from the seeded `mfaSecret`, read directly from
+Postgres -- the same technique `infra/scripts/totp-codes.ts` uses, deliberately duplicated in
+`tests/a11y/helpers.ts` rather than importing across the apps/web/apps/api package boundary).
+Deliberately **not** wired into `.github/workflows/ci.yml`: it needs the full no-hardware demo
+stack running, not just a package-local dependency install, and an axe-core scan is a
+point-in-time DOM check, not something worth gating every commit on. `playwright.config.ts`'s
+`webServer` runs `make demo` with `reuseExistingServer: true`, so it transparently reuses an
+already-running demo stack (the normal case for a developer who's been working locally) or
+starts one from scratch.
+
+This tier immediately found a real, previously-unnoticed WCAG 2 AA violation, not a false
+positive: `.btn.danger`/`.takeover-banner`'s white-on-`#d9463c` red was 4.29:1 contrast,
+just under the 4.5:1 minimum for normal-weight text. Fixed by darkening to `#c23a30` (5.33:1),
+same hue, both call sites. Two of this test tier's own early failures were the tier's own bugs,
+not app bugs, and are worth recording as a caution for anyone extending it: an out-of-range
+mouse-move fixture coordinate (`MouseMoveEventSchema` caps at ±32767, PiKVM's absolute HID
+space) that the gateway's schema check silently dropped before it ever reached the audit
+buffer; and a client-side route transition (`waitForURL` resolving before the outgoing page
+component actually unmounts) that let an axe scan briefly run against the *previous* page's
+still-mounted heading instead of the new page's own loading state.
 
 ## What's intentionally not built
 

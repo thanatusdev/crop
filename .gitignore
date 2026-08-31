@@ -16,5 +16,10 @@ infra/mediamtx-data
 apps/api/storage
 .demo
 
+# Playwright a11y test tier (apps/web/tests/a11y) -- local artifacts only
+apps/web/test-results
+apps/web/playwright-report
+apps/web/blob-report
+
 # Local Netlify folder
 .netlify

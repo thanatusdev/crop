@@ -1,8 +1,8 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { ConfigService } from "@nestjs/config";
-import helmet from "helmet";
 import { AppModule } from "./app.module.js";
+import { configureApp } from "./configure-app.js";
 import { PinoLoggerService } from "./shared/infrastructure/logging/pino-logger.service.js";
 
 async function bootstrap(): Promise<void> {
@@ -15,8 +15,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { logger });
   const config = app.get(ConfigService);
 
-  app.use(helmet());
-  app.enableCors({ origin: config.get<string>("CORS_ORIGIN"), credentials: true });
+  configureApp(app);
 
   const port = config.get<number>("PORT", 3000);
   await app.listen(port);
