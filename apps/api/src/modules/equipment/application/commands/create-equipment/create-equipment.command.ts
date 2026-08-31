@@ -3,6 +3,7 @@ import type { MouseMode, TargetOs } from "@crop/shared";
 export class CreateEquipmentCommand {
   constructor(
     public readonly tenantId: string,
+    public readonly actingUserId: string,
     public readonly name: string,
     public readonly pikvmHost: string,
     public readonly pikvmUser: string,
@@ -16,3 +17,4 @@ export class CreateEquipmentCommand {
     public readonly pikvmTotpSecret: string | null = null
   ) {}
 }
+

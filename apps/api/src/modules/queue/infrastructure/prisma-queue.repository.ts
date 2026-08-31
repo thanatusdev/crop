@@ -4,6 +4,8 @@ import { PrismaService } from "../../../shared/infrastructure/prisma/prisma.serv
 import { QueueEntry } from "../domain/queue-entry.entity.js";
 import type { CreateQueueEntryData, QueueRepositoryPort } from "../application/ports/queue-repository.port.js";
 
+const WITH_TENANT = { equipment: { select: { tenantId: true } } } as const;
+
 @Injectable()
 export class PrismaQueueRepository implements QueueRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
@@ -22,13 +24,14 @@ export class PrismaQueueRepository implements QueueRepositoryPort {
           scheduledAt: data.scheduledAt,
           position: (last?.position ?? 0) + 1,
         },
+        include: WITH_TENANT,
       });
     });
     return this.toDomain(row);
   }
 
   async findById(id: string): Promise<QueueEntry | null> {
-    const row = await this.prisma.queueEntry.findUnique({ where: { id } });
+    const row = await this.prisma.queueEntry.findUnique({ where: { id }, include: WITH_TENANT });
     return row ? this.toDomain(row) : null;
   }
 
@@ -36,6 +39,7 @@ export class PrismaQueueRepository implements QueueRepositoryPort {
     const rows = await this.prisma.queueEntry.findMany({
       where: { equipmentId },
       orderBy: { position: "asc" },
+      include: WITH_TENANT,
     });
     return rows.map((row) => this.toDomain(row));
   }
@@ -47,6 +51,7 @@ export class PrismaQueueRepository implements QueueRepositoryPort {
   private toDomain(row: {
     id: string;
     equipmentId: string;
+    equipment: { tenantId: string };
     patientFirstName: string;
     position: number;
     status: string;
@@ -54,6 +59,7 @@ export class PrismaQueueRepository implements QueueRepositoryPort {
   }): QueueEntry {
     return new QueueEntry({
       id: row.id,
+      tenantId: row.equipment.tenantId,
       equipmentId: row.equipmentId,
       patientFirstName: row.patientFirstName,
       position: row.position,

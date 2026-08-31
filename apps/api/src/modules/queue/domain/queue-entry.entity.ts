@@ -3,6 +3,7 @@ import { ConflictError } from "../../../shared/domain/errors.js";
 
 export interface QueueEntryProps {
   id: string;
+  tenantId: string;
   equipmentId: string;
   patientFirstName: string;
   position: number;
@@ -22,6 +23,10 @@ export class QueueEntry {
 
   get id(): string {
     return this.props.id;
+  }
+
+  get tenantId(): string {
+    return this.props.tenantId;
   }
 
   get equipmentId(): string {
@@ -49,5 +54,11 @@ export class QueueEntry {
     if (!VALID_TRANSITIONS[this.props.status].includes(next)) {
       throw new ConflictError(`Cannot move queue entry from ${this.props.status} to ${next}`);
     }
+  }
+
+  /** Multi-tenant isolation -- see QueueController's handlers, all of which check this
+   * rather than trusting a caller-supplied equipmentId/queueEntryId to already be theirs. */
+  belongsToTenant(tenantId: string): boolean {
+    return this.props.tenantId === tenantId;
   }
 }

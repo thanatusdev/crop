@@ -9,6 +9,13 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
+  // Read directly from `process.env` in main.ts's `PinoLoggerService` construction, not via
+  // `ConfigService` -- that logger is deliberately built before `NestFactory.create()` even
+  // runs (see its own comment), which is before `validateEnv` below ever executes. Declared
+  // here anyway for documentation, and because this schema doubles as this project's one
+  // canonical list of every env var this app looks at, even the handful (this one, and
+  // `CORS_ORIGIN` inside SessionsGateway) that can't actually be read through it.
+  LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),

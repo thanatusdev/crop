@@ -6,6 +6,7 @@ import { EQUIPMENT_REPOSITORY } from "./application/ports/equipment-repository.p
 import { PrismaEquipmentRepository } from "./infrastructure/prisma-equipment.repository.js";
 import { PiKvmHealthPoller } from "./infrastructure/pikvm-health-poller.service.js";
 import { EncryptionService } from "../../shared/infrastructure/crypto/encryption.service.js";
+import { AuditModule } from "../audit/audit.module.js";
 
 import { CreateEquipmentHandler } from "./application/commands/create-equipment/create-equipment.handler.js";
 import { UpdateEquipmentStatusHandler } from "./application/commands/update-equipment-status/update-equipment-status.handler.js";
@@ -22,7 +23,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
 ];
 
 @Module({
-  imports: [CqrsModule],
+  imports: [CqrsModule, AuditModule],
   controllers: [EquipmentController],
   providers: [
     { provide: EQUIPMENT_REPOSITORY, useClass: PrismaEquipmentRepository },
@@ -33,3 +34,4 @@ const COMMAND_AND_QUERY_HANDLERS = [
   exports: [EQUIPMENT_REPOSITORY],
 })
 export class EquipmentModule {}
+

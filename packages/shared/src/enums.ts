@@ -50,6 +50,16 @@ export enum QueueStatus {
 /**
  * Every action that can produce an AuditLog row. Kept as a flat string enum (not free text)
  * so audit queries and compliance reports can rely on a closed set of values.
+ *
+ * Deliberately does NOT include an `MFA_SUCCESS` or `BLOCKED_ATX_ATTEMPT`/`BLOCKED_MSD_ATTEMPT`
+ * -- all three existed here for a while but were never actually wired to anything, and none
+ * of them turned out to have a real reason to exist. `LOGIN_SUCCESS` already *is* "MFA step
+ * passed" (see VerifyMfaHandler's own comment: MFA is mandatory, so there is no meaningful
+ * "logged in" moment that isn't also "passed MFA" -- a separate event would just duplicate
+ * it). ATX/MSD control is never implemented at all, on purpose (see docs/architecture.md and
+ * docs/pikvm-integration.md), so there is no code path that could ever emit a "blocked
+ * attempt" at either -- keeping enum values for an attempt that can structurally never
+ * happen is speculative dead weight, not forward-looking design.
  */
 export enum AuditAction {
   LOGIN_SUCCESS = "LOGIN_SUCCESS",
@@ -57,7 +67,6 @@ export enum AuditAction {
   LOGOUT = "LOGOUT",
   MFA_CHALLENGE_SENT = "MFA_CHALLENGE_SENT",
   MFA_FAILURE = "MFA_FAILURE",
-  MFA_SUCCESS = "MFA_SUCCESS",
   SESSION_START = "SESSION_START",
   SESSION_END = "SESSION_END",
   SESSION_ABORT = "SESSION_ABORT",
@@ -73,8 +82,6 @@ export enum AuditAction {
   EQUIPMENT_UPDATED = "EQUIPMENT_UPDATED",
   QUEUE_ENTRY_CREATED = "QUEUE_ENTRY_CREATED",
   QUEUE_ENTRY_UPDATED = "QUEUE_ENTRY_UPDATED",
-  BLOCKED_ATX_ATTEMPT = "BLOCKED_ATX_ATTEMPT",
-  BLOCKED_MSD_ATTEMPT = "BLOCKED_MSD_ATTEMPT",
   PERMISSION_DENIED = "PERMISSION_DENIED",
   ACCOUNT_LOCKED = "ACCOUNT_LOCKED",
   ACCOUNT_UNLOCKED = "ACCOUNT_UNLOCKED",

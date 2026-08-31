@@ -1,4 +1,4 @@
-import { Inject } from "@nestjs/common";
+import { Inject, Logger } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
 import { ForbiddenError } from "../../../../../shared/domain/errors.js";
@@ -15,6 +15,8 @@ import { PrintTextCommand } from "./print-text.command.js";
  */
 @CommandHandler(PrintTextCommand)
 export class PrintTextHandler implements ICommandHandler<PrintTextCommand, void> {
+  private readonly logger = new Logger(PrintTextHandler.name);
+
   constructor(
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
@@ -26,7 +28,21 @@ export class PrintTextHandler implements ICommandHandler<PrintTextCommand, void>
       throw new ForbiddenError("Only the current controller may type text for this session");
     }
 
-    await this.pikvm.printText(command.equipmentId, command.text, command.keymap);
+    // `pikvm.printText` is a REST call (unlike sendKey/sendMouseMove, which are fire-and-
+    // forget sends over an already-open HID WebSocket -- see ProcessHidInputHandler), so an
+    // unreachable/slow device makes it *reject*, not just delay. Left unguarded, that
+    // rejection used to propagate straight out of this handler and skip the audit dispatch
+    // below entirely -- an attempted print action against a struggling device left no trace
+    // at all, not even a failure record. Caught here so the attempt is always audited,
+    // `delivered` reflecting whether PiKVM actually got it.
+    let delivered = true;
+    try {
+      await this.pikvm.printText(command.equipmentId, command.text, command.keymap);
+    } catch (err) {
+      delivered = false;
+      this.logger.warn(`printText failed for equipment ${command.equipmentId}: ${(err as Error).message}`);
+    }
+
     this.runtime.recordActivity(command.sessionId);
 
     await this.commandBus.execute(
@@ -37,7 +53,7 @@ export class PrintTextHandler implements ICommandHandler<PrintTextCommand, void>
         action: AuditAction.PRINT_TEXT,
         resourceType: "Equipment",
         resourceId: command.equipmentId,
-        details: { length: command.text.length, keymap: command.keymap },
+        details: { length: command.text.length, keymap: command.keymap, delivered },
       })
     );
   }

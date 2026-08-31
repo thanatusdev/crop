@@ -1,25 +1,6 @@
 import { TargetOs } from "../enums.js";
 
 /**
- * Modifier keys as reported by `KeyboardEvent.code`. PiKVM (and every native HID target)
- * only understands physical codes, never `KeyboardEvent.key` -- see keyboard.ts docs.
- */
-const MODIFIER_CODES = new Set([
-  "ControlLeft",
-  "ControlRight",
-  "AltLeft",
-  "AltRight",
-  "ShiftLeft",
-  "ShiftRight",
-  "MetaLeft",
-  "MetaRight",
-]);
-
-export function isModifierCode(code: string): boolean {
-  return MODIFIER_CODES.has(code);
-}
-
-/**
  * PiKVM performs zero modifier translation: whatever `code` you send is the physical key
  * pressed on the emulated USB keyboard. That is correct when the operator's physical keyboard
  * and the target console run the same platform convention, but wrong across platforms:

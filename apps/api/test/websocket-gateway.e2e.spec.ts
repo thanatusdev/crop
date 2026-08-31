@@ -23,6 +23,7 @@ import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./h
 describe("WebSocket gateway coexists with the media stream server", () => {
   let app: INestApplication;
   let baseUrl: string;
+  let adminToken: string;
   let operatorToken: string;
   let sessionId: string;
 
@@ -35,6 +36,7 @@ describe("WebSocket gateway coexists with the media stream server", () => {
     const prisma = testPrisma();
     const tenant = await createTenant(prisma, `WsGateway-${crypto.randomUUID()}`);
     const admin = await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.CLINIC_ADMIN });
+    adminToken = admin.accessToken;
     const operator = await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.OPERATOR });
     operatorToken = operator.accessToken;
 
@@ -94,6 +96,50 @@ describe("WebSocket gateway coexists with the media stream server", () => {
     socket.emit(RT_EVENTS.HID_INPUT, { type: "mouse_move", x: 0, y: 0, ts: performance.now() });
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(socket.connected).toBe(true);
+
+    socket.disconnect();
+  });
+
+  it("validates print-text against PrintTextRequestSchema -- rejects invalid, accepts valid", async () => {
+    const socket: Socket = io(baseUrl, {
+      path: "/rt",
+      transports: ["websocket"],
+      auth: { token: operatorToken },
+      autoConnect: false,
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.on("connect", () => resolve());
+      socket.on("connect_error", reject);
+      socket.connect();
+    });
+    socket.emit(RT_EVENTS.JOIN_SESSION, { sessionId });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Invalid shapes are rejected at the gateway's schema check, before ever reaching
+    // PrintTextHandler/PiKVM -- fast, no device round trip, and the connection survives.
+    socket.emit(RT_EVENTS.PRINT_TEXT, { text: "" }); // empty, fails .min(1)
+    socket.emit(RT_EVENTS.PRINT_TEXT, { text: "x".repeat(2000) }); // too long, fails .max(1024)
+    socket.emit(RT_EVENTS.PRINT_TEXT, {}); // missing `text` entirely
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(socket.connected).toBe(true);
+
+    const http = request(baseUrl);
+    const noneAudited = await http.get(`/audit?sessionId=${sessionId}&limit=200`).set("Authorization", `Bearer ${adminToken}`);
+    expect(noneAudited.body.some((e: { action: string }) => e.action === "PRINT_TEXT")).toBe(false);
+
+    // A valid payload reaches PrintTextHandler (and, in turn, PiKVM's unreachable-in-tests
+    // host, hence the wait matching every other PiKVM-REST-call test in this suite).
+    socket.emit(RT_EVENTS.PRINT_TEXT, { text: "Patient-01" });
+    await new Promise((resolve) => setTimeout(resolve, 5500));
+
+    const audited = await http.get(`/audit?sessionId=${sessionId}&limit=200`).set("Authorization", `Bearer ${adminToken}`);
+    const printEvent = audited.body.find((e: { action: string }) => e.action === "PRINT_TEXT");
+    expect(printEvent).toBeDefined();
+    // Attempted-but-undeliverable (this fixture's PiKVM host is deliberately unreachable) is
+    // still audited, not silently dropped -- see PrintTextHandler's own comment on why an
+    // unguarded device-call rejection used to skip the audit dispatch entirely.
+    expect(printEvent.details.delivered).toBe(false);
+    expect(printEvent.details.length).toBe("Patient-01".length);
 
     socket.disconnect();
   });
