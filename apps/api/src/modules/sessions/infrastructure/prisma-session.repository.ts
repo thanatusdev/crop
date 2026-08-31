@@ -80,7 +80,7 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
   async setController(
     sessionId: string,
     controllerUserId: string,
-    supervisorId: string,
+    supervisorId: string | null,
     expectedCurrentControllerUserId: string
   ): Promise<boolean> {
     // `updateMany`, not `update`: `update` takes a unique-field `where` and always either

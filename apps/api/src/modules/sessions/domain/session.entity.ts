@@ -77,4 +77,21 @@ export class Session {
       throw new ForbiddenError("This user is already in control of the session");
     }
   }
+
+  /**
+   * The mirror of `assertCanBeTakenOverBy`: control can only be handed *back* if someone
+   * other than the operator currently holds it. Deliberately takes no `actingUserId` --
+   * unlike takeover, the acting supervisor/admin isn't becoming the controller themselves,
+   * so there's no "already the controller" case to check for them specifically. See
+   * ReturnControlToOperatorHandler for why only elevated roles may call this at all: the
+   * operator never gets to unilaterally reclaim control just by asking.
+   */
+  assertControlCanBeReturnedToOperator(): void {
+    if (!this.isActive()) {
+      throw new ForbiddenError("Cannot change control on a session that is not active");
+    }
+    if (this.props.controllerUserId === this.props.operatorId) {
+      throw new ForbiddenError("The operator is already in control of this session");
+    }
+  }
 }

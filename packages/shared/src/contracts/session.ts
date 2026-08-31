@@ -24,12 +24,21 @@ export const TakeoverRequestSchema = z.object({
 });
 export type TakeoverRequest = z.infer<typeof TakeoverRequestSchema>;
 
-/** Server -> client push when control changes hands (initial start, or takeover). */
+/** Same shape as `TakeoverRequestSchema` today, kept as its own named type: the two actions
+ * are conceptually distinct (see ReturnControlToOperatorHandler) even though neither needs
+ * anything beyond the session id today. */
+export const ReturnControlRequestSchema = z.object({
+  sessionId: z.string().uuid(),
+});
+export type ReturnControlRequest = z.infer<typeof ReturnControlRequestSchema>;
+
+/** Server -> client push when control changes hands (initial start, takeover, or a
+ * supervisor/admin handing control back to the operator). */
 export const ControllerChangedEventSchema = z.object({
   sessionId: z.string().uuid(),
   controllerUserId: z.string().uuid(),
   controllerName: z.string(),
-  reason: z.enum(["session_start", "takeover"]),
+  reason: z.enum(["session_start", "takeover", "return_to_operator"]),
 });
 export type ControllerChangedEvent = z.infer<typeof ControllerChangedEventSchema>;
 

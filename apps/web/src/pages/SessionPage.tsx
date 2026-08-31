@@ -29,6 +29,7 @@ export default function SessionPage() {
 
   const isController = session?.controllerUserId === user?.sub;
   const isSupervisorEligible = user?.role === "SUPERVISOR" || user?.role === "CLINIC_ADMIN" || user?.role === "PLATFORM_ADMIN";
+  const isOperatorInControl = session?.controllerUserId === session?.operatorId;
 
   useEffect(() => {
     if (!sessionId) return;
@@ -66,6 +67,13 @@ export default function SessionPage() {
 
   const requestTakeover = useCallback(() => {
     socket?.emit(RT_EVENTS.TAKEOVER_REQUEST, { sessionId });
+  }, [socket, sessionId]);
+
+  // Only a SUPERVISOR/*_ADMIN may trigger this, mirroring takeover -- the operator can never
+  // reclaim their own session unilaterally, and any eligible role (not only whoever took
+  // over) can decide it's safe to hand back. See ReturnControlToOperatorHandler.
+  const requestReturnControl = useCallback(() => {
+    socket?.emit(RT_EVENTS.RETURN_CONTROL_REQUEST, { sessionId });
   }, [socket, sessionId]);
 
   const submitPrintText = useCallback(
@@ -133,6 +141,11 @@ export default function SessionPage() {
           {isSupervisorEligible && !isController && (
             <button className="btn secondary" onClick={requestTakeover}>
               Take over
+            </button>
+          )}
+          {isSupervisorEligible && !isOperatorInControl && (
+            <button className="btn secondary" onClick={requestReturnControl}>
+              Return control to operator
             </button>
           )}
           <button className="btn secondary" onClick={() => navigate(`/sessions/${sessionId}/replay`)}>
