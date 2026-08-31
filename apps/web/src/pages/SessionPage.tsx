@@ -32,6 +32,13 @@ export default function SessionPage() {
   const isController = session?.controllerUserId === user?.sub;
   const isSupervisorEligible = user?.role === "SUPERVISOR" || user?.role === "CLINIC_ADMIN" || user?.role === "PLATFORM_ADMIN";
   const isOperatorInControl = session?.controllerUserId === session?.operatorId;
+  // Mirrors Session.isParticipant() server-side: the operator, or a supervisor/admin who has
+  // already taken over. A supervisor who merely opened this session to look (e.g. via
+  // DashboardPage's "Rejoin session", shown for any active session regardless of viewer) is
+  // NOT a participant until they actually take over -- EndSessionHandler rejects an "End
+  // session" from them, so that button only renders once it would actually work. See
+  // docs/architecture.md for the matching backend-side fix (SessionsGateway.onJoinSession).
+  const isParticipant = session?.operatorId === user?.sub || session?.supervisorId === user?.sub;
 
   useEffect(() => {
     if (!sessionId) return;
@@ -167,9 +174,11 @@ export default function SessionPage() {
           <button className="btn secondary" onClick={() => navigate(`/sessions/${sessionId}/replay`)}>
             View replay
           </button>
-          <button className="btn danger" onClick={endSession} disabled={ending}>
-            {ending ? "Ending..." : "End session"}
-          </button>
+          {isParticipant && (
+            <button className="btn danger" onClick={endSession} disabled={ending}>
+              {ending ? "Ending..." : "End session"}
+            </button>
+          )}
         </div>
       </header>
 
