@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { UserDto, UserRole } from "@crop/shared";
+import type { TenantDto, UserDto, UserRole } from "@crop/shared";
 import { api, ApiError } from "../lib/api-client.js";
+import { useAuth } from "../lib/auth-context.js";
 
 const CREATABLE_ROLES: UserRole[] = ["CLINIC_ADMIN", "SUPERVISOR", "OPERATOR", "AUDITOR"] as UserRole[];
 
 export default function AdminUsersPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isSuperadmin = user?.role === "PLATFORM_ADMIN";
   const [users, setUsers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -27,9 +30,26 @@ export default function AdminUsersPage() {
   // admin ever sees these values. Cleared as soon as they navigate away or create another.
   const [justCreated, setJustCreated] = useState<{ email: string; password: string; role: UserRole } | null>(null);
 
+  // PLATFORM_ADMIN-only: which tenant the new user should land in. Invisible to a
+  // CLINIC_ADMIN, who always implicitly creates within their own tenant -- see
+  // UsersController's create() for the matching server-side rule (this field is silently
+  // ignored for anyone but PLATFORM_ADMIN, never trusted client-side).
+  const [tenants, setTenants] = useState<TenantDto[]>([]);
+  const [targetTenantId, setTargetTenantId] = useState("");
+
   useEffect(() => {
     void load();
+    if (isSuperadmin) void loadTenants();
   }, []);
+
+  async function loadTenants() {
+    try {
+      setTenants(await api.get<TenantDto[]>("/tenants"));
+    } catch {
+      // Non-fatal: the create-user form just won't offer a tenant picker if this fails: the
+      // user list itself (this page's main purpose) still loads and works independently.
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -76,11 +96,17 @@ export default function AdminUsersPage() {
     setCreateError(null);
     setCreating(true);
     try {
-      await api.post("/users", { email: newEmail, password: newUserPassword, role: newRole });
+      await api.post("/users", {
+        email: newEmail,
+        password: newUserPassword,
+        role: newRole,
+        ...(isSuperadmin && targetTenantId ? { tenantId: targetTenantId } : {}),
+      });
       setJustCreated({ email: newEmail, password: newUserPassword, role: newRole });
       setNewEmail("");
       setNewUserPassword("");
       setNewRole(CREATABLE_ROLES[2]!);
+      setTargetTenantId("");
       await load();
     } catch (err) {
       setCreateError(err instanceof ApiError ? err.message : "Could not create this user.");
@@ -133,6 +159,24 @@ export default function AdminUsersPage() {
                 ))}
               </select>
             </div>
+            {isSuperadmin && (
+              <div className="field">
+                <label htmlFor="new-user-tenant">Tenant</label>
+                <select id="new-user-tenant" value={targetTenantId} onChange={(e) => setTargetTenantId(e.target.value)} required>
+                  <option value="" disabled>
+                    Select a tenant...
+                  </option>
+                  {tenants
+                    .filter((t) => t.type !== "PLATFORM")
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                        {t.deactivated ? " (deactivated)" : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
             {createError && (
               <p className="error" role="alert">
                 {createError}

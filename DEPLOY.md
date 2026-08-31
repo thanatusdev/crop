@@ -151,6 +151,19 @@ approach as seeding:
 railway ssh -s crop-api -- pnpm exec tsx ../../infra/scripts/totp-codes.ts
 ```
 
+## 7. Bootstrapping a superadmin on the deployed instance
+
+Same `railway ssh` approach, same idempotency guarantee as running it locally -- safe to
+run more than once, and safe to run alongside step 3's seed data (they don't interact):
+
+```bash
+railway ssh -s crop-api -- pnpm exec tsx ../../infra/seeds/bootstrap-superadmin.ts
+```
+
+Override the default email/password by exporting `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD`
+in the same `ssh` command (`railway ssh -s crop-api -- sh -c "SUPERADMIN_EMAIL=... SUPERADMIN_PASSWORD=... pnpm exec tsx ..."`),
+matching the pattern used for `SEED_PIKVM_HOST` in step 3.
+
 ## Known limitations of this deploy (all deliberate, all fine for a demo)
 
 - **Real video never decodes.** The mock PiKVM sends fake, non-H.264 frame bytes to

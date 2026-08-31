@@ -4,12 +4,14 @@ import { ForbiddenError, NotFoundError, UnauthorizedError } from "../../../../..
 import { TOKEN_REVOCATION, type TokenRevocationPort } from "../../ports/token-revocation.port.js";
 import { TOKEN_SERVICE, type TokenServicePort } from "../../ports/token-service.port.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
+import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../../../tenants/application/ports/tenant-repository.port.js";
 import { RefreshTokensCommand, type RefreshTokensResult } from "./refresh-tokens.command.js";
 
 @CommandHandler(RefreshTokensCommand)
 export class RefreshTokensHandler implements ICommandHandler<RefreshTokensCommand, RefreshTokensResult> {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
+    @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort
   ) {}
@@ -31,6 +33,13 @@ export class RefreshTokensHandler implements ICommandHandler<RefreshTokensComman
     // LockUserHandler's docstring on the bounded-window tradeoff this implies).
     if (user.isLocked()) {
       throw new ForbiddenError("This account has been locked. Contact your administrator.");
+    }
+
+    // Same bounded-window tradeoff, same reasoning, for a tenant deactivated after this
+    // refresh token was issued.
+    const tenant = await this.tenants.findById(user.tenantId);
+    if (tenant?.isDeactivated()) {
+      throw new ForbiddenError("This organization's access has been deactivated. Contact your administrator.");
     }
 
     const accessToken = this.tokens.signAccessToken({

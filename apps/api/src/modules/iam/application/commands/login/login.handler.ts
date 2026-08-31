@@ -8,6 +8,7 @@ import { MFA_SERVICE, type MfaServicePort } from "../../ports/mfa-service.port.j
 import { RATE_LIMITER, type RateLimiterPort } from "../../ports/rate-limiter.port.js";
 import { TOKEN_SERVICE, type TokenServicePort } from "../../ports/token-service.port.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
+import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../../../tenants/application/ports/tenant-repository.port.js";
 import { LoginCommand, type LoginResult } from "./login.command.js";
 
 const MAX_ATTEMPTS = 10;
@@ -24,6 +25,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
 
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
+    @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     @Inject(PASSWORD_HASHER) private readonly hasher: PasswordHasherPort,
     @Inject(MFA_SERVICE) private readonly mfa: MfaServicePort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
@@ -64,6 +66,16 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     if (user.isLocked()) {
       await this.audit(user.tenantId, user.id, AuditAction.LOGIN_FAILURE, { reason: "account_locked" });
       throw new ForbiddenError("This account has been locked. Contact your administrator.");
+    }
+
+    // Same reasoning and same "checked before password" position as the lock check above --
+    // a tenant can be deactivated by a PLATFORM_ADMIN entirely independently of anything this
+    // user did (e.g. a clinic's contract ended), so telling them plainly beats a confusing
+    // "invalid credentials" for a password they know is right.
+    const tenant = await this.tenants.findById(user.tenantId);
+    if (tenant?.isDeactivated()) {
+      await this.audit(user.tenantId, user.id, AuditAction.LOGIN_FAILURE, { reason: "tenant_deactivated" });
+      throw new ForbiddenError("This organization's access has been deactivated. Contact your administrator.");
     }
 
     const passwordOk = await this.hasher.verify(user.passwordHash, command.password);

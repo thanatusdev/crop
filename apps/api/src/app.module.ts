@@ -16,6 +16,7 @@ import { EquipmentModule } from "./modules/equipment/equipment.module.js";
 import { SessionsModule } from "./modules/sessions/sessions.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { QueueModule } from "./modules/queue/queue.module.js";
+import { TenantsModule } from "./modules/tenants/tenants.module.js";
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { QueueModule } from "./modules/queue/queue.module.js";
     AuditModule,
     SessionsModule,
     QueueModule,
+    TenantsModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
 })

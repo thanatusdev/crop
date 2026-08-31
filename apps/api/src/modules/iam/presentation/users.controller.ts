@@ -29,7 +29,10 @@ import { toUserDto } from "./user.dto.js";
  * endpoint (no mailer exists to send a new user their own credentials) -- `POST /users`
  * below is strictly an admin-driven action, and even then only for roles that make sense
  * scoped to one tenant; see CreateUserRequestSchema's own comment for why PLATFORM_ADMIN is
- * excluded.
+ * excluded. `POST /users` is the one exception to "tenant-scoped": a PLATFORM_ADMIN caller
+ * can target any tenant via `body.tenantId` (see `create()`), for bootstrapping a brand-new
+ * tenant's first admin -- everyone else stays confined to their own tenant regardless of
+ * what they put in that field.
  */
 @Controller("users")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,8 +51,13 @@ export class UsersController {
 
   @Post()
   async create(@CurrentUser() admin: AccessTokenClaims, @Body(new ZodValidationPipe(CreateUserRequestSchema)) body: CreateUserRequest) {
+    // body.tenantId is honored only for PLATFORM_ADMIN -- bootstrapping a brand-new tenant's
+    // first admin from outside it. For everyone else it's silently ignored, falling back to
+    // the caller's own tenant; see CreateUserRequestSchema's own comment and the e2e test
+    // asserting this can't become a privilege-escalation path for a CLINIC_ADMIN.
+    const targetTenantId = admin.role === UserRole.PLATFORM_ADMIN && body.tenantId ? body.tenantId : admin.tenantId;
     const result: RegisterUserResult = await this.commandBus.execute(
-      new RegisterUserCommand(admin.tenantId, body.email, body.password, body.role)
+      new RegisterUserCommand(targetTenantId, body.email, body.password, body.role, admin.sub)
     );
     // Deliberately not the full RegisterUserResult (enrollmentToken/provisioningUri): those
     // are only meaningful to the new user's own first login (see LoginHandler), which

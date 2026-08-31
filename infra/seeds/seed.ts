@@ -11,14 +11,14 @@
 import { NestFactory } from "@nestjs/core";
 import { CommandBus } from "@nestjs/cqrs";
 import * as OTPAuth from "otpauth";
-import { TargetOs, MouseMode, UserRole } from "@crop/shared";
+import { TargetOs, MouseMode, TenantType, UserRole } from "@crop/shared";
 import { DEMO_PASSWORD } from "./demo-password.js";
 import { AppModule } from "../../apps/api/dist/app.module.js";
-import { PrismaService } from "../../apps/api/dist/shared/infrastructure/prisma/prisma.service.js";
 import { RegisterUserCommand } from "../../apps/api/dist/modules/iam/application/commands/register-user/register-user.command.js";
 import { ConfirmMfaEnrollmentCommand } from "../../apps/api/dist/modules/iam/application/commands/enroll-mfa/confirm-mfa-enrollment.command.js";
 import { CreateEquipmentCommand } from "../../apps/api/dist/modules/equipment/application/commands/create-equipment/create-equipment.command.js";
 import { CreateQueueEntryCommand } from "../../apps/api/dist/modules/queue/application/commands/create-queue-entry/create-queue-entry.command.js";
+import { CreateTenantCommand } from "../../apps/api/dist/modules/tenants/application/commands/create-tenant/create-tenant.command.js";
 
 interface SeededUser {
   userId: string;
@@ -52,12 +52,11 @@ async function registerAndEnroll(
 
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
-  const prisma = app.get(PrismaService);
   const commandBus = app.get(CommandBus);
 
   console.log("Seeding tenants...");
-  const alpha = await prisma.tenant.create({ data: { name: "Clinica Alpha", type: "CLINIC" } });
-  const beta = await prisma.tenant.create({ data: { name: "Clinica Beta", type: "CLINIC" } });
+  const alpha = await commandBus.execute(new CreateTenantCommand("Clinica Alpha", TenantType.CLINIC));
+  const beta = await commandBus.execute(new CreateTenantCommand("Clinica Beta", TenantType.CLINIC));
 
   console.log("Seeding users (registering + auto-confirming MFA)...");
   const users: SeededUser[] = [];

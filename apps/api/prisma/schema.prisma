@@ -59,10 +59,14 @@ enum QueueStatus {
 }
 
 model Tenant {
-  id        String     @id @default(uuid())
-  name      String
-  type      TenantType
-  createdAt DateTime   @default(now())
+  id            String     @id @default(uuid())
+  name          String
+  type          TenantType
+  createdAt     DateTime   @default(now())
+  // Soft-deactivation only, mirroring User.lockedAt -- see docs/architecture.md for why a
+  // real DELETE is never appropriate here (it would cascade into deleting this tenant's
+  // audit_logs rows, which the append-only trigger exists specifically to prevent).
+  deactivatedAt DateTime?
 
   users     User[]
   equipment Equipment[]

@@ -25,6 +25,10 @@ export default function DashboardPage() {
     user?.role === "AUDITOR" || user?.role === "SUPERVISOR" || user?.role === "CLINIC_ADMIN" || user?.role === "PLATFORM_ADMIN";
   // Mirrors UsersController's/EquipmentController's POST @Roles -- same reasoning.
   const canManageAdmin = user?.role === "CLINIC_ADMIN" || user?.role === "PLATFORM_ADMIN";
+  // Mirrors TenantsController's @Roles -- PLATFORM_ADMIN only, deliberately NOT lumped with
+  // CLINIC_ADMIN like canManageAdmin above: tenant lifecycle is the one thing a CLINIC_ADMIN
+  // never gets, by design.
+  const canManagePlatform = user?.role === "PLATFORM_ADMIN";
 
   useEffect(() => {
     void load();
@@ -121,6 +125,11 @@ export default function DashboardPage() {
                 Manage equipment
               </button>
             </>
+          )}
+          {canManagePlatform && (
+            <button className="btn secondary" onClick={() => navigate("/superadmin/tenants")}>
+              Manage tenants
+            </button>
           )}
           <button className="btn secondary" onClick={logout}>
             Sign out
