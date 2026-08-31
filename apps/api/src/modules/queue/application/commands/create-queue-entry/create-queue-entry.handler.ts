@@ -1,11 +1,12 @@
 import { Inject } from "@nestjs/common";
-import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { EQUIPMENT_REPOSITORY, type EquipmentRepositoryPort } from "../../../../equipment/application/ports/equipment-repository.port.js";
 import { QueueEntry } from "../../../domain/queue-entry.entity.js";
 import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../ports/queue-repository.port.js";
+import { QueueUpdatedEvent } from "../../events/queue-updated.event.js";
 import { CreateQueueEntryCommand } from "./create-queue-entry.command.js";
 
 @CommandHandler(CreateQueueEntryCommand)
@@ -13,7 +14,8 @@ export class CreateQueueEntryHandler implements ICommandHandler<CreateQueueEntry
   constructor(
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus
   ) {}
 
   async execute(command: CreateQueueEntryCommand): Promise<QueueEntry> {
@@ -48,6 +50,8 @@ export class CreateQueueEntryHandler implements ICommandHandler<CreateQueueEntry
         details: { equipmentId: entry.equipmentId },
       })
     );
+
+    this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, entry.equipmentId));
 
     return entry;
   }

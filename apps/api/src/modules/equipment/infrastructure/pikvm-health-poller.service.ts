@@ -34,7 +34,13 @@ export class PiKvmHealthPoller {
     if (this.config.get<boolean>("DISABLE_HEALTH_POLLER", false)) return;
 
     const equipment = await this.equipmentRepo.listAll();
-    await Promise.all(equipment.map((item) => this.pollOne(item.id)));
+    // Equipment manually parked in MAINTENANCE (EnterMaintenanceHandler) is deliberately
+    // skipped here -- without this, the very next poll cycle (at most 10s later) would
+    // silently revert a manual override back to ONLINE/OFFLINE/DEGRADED, making the feature
+    // pointless. Only ClearMaintenanceHandler is allowed to move equipment out of
+    // MAINTENANCE; see its own comment for what it reverts to and why.
+    const pollable = equipment.filter((item) => !item.isInMaintenance());
+    await Promise.all(pollable.map((item) => this.pollOne(item.id)));
   }
 
   private async pollOne(equipmentId: string): Promise<void> {

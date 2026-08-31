@@ -9,6 +9,9 @@ import { EncryptionService } from "../../shared/infrastructure/crypto/encryption
 import { AuditModule } from "../audit/audit.module.js";
 
 import { CreateEquipmentHandler } from "./application/commands/create-equipment/create-equipment.handler.js";
+import { UpdateEquipmentHandler } from "./application/commands/update-equipment/update-equipment.handler.js";
+import { EnterMaintenanceHandler } from "./application/commands/enter-maintenance/enter-maintenance.handler.js";
+import { ClearMaintenanceHandler } from "./application/commands/clear-maintenance/clear-maintenance.handler.js";
 import { UpdateEquipmentStatusHandler } from "./application/commands/update-equipment-status/update-equipment-status.handler.js";
 import { ListEquipmentHandler } from "./application/queries/list-equipment/list-equipment.handler.js";
 import { GetEquipmentHandler } from "./application/queries/get-equipment/get-equipment.handler.js";
@@ -16,6 +19,9 @@ import { GetEquipmentConnectionSecretsHandler } from "./application/queries/get-
 
 const COMMAND_AND_QUERY_HANDLERS = [
   CreateEquipmentHandler,
+  UpdateEquipmentHandler,
+  EnterMaintenanceHandler,
+  ClearMaintenanceHandler,
   UpdateEquipmentStatusHandler,
   ListEquipmentHandler,
   GetEquipmentHandler,

@@ -6,6 +6,7 @@ import type {
   CreateEquipmentData,
   EquipmentConnectionSecrets,
   EquipmentRepositoryPort,
+  UpdateEquipmentData,
 } from "../application/ports/equipment-repository.port.js";
 
 @Injectable()
@@ -32,6 +33,11 @@ export class PrismaEquipmentRepository implements EquipmentRepositoryPort {
     return rows.map((row) => this.toDomain(row));
   }
 
+  async update(id: string, data: UpdateEquipmentData): Promise<Equipment> {
+    const row = await this.prisma.equipment.update({ where: { id }, data });
+    return this.toDomain(row);
+  }
+
   async updateStatus(id: string, status: EquipmentStatus): Promise<void> {
     await this.prisma.equipment.update({ where: { id }, data: { status } });
   }
@@ -50,6 +56,7 @@ export class PrismaEquipmentRepository implements EquipmentRepositoryPort {
     name: string;
     status: string;
     pikvmHost: string;
+    pikvmUser: string;
     cameraUrl: string | null;
     targetOs: string;
     keymap: string;
@@ -63,6 +70,7 @@ export class PrismaEquipmentRepository implements EquipmentRepositoryPort {
       name: row.name,
       status: row.status as EquipmentStatus,
       pikvmHost: row.pikvmHost,
+      pikvmUser: row.pikvmUser,
       cameraUrl: row.cameraUrl,
       targetOs: row.targetOs as TargetOs,
       keymap: row.keymap,

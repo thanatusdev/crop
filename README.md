@@ -253,6 +253,8 @@ detail on each is in `docs/architecture.md`; summary:
 | "Type text" cleared itself with zero success feedback, indistinguishable from doing nothing (worse paired with the mock PiKVM's permanently-black video panel) | User-reported while demoing; confirmed via the audit trail that it had, in fact, always worked | Purely a UX gap, not a functional bug — now shows a transient "✓ Sent to equipment" confirmation |
 | **The dashboard had no admin UI at all** — CLINIC_ADMIN saw the identical screen every other role saw, no way to list/create users or add equipment through the UI | User-reported while demoing ("how does admin work?") | `GET/POST /users`, admin-facing lock/unlock/reset-password, equipment creation, and patient-queue management (add/cancel) were all either fully implemented server-side with zero frontend caller, or missing entirely (no way to *list* users to act on) |
 | `POST /queue/:id/status` returned HTTP 201 with a completely empty body instead of 204, unlike every other "do a thing, no return value" endpoint in this codebase | Giving that route its first-ever caller from an actual browser, while building the queue-management UI above | `supertest`'s `.expect(201)` never noticed (doesn't check for a body); a real browser's `fetch().json()` throws outright on an empty 2xx body — the new UI hit this immediately |
+| **Equipment had create-only lifecycle** — no edit, and `EquipmentStatus.MAINTENANCE` existed in the shared enum from day one but nothing anywhere ever set it | A full backend↔frontend coverage audit ("check if we're missing anything"), cross-referencing every route/WS event against every frontend caller | Users got lock/unlock, Tenants got deactivate/reactivate, but a typo'd PiKVM host or a device pulled for repair had no fix except direct DB access |
+| `RT_EVENTS.QUEUE_UPDATED`/`EQUIPMENT_STATUS_CHANGED` existed as constants from the start, emitted and listened for by nothing | Same audit | Two simultaneous dashboards only ever saw each other's queue/equipment changes after a manual reload — correct data, just never live |
 
 Codebase cleanup pass added: the queue tenant-isolation fix above plus everything in the two
 rows after it, a CORS-default drift between the HTTP server and the WebSocket gateway, a
@@ -337,6 +339,15 @@ same technique that found the room-join bug in the row above.
     the ability to log in; reactivate it and they're back. Notice "Manage tenants" itself
     never shows another tenant's equipment/sessions/audit log — tenant lifecycle only, no
     cross-tenant browsing.
+13. **Equipment lifecycle** — on "Manage equipment," edit MRI-01 (rename it, tweak its
+    screen size) and click "Enter maintenance." The dashboard's badge flips to a new
+    MAINTENANCE color and "Start session" disables, same as OFFLINE/DEGRADED — walk away for
+    10+ seconds and confirm it *doesn't* silently revert on its own (the health poller skips
+    equipment currently in maintenance). "Clear maintenance" to bring it back.
+14. **Live push, no reload** — open the dashboard in two separate browser windows, logged in
+    as the same tenant's admin in both. Add a patient to the queue in one window; watch it
+    appear in the other without ever refreshing it.
+
 
 ## What's out of scope for this MVP
 
