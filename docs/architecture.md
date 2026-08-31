@@ -667,6 +667,94 @@ both implemented and called from at least one handler or scheduler; every page/c
 under `apps/web/src` is reachable from `App.tsx`'s routes; no `TODO`/`FIXME`/`XXX`/`HACK`
 comments exist anywhere in the codebase.
 
+## Running a demo without real PiKVM hardware
+
+`infra/spike/mock-pikvm-server.ts` (`pnpm spike:mock`) is a real HTTP+WebSocket server
+speaking PiKVM's actual protocol -- built during the Day 2 hardware spike as a protocol-
+conformance test double, but it works equally well as a stand-in for a live demo. Point
+`SEED_PIKVM_HOST=http://localhost:8443` (plain HTTP, not HTTPS -- see the mock's own
+docstring) at seed time and everything works end to end except real video: login/MFA,
+equipment health-polling to ONLINE, starting/ending sessions, HID input forwarding, takeover,
+return-control, emergency release, print-text, the patient queue, and the full audit trail
+including hash-chain verification. The one thing that doesn't work is the video panel itself
+-- the mock sends fake, non-H.264 frame bytes purely to exercise the connection/framing
+protocol, so the browser's `VideoDecoder` correctly reports a decode error there. This is
+the intended, by-design scope of that mock (see its own docstring: "NOT a full simulator").
+
+Two real, previously-invisible bugs were found running exactly this demo, both fixed the
+same session:
+
+- **`infra/` scripts (`infra/seeds/seed.ts`, `infra/spike/*.ts`, `infra/loadtest/*.ts`) have
+  zero typecheck coverage anywhere in this monorepo's toolchain.** They run via `tsx` against
+  compiled `dist/` output with no `tsc` pass over the calling script itself, ever. This is
+  precisely why a breaking `CreateEquipmentCommand`/`CreateQueueEntryCommand` constructor
+  signature change (adding `tenantId`/`actingUserId`, see the codebase-cleanup section above)
+  went completely unnoticed by `pnpm typecheck`/`pnpm build`/the full e2e suite, and only
+  surfaced when `pnpm db:seed` was actually run. Fixed the immediate regression in `seed.ts`;
+  closing the underlying coverage gap (a `tsconfig` covering `infra/`, wired into a turbo
+  task) is a recommended follow-up, not yet done.
+- **The "Type text" field silently clearing itself on submit, with zero success feedback,
+  looked indistinguishable from doing nothing at all** -- especially paired with the mock
+  video's permanently-black "connecting" panel, which gives no visual confirmation either.
+  The action was actually always working correctly (confirmed via the `PRINT_TEXT` audit
+  row, `delivered: true`); this was a pure UX gap, not a functional bug. `SessionPage` now
+  shows a transient "✓ Sent to equipment" confirmation (`role="status"`, auto-dismissing
+  after 2.5s) immediately after submit -- a best-effort "your click registered" signal, not
+  proof of delivery (there's no ack on the underlying fire-and-forget socket emit; the real
+  proof is still the audit row).
+
+## A second, more serious bug found the same way: queue entries were effectively single-use, forever
+
+`Session.queueEntryId` is `@unique` on the `sessions` table -- a queue entry maps to *at
+most one session, ever*, not just one *active* one (contrast with
+`sessions_one_active_per_equipment`, which is a genuinely *partial* index scoped to
+active/pending rows only). That constraint is reasonable on its own -- a session is meant to
+be the one-time historical record of one clinical exam for one queue entry -- but **nothing
+anywhere in the session lifecycle ever moved a queue entry's status off `WAITING`** when a
+session started, ended, or aborted against it. `DashboardPage`'s "next waiting patient"
+picker (`item.queue.find(q => q.status === "WAITING")`) therefore kept re-selecting the
+*same*, already-consumed queue entry on every subsequent "Start session" click for that
+equipment -- which always collided with the old session's row on the unique constraint,
+forever, regardless of whether that old session succeeded, was cleanly ended, or was
+auto-aborted by the idle-timeout sweep.
+
+Made worse by `PrismaSessionRepository.create()`'s error handling: it mapped *any* P2002 on
+this table to "Equipment already has an active session" -- true of the equipment-exclusivity
+index, completely false and actively misleading for this one. Debugging this live took
+directly comparing curl (worked -- a fresh, never-used queue entry) against the browser
+(consistently failed -- the dashboard's stale-picker always re-selected the same, already-
+consumed one) to find the real cause; the error message alone pointed at entirely the wrong
+subsystem.
+
+Fixed with two changes:
+1. `Session` gained a `queueEntryId` getter (it existed in the database, `create()`'s input,
+   and audit `details`, but was never on the domain entity itself, so `EndSessionHandler`/
+   `AbortIdleSessionHandler` had no way to know which queue entry a session they'd just
+   loaded belonged to).
+2. Each of the three lifecycle handlers now transitions the queue entry, best-effort
+   (caught and logged, never allowed to fail the primary session operation): `StartSessionHandler`
+   -> `IN_PROGRESS`, `EndSessionHandler` -> `DONE`, `AbortIdleSessionHandler` -> `CANCELLED`
+   (deliberately *not* back to `WAITING` -- the unique constraint means this exact queue
+   entry can never be attached to a new session regardless of status, so leaving it
+   "WAITING" would misleadingly imply a retry is possible; the honest status is that this
+   specific attempt didn't happen, and whoever coordinates the queue needs to add the
+   patient again for a real retry).
+3. `PrismaSessionRepository.create()`'s P2002 handling now inspects `err.meta.target` to
+   distinguish which constraint was actually violated, so a queue-entry collision gets its
+   own accurate error message instead of borrowing the equipment-exclusivity one.
+
+Required wiring `QueueModule` to export `QUEUE_REPOSITORY` and adding it to `SessionsModule`'s
+imports -- the two modules had no dependency relationship before this, by design (sessions
+didn't need to know about the queue at all until now).
+
+Covered by two new tests in `test/session-lifecycle.e2e.spec.ts`: the full
+WAITING -> IN_PROGRESS -> DONE cycle plus a second session on the same equipment afterward
+(the actual regression), and the abort/CANCELLED path is *not* independently covered by a
+real idle-timeout-triggered test (that would mean actually waiting out
+`SESSION_IDLE_TIMEOUT_MS`, which this suite deliberately never does) -- verified by code
+inspection instead, since it's the identical `queue.updateStatus()` call pattern the other
+two paths already prove works.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

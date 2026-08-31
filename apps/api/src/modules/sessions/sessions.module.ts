@@ -37,6 +37,7 @@ import { ListSessionSnapshotsHandler } from "./application/queries/list-session-
 import { IamModule } from "../iam/iam.module.js";
 import { EquipmentModule } from "../equipment/equipment.module.js";
 import { AuditModule } from "../audit/audit.module.js";
+import { QueueModule } from "../queue/queue.module.js";
 
 const COMMAND_AND_QUERY_HANDLERS = [
   StartSessionHandler,
@@ -54,7 +55,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
 ];
 
 @Module({
-  imports: [CqrsModule, JwtModule.register({}), IamModule, EquipmentModule, AuditModule],
+  imports: [CqrsModule, JwtModule.register({}), IamModule, EquipmentModule, AuditModule, QueueModule],
   controllers: [SessionsController],
   providers: [
     { provide: SESSION_REPOSITORY, useClass: PrismaSessionRepository },

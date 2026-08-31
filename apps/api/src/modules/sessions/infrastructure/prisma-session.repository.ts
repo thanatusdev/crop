@@ -27,11 +27,26 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
       });
       return this.toDomain(row);
     } catch (err) {
-      // P2002 here can only be the partial unique index in
-      // `sessions_one_active_per_equipment` -- this table has no other unique constraint.
-      // Translates the rare TOCTOU race (see StartSessionHandler's comment) into the same
-      // domain error the fast-path check already throws for the common case.
+      // Two different unique constraints can produce a P2002 here, and conflating them
+      // was a real, previously-undiscovered bug: `queueEntryId` is `@unique` on this table
+      // (a queue entry maps to at most one session, ever -- not just one *active* one, the
+      // way `sessions_one_active_per_equipment` is intentionally scoped), so a *second*
+      // session for the same still-"WAITING" patient (e.g. one whose first session aborted
+      // on idle timeout, and nothing had transitioned its queue status away from WAITING)
+      // hit this exact catch block too, and got the same "equipment already has an active
+      // session" message -- true of neither cause, and actively misleading about the
+      // second one. `err.meta.target` (Prisma's own indication of which columns/index the
+      // violation was against) is what actually distinguishes the two.
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const target = err.meta?.target;
+        const violatedQueueEntryUniqueness =
+          (Array.isArray(target) && target.includes("queueEntryId")) ||
+          (typeof target === "string" && target.includes("queueEntryId"));
+        if (violatedQueueEntryUniqueness) {
+          throw new ConflictError(
+            "This patient's queue entry has already been used for a session. Add them to the queue again to retry."
+          );
+        }
         throw new ConflictError("Equipment already has an active session");
       }
       throw err;
@@ -112,6 +127,7 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
     status: string;
     startedAt: Date | null;
     endedAt: Date | null;
+    queueEntryId: string | null;
   }): Session {
     return new Session({
       id: row.id,
@@ -123,6 +139,7 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
       status: row.status as SessionStatus,
       startedAt: row.startedAt,
       endedAt: row.endedAt,
+      queueEntryId: row.queueEntryId,
     });
   }
 }

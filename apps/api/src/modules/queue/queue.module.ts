@@ -18,6 +18,11 @@ const COMMAND_AND_QUERY_HANDLERS = [CreateQueueEntryHandler, UpdateQueueStatusHa
   imports: [CqrsModule, EquipmentModule, AuditModule],
   controllers: [QueueController],
   providers: [{ provide: QUEUE_REPOSITORY, useClass: PrismaQueueRepository }, ...COMMAND_AND_QUERY_HANDLERS],
+  // SessionsModule needs this to keep a queue entry's status in sync with the lifecycle of
+  // the session started against it (see StartSessionHandler/EndSessionHandler/
+  // AbortIdleSessionHandler) -- without this export, that's exactly the kind of thing that
+  // silently stays undone because nothing at the DI level forces it to exist.
+  exports: [QUEUE_REPOSITORY],
 })
 export class QueueModule {}
 
