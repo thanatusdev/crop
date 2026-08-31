@@ -10,9 +10,14 @@ import { UserRole } from "@crop/shared";
 // perfectly. Run `nest build` before `test:e2e` (the npm script already does this), same
 // tradeoff the seed script already accepts. See docs/architecture.md.
 import { AppModule } from "../dist/app.module.js";
+import { configureApp } from "../dist/configure-app.js";
 
 export async function createTestApp(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, { logger: false });
+  // Same helmet()/CORS setup main.ts's real bootstrap applies -- see configureApp's own
+  // docstring for why this has to be called explicitly here too, not something AppModule's
+  // own providers can express.
+  configureApp(app);
   await app.init();
   return app;
 }

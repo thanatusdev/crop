@@ -34,9 +34,10 @@ stuck-key safety mechanism) this integration depends on.
   session per piece of equipment, enforced; up to `MAX_CONCURRENT_SESSIONS_PER_OPERATOR`
   concurrent sessions per operator).
 - **Real-time HID input forwarding** (keyboard + mouse) over a dedicated WebSocket channel,
-  gated live on who currently holds control, staying under a ~200ms end-to-end latency
-  budget (PiKVM capture/encode + relay + browser decode — see `docs/architecture.md`'s
-  stage-by-stage breakdown).
+  gated live on who currently holds control. Input forwarding itself is a near-instant,
+  fire-and-forget control-plane send (see the HUD's *measured* round-trip time below); the
+  ~200ms budget and PiKVM capture/encode/relay/decode breakdown in `docs/architecture.md`
+  describe the separate *video* glass-to-glass path, not HID input.
 - **Type text**, not per-keystroke — accented/non-Latin characters render correctly via
   PiKVM's own per-equipment keymap, and the action is confirmed on-screen the moment it's
   sent.
@@ -47,7 +48,9 @@ stuck-key safety mechanism) this integration depends on.
   live, not just the two people involved.
 - **Idle-session auto-abort**: a session nobody's touched for `SESSION_IDLE_TIMEOUT_MS`
   frees its equipment automatically, audited with `reason: idle_timeout`.
-- **Live input-latency HUD** (measured round-trip time, not an estimate) on every session.
+- **Live input-latency HUD** (measured round-trip time, not an estimate, on every session —
+  a Socket.io control-plane echo (`latency:ping`/`latency:pong`), which never touches PiKVM or
+  video, so it is not the same number as the video glass-to-glass budget below).
 - **Session snapshots**, captured periodically for the session's duration, and a **replay
   viewer** afterward that scrubs through them with the surrounding audit events (input
   batches, print actions) shown alongside each frame.
@@ -56,7 +59,9 @@ stuck-key safety mechanism) this integration depends on.
   console path isn't.
 - **A standalone, unauthenticated "proof clock" page** (`/latency-clock`) — opened on the
   target machine itself, not the operator's, so a single photograph of both screens side by
-  side is a latency measurement nobody has to take on trust.
+  side is a real, human-verifiable *video* glass-to-glass latency measurement — the only way
+  to actually check the estimated budget above against reality, since neither this codebase
+  nor the input-latency HUD measures video latency itself.
 - **One unreachable device can never take down another tenant's session** — every
   hardware-facing connection is timeout-bounded and safe-by-construction against an
   unhandled connection error; an offline/misconfigured PiKVM degrades to `DEGRADED`/
@@ -120,7 +125,11 @@ stuck-key safety mechanism) this integration depends on.
 
 ### Accessibility
 Verified with `axe-core` against a live, running app in headless Chromium — not a manual
-read-through — across every page.
+read-through — across every page, via a real repeatable test tier
+(`apps/web/tests/a11y/pages.a11y.spec.ts`, `pnpm --filter @crop/web test:a11y`), logged in
+through the real (mandatory-2FA) auth flow against the same no-hardware demo stack `make demo`
+starts. Deliberately local/on-demand only, not wired into `.github/workflows/ci.yml` — see
+`apps/web/playwright.config.ts`'s docstring for why.
 - **Proper landmark and heading structure** on every page (`<header>`/`<main>`, exactly one
   `<h1>`, a real `h1 > h2 > h3` order) — screen reader users get a real "start of content"
   landmark and page title everywhere, not just on some pages.

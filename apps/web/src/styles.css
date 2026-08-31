@@ -103,7 +103,10 @@ select:focus-visible,
 }
 
 .btn.danger {
-  background: #d9463c;
+  /* #d9463c against white text was 4.29:1, just under WCAG AA's 4.5:1 minimum -- found by
+     the new apps/web accessibility test tier (tests/a11y/), not by inspection. #c23a30 keeps
+     the same "danger" hue at 5.33:1. */
+  background: #c23a30;
 }
 
 .error {
@@ -186,7 +189,7 @@ select:focus-visible,
 }
 
 .takeover-banner {
-  background: #d9463c;
+  background: #c23a30; /* same fix and reasoning as .btn.danger above */
   color: white;
   padding: 10px 16px;
   border-radius: 6px;
