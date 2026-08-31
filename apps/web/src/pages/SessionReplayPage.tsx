@@ -28,29 +28,37 @@ export default function SessionReplayPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntryDto[] | null>(null); // null = not authorized to view, not "empty"
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
     void (async () => {
-      const s = await api.get<SessionState>(`/sessions/${sessionId}`);
-      const [eq, snaps] = await Promise.all([
-        api.get<EquipmentDto>(`/equipment/${s.equipmentId}`),
-        api.get<SessionSnapshotDto[]>(`/sessions/${sessionId}/snapshots`),
-      ]);
-      setSession(s);
-      setEquipment(eq);
-      setSnapshots(snaps);
-      setIndex(Math.max(0, snaps.length - 1));
-
-      // Only AUDITOR/SUPERVISOR/CLINIC_ADMIN/PLATFORM_ADMIN can list audit logs (see
-      // AuditController's @Roles) -- an OPERATOR viewing their own session's replay simply
-      // won't see this panel, which is the correct behaviour, not an error to surface.
+      setLoading(true);
+      setLoadError(null);
       try {
-        setAuditLogs(await api.get<AuditLogEntryDto[]>(`/audit?sessionId=${sessionId}&limit=500`));
-      } catch {
-        setAuditLogs(null);
+        const s = await api.get<SessionState>(`/sessions/${sessionId}`);
+        const [eq, snaps] = await Promise.all([
+          api.get<EquipmentDto>(`/equipment/${s.equipmentId}`),
+          api.get<SessionSnapshotDto[]>(`/sessions/${sessionId}/snapshots`),
+        ]);
+        setSession(s);
+        setEquipment(eq);
+        setSnapshots(snaps);
+        setIndex(Math.max(0, snaps.length - 1));
+
+        // Only AUDITOR/SUPERVISOR/CLINIC_ADMIN/PLATFORM_ADMIN can list audit logs (see
+        // AuditController's @Roles) -- an OPERATOR viewing their own session's replay simply
+        // won't see this panel, which is the correct behaviour, not an error to surface.
+        try {
+          setAuditLogs(await api.get<AuditLogEntryDto[]>(`/audit?sessionId=${sessionId}&limit=500`));
+        } catch {
+          setAuditLogs(null);
+        }
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : "Could not load this session's replay.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [sessionId]);
 
@@ -68,18 +76,38 @@ export default function SessionReplayPage() {
       .sort((a, b) => a.seq - b.seq);
   }, [auditLogs, current]);
 
-  if (loading || !session || !equipment) return <div className="page">Loading replay...</div>;
+  if (loadError) {
+    return (
+      <main className="page">
+        <p className="error" role="alert">
+          {loadError}
+        </p>
+        <button className="btn secondary" onClick={() => navigate(-1)}>
+          Back
+        </button>
+      </main>
+    );
+  }
+
+  if (loading || !session || !equipment) {
+    return (
+      <main className="page" aria-live="polite">
+        Loading replay...
+      </main>
+    );
+  }
 
   return (
     <div>
-      <div className="topbar">
+      <header className="topbar">
         <strong>{equipment.name} — Replay</strong>
         <button className="btn secondary" onClick={() => navigate(-1)}>
           Back
         </button>
-      </div>
+      </header>
 
-      <div className="page">
+      <main className="page">
+        <h1 className="visually-hidden">{equipment.name} session replay</h1>
         {snapshots.length === 0 ? (
           <p style={{ color: "#9aa4b2" }}>
             No snapshots were captured for this session (it may have been too short, or ended before the first
@@ -98,7 +126,11 @@ export default function SessionReplayPage() {
               </div>
 
               <div className="card">
+                <label htmlFor="replay-scrubber" className="visually-hidden">
+                  Snapshot timeline scrubber, frame {index + 1} of {snapshots.length}
+                </label>
                 <input
+                  id="replay-scrubber"
                   type="range"
                   min={0}
                   max={Math.max(0, snapshots.length - 1)}
@@ -117,9 +149,7 @@ export default function SessionReplayPage() {
             </div>
 
             <div className="card">
-              <h4 style={{ marginTop: 0 }}>
-                Activity within {NEARBY_WINDOW_MS / 1000}s of this frame
-              </h4>
+              <h2 style={{ marginTop: 0, fontSize: "1.1em" }}>Activity within {NEARBY_WINDOW_MS / 1000}s of this frame</h2>
               {auditLogs === null ? (
                 <p style={{ fontSize: 13, color: "#9aa4b2" }}>
                   Your role does not have access to the audit trail. Snapshot playback is still available above.
@@ -138,7 +168,7 @@ export default function SessionReplayPage() {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

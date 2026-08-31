@@ -189,11 +189,19 @@ detail on each is in `docs/architecture.md`; summary:
 | `AuditAction.LOGOUT` was defined in the enum but never dispatched anywhere | Auth hardening pass, reviewing what a "logout" actually did | No server-side effect at all: a stolen refresh token stayed valid for its full 7-day life even after the legitimate user "logged out" |
 | `GetUserByIdQuery` had no HTTP endpoint and, once given one, no tenant check | Wiring up admin lock/unlock/reset-password endpoints | Would have let one tenant's admin look up another tenant's user by UUID, the same class of bug `GET /sessions/:id` had |
 | `pnpm dev`'s Vite dev server could not run the frontend in a real browser at all | Actually loading the app in headless Chromium (Playwright) instead of only `curl`/`supertest`/`vite build` | Every import from `@crop/shared` (a CJS package) failed in the browser with "does not provide an export named..." — the entire frontend was unusable via the documented `pnpm dev` workflow, silently, for the life of the project so far |
+| Every page was missing landmark structure (`<main>`, a real `<h1>`), and every form input's `<label>` was an unassociated sibling, not linked via `htmlFor`/`id` | Running `axe-core` against the real, running app in headless Chromium, not a manual read-through | Screen reader users got no page-content landmark and no announced name for any login/MFA/text-entry field |
+| Initial data loads on the dashboard, session, replay, and audit pages had no error handling — only a `finally` clearing the loading flag | Deliberately testing what a failed fetch does, once error handling became the focus of this phase | A network failure or 500 left pages stuck on "Loading..." forever, or silently rendered a misleading empty-state message instead of any error |
 
 Security-hardening pass added: Redis-backed rate limiting on login/MFA, real logout with
 refresh-token revocation and rotation, and admin-only account lockout/forced password reset.
 `pnpm audit` reviewed too: the only findings are in dev-only tooling or the Prisma CLI's
 config loader, never on the running API's request path — see `docs/architecture.md`.
+
+Frontend accessibility pass added: landmark/heading structure, label associations,
+`:focus-visible` styling, live-region error/status announcements, and a responsive
+single-column layout below 900px, verified with `axe-core` against a live browser — see
+`docs/architecture.md` for the full list and the one deliberately-unfixed exception (the
+console capture zone's inherent keyboard trap, shared by every browser-based remote-KVM tool).
 
 ## Demo script
 

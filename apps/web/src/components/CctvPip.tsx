@@ -19,9 +19,11 @@ export function CctvPip({ whepUrl }: { whepUrl: string | null }) {
   return (
     <div className="cctv-pip">
       {status === "playing" ? (
-        <video ref={videoRef} autoPlay playsInline muted />
+        <video ref={videoRef} autoPlay playsInline muted aria-label="Room camera feed" />
       ) : (
-        <div className="cctv-pip-status">{status === "error" ? "CCTV unavailable" : "Connecting to room camera..."}</div>
+        <div className="cctv-pip-status" role="status">
+          {status === "error" ? "CCTV unavailable" : "Connecting to room camera..."}
+        </div>
       )}
       <div className="cctv-pip-label">Room camera</div>
     </div>

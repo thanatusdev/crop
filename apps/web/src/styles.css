@@ -18,6 +18,40 @@ button {
   font-family: inherit;
 }
 
+/* Visible keyboard-focus indicator for every interactive element, including the console
+   capture zone (a plain `tabIndex={0}` div has no default focus styling of its own). Without
+   this, a keyboard user tabbing through the app gets no visual confirmation of where focus
+   is -- a WCAG 2.4.7 failure, and an especially bad one for `.console-box`, since a user who
+   can't see where focus landed also can't tell that the next keystroke goes to the remote
+   equipment instead of the browser. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.console-box:focus-visible {
+  outline: 3px solid #6fb1ff;
+  outline-offset: 2px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #6fb1ff;
+  font-size: inherit;
+  font-family: inherit;
+  text-decoration: underline;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .page {
   max-width: 960px;
   margin: 0 auto;
@@ -200,9 +234,35 @@ table {
   font-size: 13px;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 th,
 td {
   text-align: left;
   padding: 6px 8px;
   border-bottom: 1px solid #262b36;
+}
+
+/* Below this, `.session-layout`'s side-by-side console/sidebar grid stops making sense --
+   collapse to a single column instead of squeezing the console into an unusable sliver. The
+   console itself still fundamentally needs a real pointer + keyboard (see use-hid-input.ts's
+   docstring on why touch/screen-reader operation of the remote equipment isn't attempted),
+   but the surrounding dashboard/audit/session-metadata screens should still be usable on a
+   tablet-width viewport. */
+@media (max-width: 900px) {
+  .session-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .equipment-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }

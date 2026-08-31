@@ -74,7 +74,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 420, marginTop: 80 }}>
+    <main className="page" style={{ maxWidth: 420, marginTop: 80 }}>
       <h1>CROP</h1>
       <p style={{ color: "#9aa4b2" }}>Clinical Remote Operation Platform</p>
 
@@ -82,14 +82,31 @@ export default function LoginPage() {
         {step.name === "credentials" && (
           <form onSubmit={handleCredentialsSubmit}>
             <div className="field">
-              <label>Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+              <label htmlFor="login-email">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
             </div>
             <div className="field">
-              <label>Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <label htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
             <button className="btn" disabled={busy} type="submit">
               {busy ? "Signing in..." : "Sign in"}
             </button>
@@ -100,8 +117,9 @@ export default function LoginPage() {
           <form onSubmit={handleMfaSubmit}>
             <p>Enter the 6-digit code from your authenticator app.</p>
             <div className="field">
-              <label>Code</label>
+              <label htmlFor="login-mfa-code">Code</label>
               <input
+                id="login-mfa-code"
                 inputMode="numeric"
                 pattern="[0-9]{6}"
                 maxLength={6}
@@ -111,7 +129,11 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
             <button className="btn" disabled={busy} type="submit">
               {busy ? "Verifying..." : "Verify"}
             </button>
@@ -125,8 +147,9 @@ export default function LoginPage() {
               {step.provisioningUri}
             </p>
             <div className="field">
-              <label>Enter the code it generates to confirm</label>
+              <label htmlFor="login-enroll-code">Enter the code it generates to confirm</label>
               <input
+                id="login-enroll-code"
                 inputMode="numeric"
                 pattern="[0-9]{6}"
                 maxLength={6}
@@ -136,13 +159,17 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
             <button className="btn" disabled={busy} type="submit">
               {busy ? "Confirming..." : "Confirm enrollment"}
             </button>
           </form>
         )}
       </div>
-    </div>
+    </main>
   );
 }
