@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help install up down ps logs reset-db migrate seed seed-mock totp \
+.PHONY: help install up down ps logs reset-db migrate seed seed-mock totp bootstrap-superadmin \
         mock dev build typecheck lint test test-e2e \
         demo demo-stop demo-status demo-logs demo-restart-api demo-reset \
         psql redis-cli clean
@@ -65,6 +65,9 @@ seed-mock: ## Seed demo data pointed at the local mock PiKVM instead (no hardwar
 
 totp: ## Print each seeded user's email, password, and a currently-valid TOTP code
 	@pnpm totp
+
+bootstrap-superadmin: ## Create the one PLATFORM_ADMIN account + its home tenant (idempotent, safe to re-run)
+	pnpm bootstrap:superadmin
 
 # --- Quality gates ---------------------------------------------------------
 

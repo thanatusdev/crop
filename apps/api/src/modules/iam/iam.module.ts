@@ -35,6 +35,7 @@ import { ConfirmMfaEnrollmentHandler } from "./application/commands/enroll-mfa/c
 import { GetUserByIdHandler } from "./application/queries/get-user-by-id/get-user-by-id.handler.js";
 import { ListUsersByTenantHandler } from "./application/queries/list-users-by-tenant/list-users-by-tenant.handler.js";
 import { AuditModule } from "../audit/audit.module.js";
+import { TenantsModule } from "../tenants/tenants.module.js";
 
 const COMMAND_AND_QUERY_HANDLERS = [
   RegisterUserHandler,
@@ -51,7 +52,15 @@ const COMMAND_AND_QUERY_HANDLERS = [
 ];
 
 @Module({
-  imports: [CqrsModule, PassportModule.register({ defaultStrategy: "jwt" }), JwtModule.register({}), AuditModule],
+  imports: [
+    CqrsModule,
+    PassportModule.register({ defaultStrategy: "jwt" }),
+    JwtModule.register({}),
+    AuditModule,
+    // Only for LoginHandler/RefreshTokensHandler to check tenant-deactivation status via
+    // TENANT_REPOSITORY -- IamModule has no other relationship with tenant lifecycle.
+    TenantsModule,
+  ],
   controllers: [AuthController, UsersController],
   providers: [
     JwtAccessStrategy,

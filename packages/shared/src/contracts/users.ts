@@ -43,10 +43,17 @@ export type AdminResetPasswordRequest = z.infer<typeof AdminResetPasswordRequest
  * login already handles MFA enrollment from there: LoginHandler re-derives a fresh
  * `provisioningUri` from the stored `mfaSecret` whenever `mfaEnabledAt` is still null, and
  * LoginPage's existing "enroll" step renders it -- nothing new was needed for that part.
+ *
+ * `tenantId` is optional and CLINIC_ADMIN-invisible on purpose: UsersController only honors
+ * it when the caller is PLATFORM_ADMIN (bootstrapping a brand-new tenant's first admin from
+ * outside it), and silently ignores it -- falling back to the caller's own tenant -- for
+ * everyone else. A CLINIC_ADMIN including this field in a hand-crafted request is not a
+ * privilege escalation path; see the e2e test asserting exactly that.
  */
 export const CreateUserRequestSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   role: z.enum([UserRole.CLINIC_ADMIN, UserRole.SUPERVISOR, UserRole.OPERATOR, UserRole.AUDITOR]),
+  tenantId: z.string().uuid().optional(),
 });
 export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;

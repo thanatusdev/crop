@@ -328,6 +328,15 @@ same technique that found the room-join bug in the row above.
     this app. Log in as that new user in a second browser: their *own* first login walks
     them through 2FA enrollment via the same flow every seeded account went through,
     automatically, with nothing admin-specific required from that side at all.
+12. **Superadmin: manage tenants** — bootstrap one first (`make bootstrap-superadmin`, or
+    `pnpm bootstrap:superadmin` — safe to re-run, no-ops if one already exists), then log in
+    as it. A "Manage tenants" button appears that CLINIC_ADMIN never sees — create a new
+    clinic, then head to "Manage users": a tenant picker now shows up in the create-user
+    form (invisible to everyone but PLATFORM_ADMIN) to bootstrap that new clinic's first
+    CLINIC_ADMIN from outside it. Deactivate the tenant — that CLINIC_ADMIN immediately loses
+    the ability to log in; reactivate it and they're back. Notice "Manage tenants" itself
+    never shows another tenant's equipment/sessions/audit log — tenant lifecycle only, no
+    cross-tenant browsing.
 
 ## What's out of scope for this MVP
 

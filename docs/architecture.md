@@ -822,6 +822,102 @@ rejection, and a full real-HTTP round trip proving a freshly admin-created user 
 and complete MFA enrollment entirely on their own, with the admin never seeing a
 provisioning URI or secret at any point.
 
+## PLATFORM_ADMIN becomes a real superadmin, not just another name in a permission list
+
+Requested directly: "create a superadmin, to manage tenants like companies and other
+clinics." Investigating first turned up something worth stating plainly: **every single
+occurrence of `PLATFORM_ADMIN` anywhere in this codebase, before this phase, just added it
+to the same permission list as `CLINIC_ADMIN`.** No route, guard, or handler treated it as
+architecturally distinct. No PLATFORM_ADMIN account had ever been seeded, tested, or created
+through any path. `TenantType.PLATFORM` existed in the schema and shared enum as a dormant,
+unused placeholder. This phase is what actually builds the thing the role's name always
+implied.
+
+**New `apps/api/src/modules/tenants/` module**, mirroring `equipment/`'s layout exactly:
+`TenantRepositoryPort` + Prisma impl, `CreateTenantCommand`/`DeactivateTenantCommand`/
+`ReactivateTenantCommand`, `ListTenantsQuery`, and `TenantsController` exposing
+`POST /tenants`, `GET /tenants`, `POST /tenants/:id/deactivate`, `POST /tenants/:id/reactivate`
+-- all `@Roles(PLATFORM_ADMIN)` **alone**, the first routes in this codebase not lumped with
+CLINIC_ADMIN. No `belongsToTenant` check exists anywhere in this module, unlike every other
+one: there is no "caller's own tenant" to scope against here, by design -- a PLATFORM_ADMIN
+operates *above* any single tenant for exactly these four routes, and nowhere else (see
+below on why this stops short of a cross-tenant "god view").
+
+**Deactivation, never deletion.** A tenant gains one nullable `deactivatedAt` column, the
+same shape as `User.lockedAt`. A real `DELETE` was considered and rejected: it would cascade
+into deleting that tenant's `audit_logs` rows, directly contradicting the one thing this
+platform's audit trail is built to guarantee -- append-only, immutable, enforced by a
+database trigger regardless of which role touches it. Confirmed the hard way, not just in
+theory: manually attempting to delete a leftover test tenant during verification hit
+Postgres's own foreign-key constraint (`audit_logs_tenantId_fkey`, `RESTRICT` by default) --
+the database itself refuses, independent of any application-level policy. Every other
+"remove something" action in this codebase already avoided real deletion for the identical
+reason (locking a user, aborting a session, cancelling a queue entry); this is the same
+pattern, plus now direct proof it's load-bearing, not just cautious.
+
+Deactivation has real teeth, not just a dashboard flag: `LoginHandler` and
+`RefreshTokensHandler` both gained a tenant-deactivation check immediately alongside their
+existing user-lock check, with the identical bounded-window tradeoff already documented for
+locks (an access token issued before deactivation keeps working for at most
+`JWT_ACCESS_TTL_SECONDS`; refresh and fresh logins are rejected immediately). Required
+`IamModule` to import the new `TenantsModule` for `TENANT_REPOSITORY` -- the same
+cross-module dependency shape `SessionsModule` already has on `QueueModule`.
+
+**One safety guard worth calling out**: `DeactivateTenantHandler` refuses outright to
+deactivate a `PLATFORM`-type tenant. Without this, a PLATFORM_ADMIN could deactivate their
+own tenant and lock out every platform admin at once, including themselves -- with no
+UI-reachable way back in, since reactivating requires being logged in as exactly the role
+that action would have just disabled. Cheaper to refuse the action than to design a
+break-glass recovery path for a self-inflicted problem.
+
+**Cross-tenant user creation, narrowly.** `CreateUserRequestSchema` gained an optional
+`tenantId`, honored by `UsersController.create()` *only* when the caller is PLATFORM_ADMIN
+(bootstrapping a brand-new tenant's first CLINIC_ADMIN from outside it) -- silently ignored
+for everyone else, who stay confined to their own tenant regardless of what they put in that
+field. Explicitly tested that a CLINIC_ADMIN including this field is not a privilege-
+escalation path. `POST /users` still refuses `PLATFORM_ADMIN` as a creatable role
+unconditionally, even for a PLATFORM_ADMIN caller -- superadmin accounts stay
+bootstrap-script-only, not proliferatable through a form.
+
+**No cross-tenant "god view."** Deliberately scoped out: a PLATFORM_ADMIN's `GET /users`
+still only returns their own (Platform Operations) tenant's users, same as everyone else --
+confirmed live, not just by reading the code, via a real browser session showing the
+superadmin's own user list stays a single row after creating a user in a different tenant
+through the same page. Tenant lifecycle and cross-tenant provisioning are in scope; browsing
+another tenant's equipment, sessions, or audit logs is not, and would touch every list/get
+query in the codebase rather than staying confined to one new module.
+
+**Bootstrapping the first superadmin**: deliberately has no HTTP endpoint at all --
+`infra/seeds/bootstrap-superadmin.ts` (`make bootstrap-superadmin`), a standalone script in
+the same "dispatch real commands through a real Nest app context" shape as `seed.ts`,
+idempotent (a second run detects the existing `PLATFORM`-type tenant and no-ops rather than
+creating a duplicate). Creating a god-mode account is a security surface an HTTP API
+shouldn't carry at all, self-service or otherwise.
+
+**Frontend**: `/superadmin/tenants` (list, create, deactivate/reactivate), gated by a new
+`canManagePlatform` check distinct from the existing `canManageAdmin` (which correctly still
+includes CLINIC_ADMIN for the user/equipment pages -- tenant lifecycle is the one thing a
+CLINIC_ADMIN never gets). `AdminUsersPage`'s create-user form grows an optional tenant
+picker, visible only to PLATFORM_ADMIN, populated from `GET /tenants` and excluding
+`PLATFORM`-type tenants from the choices (creating a regular user inside the platform's own
+home tenant would be a mistake, not a feature).
+
+**A related, separate gap closed in the same pass**: `POST /users` (added last phase)
+emitted no audit event at all, for any role -- found while wiring `TENANT_CREATED` for the
+new module and noticing user creation had never had an equivalent. Added
+`AuditAction.USER_CREATED`, emitted from `RegisterUserHandler` itself (not just the
+controller) so seed-script-created accounts get the same audit trail as admin-created ones,
+with `userId: null` for the acting admin when there wasn't a human one (the seed script,
+`bootstrap-superadmin.ts`).
+
+New e2e coverage: `test/superadmin-tenant-management.e2e.spec.ts` -- tenant create/list RBAC,
+the PLATFORM-tenant deactivation guard, a deactivated tenant's users actually losing login
+and refresh access (mirroring `account-lockout.e2e.spec.ts`'s exact structure) and regaining
+it on reactivation, the cross-tenant user-creation path, the anti-escalation case (a
+CLINIC_ADMIN's `tenantId` gets ignored), the PLATFORM_ADMIN-creation refusal holding even for
+a PLATFORM_ADMIN caller, and all four new audit actions firing and attributed to the correct
+tenant.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not
