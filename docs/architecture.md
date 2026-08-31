@@ -399,6 +399,61 @@ dashboard, equipment card, and patient queue, and a real server-side-revoked log
 If `@crop/pikvm` (also CJS, but consumed only by `apps/api`, never by the browser) ever
 gains a browser-facing consumer, expect the identical failure mode and the identical fix.
 
+## Frontend polish and accessibility
+
+A real accessibility tool (`axe-core`, run against a live Playwright-driven Chromium, the
+same technique that found the Vite dev-server bug above) found and confirmed the fix for
+every issue below -- this wasn't a manual guess-and-check pass.
+
+- **Every page was missing landmark structure entirely.** No `<main>` anywhere, and several
+  pages had no `<h1>` at all (`DashboardPage`'s first heading was an `<h2>`; `AuditPage` had
+  no heading whatsoever, just a bolded `<strong>` in the topbar). Fixed uniformly: each page's
+  topbar is now a `<header>`, its content area a `<main>`, and each has exactly one `<h1>`
+  (visually hidden on `SessionPage`/`SessionReplayPage`, where the equipment name is already
+  visible in the header -- the hidden `h1` exists purely to give screen reader users the
+  "start of page content" landmark they'd otherwise never get). Heading levels were also
+  skipping (`h2` straight to `h4` on the dashboard) -- renumbered to a proper `h1 > h2 > h3`
+  chain. `axe-core`'s `landmark-one-main`, `region`, `heading-order`, and `page-has-heading-one`
+  rules all pass now, verified live, not just by eyeballing the JSX.
+- **Every `<label>` on `LoginPage` was a sibling of its `<input>`, not associated with it** --
+  no `htmlFor`/`id` pair, and no implicit association either (they weren't nested). A screen
+  reader landing on any of the four login/MFA/enrollment inputs would announce no name at
+  all. Fixed on every input across `LoginPage`, `SessionPage` (the "type text" field, which
+  previously had no label at all, only a placeholder -- not a substitute), and
+  `SessionReplayPage` (the snapshot scrubber `<input type="range">`, also unlabeled).
+- **No visible keyboard-focus indicator anywhere**, including on `.console-box` -- a plain
+  `tabIndex={0}` div with zero focus styling of its own. Added a global `:focus-visible`
+  outline for every interactive element.
+- **Initial data loads on `DashboardPage`, `SessionPage`, `SessionReplayPage`, and
+  `AuditPage` had no error handling at all** -- only a `finally` to clear a loading flag, no
+  `catch`. A network failure or an unexpected 500 left some pages stuck on "Loading..."
+  forever (an unhandled promise rejection logged only to the console) and others silently
+  rendered an empty-state message ("No equipment registered") indistinguishable from a
+  tenant that genuinely has none. Every initial load now has a real error state, a
+  screen-reader-announced (`role="alert"`) message, and (where retrying makes sense) a Retry
+  button.
+- `AuditPage`'s session-id links were `<a href="#" onClick={preventDefault...}>` -- a
+  navigation-by-button dressed up as a hyperlink to nowhere. Replaced with a real `<button
+  className="link-button">` (new utility class, styled to look identical).
+- Added `role="alert"`/`role="status"`/`aria-live` to error banners, the takeover banner, and
+  the CCTV connecting/error state, so screen readers announce these when they change instead
+  of silently updating text a sighted user would have to be looking at the right moment to see.
+- `.session-layout`'s side-by-side grid now collapses to a single column below 900px, and the
+  topbar/equipment-row wrap instead of overflowing, so the dashboard and audit views are
+  usable on a tablet-width screen. The console itself doesn't get a responsive treatment
+  beyond that: it fundamentally needs a real pointer and physical keyboard (see below), so a
+  phone-width layout for it wouldn't be a real capability, just a smaller broken one.
+- **The console capture zone (`.console-box`) is an intentional, undocumented-until-now
+  keyboard trap** -- `useHidInput` calls `preventDefault()` on every keydown/keyup while it
+  has focus, including Tab and Escape, because those need to reach the remote equipment's own
+  OS, not move focus around the browser page. This is not fixable without breaking the actual
+  feature (every browser-based remote-KVM/VNC/RDP client has this exact same tension) --
+  documented in a code comment on `SessionPage` instead of silently shipped, and a keyboard
+  user can still leave via Shift+Tab from *outside* the box or by clicking any other control.
+  Screen-reader operation of the remote equipment itself was never in scope for the same
+  reason `LatencyClockPage` is: this is fundamentally a sighted-operator, pointer-and-keyboard
+  tool, the same way MRI/CT console software itself is.
+
 ## What's intentionally not built
 
 - **ATX (power) and MSD (virtual USB) control**: not implemented in `@crop/pikvm` at all, not

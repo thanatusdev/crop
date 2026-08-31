@@ -27,6 +27,7 @@ export default function DashboardPage() {
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
       const [equipmentList, sessions] = await Promise.all([
         api.get<EquipmentDto[]>("/equipment"),
@@ -37,6 +38,10 @@ export default function DashboardPage() {
       );
       setEquipment(withQueue);
       setActiveSessions(sessions);
+    } catch (err) {
+      // Distinct from "no equipment registered" below -- an empty array here on a failed
+      // fetch would otherwise be indistinguishable from a tenant that genuinely has none.
+      setError(err instanceof Error ? err.message : "Could not load equipment. Check your connection and retry.");
     } finally {
       setLoading(false);
     }
@@ -61,7 +66,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="topbar">
+      <header className="topbar">
         <strong>CROP</strong>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <span style={{ color: "#9aa4b2", fontSize: 13 }}>
@@ -76,15 +81,22 @@ export default function DashboardPage() {
             Sign out
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="page">
-        <h2>Equipment</h2>
-        {error && <p className="error">{error}</p>}
+      <main className="page">
+        <h1>Equipment</h1>
+        {error && (
+          <p className="error" role="alert">
+            {error}{" "}
+            <button className="link-button" onClick={() => void load()}>
+              Retry
+            </button>
+          </p>
+        )}
         {loading ? (
-          <p>Loading...</p>
+          <p aria-live="polite">Loading...</p>
         ) : equipment.length === 0 ? (
-          <p style={{ color: "#9aa4b2" }}>No equipment registered for your tenant yet.</p>
+          error ? null : <p style={{ color: "#9aa4b2" }}>No equipment registered for your tenant yet.</p>
         ) : (
           equipment.map((item) => {
             const activeSession = activeSessionFor(item.id);
@@ -93,7 +105,7 @@ export default function DashboardPage() {
               <div className="card" key={item.id}>
                 <div className="equipment-row" style={{ borderBottom: "none" }}>
                   <div>
-                    <strong>{item.name}</strong>{" "}
+                    <h2 style={{ display: "inline", fontSize: "1em", margin: 0 }}>{item.name}</h2>{" "}
                     <span className={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
                     <div style={{ color: "#9aa4b2", fontSize: 13 }}>
                       {item.targetOs} · keymap {item.keymap} · {item.screenWidth}x{item.screenHeight}
@@ -107,6 +119,7 @@ export default function DashboardPage() {
                     <button
                       className="btn"
                       disabled={item.status !== "ONLINE" || startingId === item.id}
+                      title={item.status !== "ONLINE" ? `Equipment is ${item.status.toLowerCase()}, not reachable` : undefined}
                       onClick={() => startSession(item.id, nextPatient?.id)}
                     >
                       {startingId === item.id ? "Starting..." : "Start session"}
@@ -114,34 +127,36 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                <h4 style={{ marginBottom: 6, marginTop: 12 }}>Patient queue</h4>
+                <h3 style={{ marginBottom: 6, marginTop: 12, fontSize: "0.95em" }}>Patient queue</h3>
                 {item.queue.length === 0 ? (
                   <p style={{ color: "#9aa4b2", fontSize: 13 }}>Empty.</p>
                 ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Patient</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {item.queue.map((q) => (
-                        <tr key={q.id}>
-                          <td>{q.position}</td>
-                          <td>{q.patientFirstName}</td>
-                          <td>{q.status}</td>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">#</th>
+                          <th scope="col">Patient</th>
+                          <th scope="col">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {item.queue.map((q) => (
+                          <tr key={q.id}>
+                            <td>{q.position}</td>
+                            <td>{q.patientFirstName}</td>
+                            <td>{q.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             );
           })
         )}
-      </div>
+      </main>
     </div>
   );
 }
