@@ -54,6 +54,7 @@ const validQueueEntry = {
   contrastVolumeMl: null,
   detailsUpdatedAt: null,
   detailsUpdatedByName: null,
+  teleoperationNotes: null,
 };
 
 describe("QueueEntrySchema -- preparation fields", () => {
