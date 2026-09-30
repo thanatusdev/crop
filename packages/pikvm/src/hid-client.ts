@@ -169,7 +169,7 @@ export class PiKvmHidClient extends EventEmitter<PiKvmHidClientEvents> {
     if (parsed.event_type === "loop") {
       this.ready = true;
       this.emit("open");
-    } else if (parsed.event_type === "hid_state") {
+    } else if (parsed.event_type === "hid") {
       this.emit("state", parsed.event as HidState);
     }
   }

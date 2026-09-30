@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { io, type Socket } from "socket.io-client";
 import { RT_EVENTS, UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * Takeover had zero test coverage before this phase despite being one of the platform's
@@ -42,14 +42,14 @@ describe("Supervisor takeover", () => {
 
     const admin = await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.CLINIC_ADMIN });
     alphaAdminToken = admin.accessToken;
-    const operator = await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.OPERATOR, emailPrefix: "operator" });
+    const operator = await createContractedOperator(app, prisma, { clinicTenantId: alpha.id, role: UserRole.OPERATOR, emailPrefix: "operator" });
     alphaOperatorToken = operator.accessToken;
     alphaOperatorId = operator.userId;
 
     const equipmentRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .send({ name: "Takeover-Test-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Takeover-Test-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     alphaEquipmentId = equipmentRes.body.id;
     await prisma.equipment.update({ where: { id: alphaEquipmentId }, data: { status: "ONLINE" } });
@@ -92,7 +92,7 @@ describe("Supervisor takeover", () => {
 
   it("lets a supervisor take over an operator's active session, and audits request + grant", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "sup-happy" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "sup-happy" });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -117,9 +117,9 @@ describe("Supervisor takeover", () => {
   it("rejects a cross-tenant takeover attempt, and still audits the attempt under the victim's own tenant", async () => {
     const sessionId = await startSession();
     // A real SUPERVISOR, correctly privileged -- just in the wrong tenant entirely.
-    const betaSupervisor = await createLoggedInUser(app, {
-      tenantId: betaTenantId,
-      role: UserRole.SUPERVISOR,
+    const betaSupervisor = await createContractedOperator(app, prisma, {
+      clinicTenantId: betaTenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
       emailPrefix: "cross-tenant-attacker",
     });
 
@@ -144,8 +144,8 @@ describe("Supervisor takeover", () => {
 
   it("rejects a takeover attempt by an OPERATOR (not supervisor/admin), audited but not granted", async () => {
     const sessionId = await startSession();
-    const otherOperator = await createLoggedInUser(app, {
-      tenantId: alphaTenantId,
+    const otherOperator = await createContractedOperator(app, prisma, {
+      clinicTenantId: alphaTenantId,
       role: UserRole.OPERATOR,
       emailPrefix: "wrong-role",
     });
@@ -168,7 +168,7 @@ describe("Supervisor takeover", () => {
 
   it("rejects a supervisor taking over a session they already control", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "self-takeover" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "self-takeover" });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -192,8 +192,8 @@ describe("Supervisor takeover", () => {
 
   it("resolves two near-simultaneous takeover attempts to exactly one winner, never both", async () => {
     const sessionId = await startSession();
-    const supervisorA = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "race-a" });
-    const supervisorB = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "race-b" });
+    const supervisorA = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "race-a" });
+    const supervisorB = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "race-b" });
 
     const socketA = connectSocket(supervisorA.accessToken);
     const socketB = connectSocket(supervisorB.accessToken);

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 describe("Multi-tenant isolation and RBAC", () => {
   let app: INestApplication;
@@ -28,20 +28,19 @@ describe("Multi-tenant isolation and RBAC", () => {
     betaTenantId = beta.id;
 
     alphaAdminToken = (await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.CLINIC_ADMIN })).accessToken;
-    alphaOperatorToken = (await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.OPERATOR })).accessToken;
+    alphaOperatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: alpha.id, role: UserRole.OPERATOR })).accessToken;
     alphaAuditorToken = (await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.AUDITOR })).accessToken;
-    betaOperatorToken = (await createLoggedInUser(app, { tenantId: beta.id, role: UserRole.OPERATOR })).accessToken;
+    betaOperatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: beta.id, role: UserRole.OPERATOR })).accessToken;
 
     const createRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .send({
-        name: "MRI-Isolation-Test",
-        pikvmHost: "https://192.0.2.1", // TEST-NET-1, guaranteed non-routable
-        pikvmUser: "admin",
-        pikvmPassword: "admin",
-        targetOs: "WINDOWS",
-      })
+      .send(
+        equipmentPayload({
+          name: "MRI-Isolation-Test",
+          pikvmHost: "https://192.0.2.1", // TEST-NET-1, guaranteed non-routable
+        })
+      )
       .expect(201);
     alphaEquipmentId = createRes.body.id;
   });
@@ -86,14 +85,7 @@ describe("Multi-tenant isolation and RBAC", () => {
     const res = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .send({
-        name: "Bad-Keymap-Equipment",
-        pikvmHost: "https://192.0.2.3",
-        pikvmUser: "a",
-        pikvmPassword: "b",
-        targetOs: "WINDOWS",
-        keymap: "klingon",
-      })
+      .send(equipmentPayload({ name: "Bad-Keymap-Equipment", pikvmHost: "https://192.0.2.3", keymap: "klingon" }))
       .expect(400);
     expect(res.body.message).toBeDefined();
   });
@@ -102,7 +94,7 @@ describe("Multi-tenant isolation and RBAC", () => {
     const res = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${alphaOperatorToken}`)
-      .send({ name: "Should Not Be Created", pikvmHost: "https://192.0.2.2", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Should Not Be Created", pikvmHost: "https://192.0.2.2" }))
       .expect(403);
     expect(res.body.code).toBe("FORBIDDEN");
 
@@ -117,7 +109,7 @@ describe("Multi-tenant isolation and RBAC", () => {
     expect(denied.details.actualRole).toBe("OPERATOR");
   });
 
-  it("rejects an OPERATOR reading the audit log (AUDITOR/SUPERVISOR/*_ADMIN only)", async () => {
+  it("rejects an OPERATOR reading the audit log (AUDITOR/OPERATIONAL_SUPERVISOR/LOCAL_SUPERVISOR/*_ADMIN only)", async () => {
     await http.get("/audit").set("Authorization", `Bearer ${alphaOperatorToken}`).expect(403);
   });
 

@@ -7,9 +7,12 @@ import { PrismaEquipmentRepository } from "./infrastructure/prisma-equipment.rep
 import { PiKvmHealthPoller } from "./infrastructure/pikvm-health-poller.service.js";
 import { EncryptionService } from "../../shared/infrastructure/crypto/encryption.service.js";
 import { AuditModule } from "../audit/audit.module.js";
+import { UnitsModule } from "../units/units.module.js";
+import { AccessModule } from "../access/access.module.js";
 
 import { CreateEquipmentHandler } from "./application/commands/create-equipment/create-equipment.handler.js";
 import { UpdateEquipmentHandler } from "./application/commands/update-equipment/update-equipment.handler.js";
+import { SetEquipmentDeactivatedHandler } from "./application/commands/set-equipment-deactivated/set-equipment-deactivated.handler.js";
 import { EnterMaintenanceHandler } from "./application/commands/enter-maintenance/enter-maintenance.handler.js";
 import { ClearMaintenanceHandler } from "./application/commands/clear-maintenance/clear-maintenance.handler.js";
 import { UpdateEquipmentStatusHandler } from "./application/commands/update-equipment-status/update-equipment-status.handler.js";
@@ -20,6 +23,7 @@ import { GetEquipmentConnectionSecretsHandler } from "./application/queries/get-
 const COMMAND_AND_QUERY_HANDLERS = [
   CreateEquipmentHandler,
   UpdateEquipmentHandler,
+  SetEquipmentDeactivatedHandler,
   EnterMaintenanceHandler,
   ClearMaintenanceHandler,
   UpdateEquipmentStatusHandler,
@@ -29,7 +33,9 @@ const COMMAND_AND_QUERY_HANDLERS = [
 ];
 
 @Module({
-  imports: [CqrsModule, AuditModule],
+  // UnitsModule: CreateEquipmentHandler/UpdateEquipmentHandler both need UNIT_REPOSITORY
+  // to resolve/validate `unitId` -- see those handlers' own docstrings.
+  imports: [CqrsModule, AuditModule, UnitsModule, AccessModule],
   controllers: [EquipmentController],
   providers: [
     { provide: EQUIPMENT_REPOSITORY, useClass: PrismaEquipmentRepository },

@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/**
+ * shadcn/ui's token layer, seeded from `.theme-light`'s own already-measured palette in
+ * `styles.css` -- not invented colors. That block's own comment records each pair's real
+ * axe-core-measured contrast ratio; the mapping below is 1:1 with it, so those numbers still
+ * apply to the shadcn primitives that read these tokens:
+ *
+ *   --background/--foreground   <- --color-bg / --color-fg
+ *   --card/--card-foreground    <- --color-card-bg / --color-fg
+ *   --primary/--primary-fg      <- --color-accent (~5.2-5.8:1) / --color-btn-primary-fg
+ *   --secondary/--secondary-fg  <- --color-btn-secondary-bg / --color-fg
+ *   --muted-foreground          <- --color-muted (~5.3-5.9:1)
+ *   --accent/--accent-fg        <- --color-nav-active-bg / --color-nav-active-fg
+ *   --destructive                <- --color-btn-danger-bg / --color-error (~5.8-6.5:1)
+ *   --border/--input             <- --color-card-border / --color-input-border
+ *
+ * `.theme-light` was previously opt-in (LoginPage/RecoveryPage, `ConsoleShell`) while
+ * unmigrated screens kept `:root`'s own dark palette. This migration standardizes the whole
+ * app on the light palette -- the one the RadLink prototypes were always designed against --
+ * so there is now exactly one theme, not two coexisting ones mid-migration.
+ */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --radius: 0.625rem;
+}
+
+:root {
+  --background: #eef2f5;
+  --foreground: #1f2733;
+  --card: #ffffff;
+  --card-foreground: #1f2733;
+  --popover: #ffffff;
+  --popover-foreground: #1f2733;
+  --primary: #0a6f83;
+  --primary-foreground: #ffffff;
+  --secondary: #e4e9ee;
+  --secondary-foreground: #1f2733;
+  --muted: #e4e9ee;
+  --muted-foreground: #5b6572;
+  --accent: #e3eef1;
+  --accent-foreground: #0a6f83;
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+  --border: #d7dee6;
+  --input: #cbd5e0;
+  --ring: #0a6f83;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* `ConsoleShell`'s own sidebar tokens -- kept distinct from `--card`/`--background` since
+     the sidebar (`#ffffff` bg, `--color-nav-active-*` for the active link) is visually its
+     own surface, the same distinction shadcn's own sidebar block makes. */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1f2733;
+  --sidebar-primary: #0a6f83;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e3eef1;
+  --sidebar-accent-foreground: #0a6f83;
+  --sidebar-border: #d7dee6;
+  --sidebar-ring: #0a6f83;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/**
+ * Respect `prefers-reduced-motion`, a real WCAG 2.3.3 ("Animation from Interactions") best
+ * practice -- not just a test convenience, though it doubles as one: `tw-animate-css` (the
+ * `animate-in`/`fade-in-0`/`zoom-in-95` classes shadcn's `Dialog` etc. use) has no such guard
+ * built in, so without this, a user who has actually turned this OS setting on for a real
+ * reason (vestibular disorders, motion sensitivity) still gets every dialog's entrance
+ * animation. Found via the a11y test tier itself: `DialogContent`'s 200ms fade/zoom-in meant
+ * axe could sample a genuinely lower-contrast, still-transitioning frame if it ran the
+ * instant a dialog attached -- this fixes that non-deterministically-timed scan for the
+ * right reason (respecting the real OS preference), rather than papering over it with an
+ * arbitrary wait in the test itself. `playwright.config.ts` sets `reducedMotion: "reduce"` in
+ * its browser context specifically so this media query is what makes the a11y tier
+ * deterministic, not a race against an animation's own duration.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: -1ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

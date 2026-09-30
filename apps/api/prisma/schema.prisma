@@ -18,10 +18,20 @@ enum TenantType {
   PLATFORM
 }
 
+// Grouped by owning tenant type -- see packages/shared/src/roles.ts's `ROLE_TENANT_TYPES` for
+// the enforced invariant: PLATFORM_ADMIN belongs to PLATFORM; CLINIC_ADMIN/LOCAL_SUPERVISOR/
+// NURSING/LOCAL_IT to CLINIC; OPERATOR_ADMIN/OPERATIONAL_SUPERVISOR/OPERATOR to
+// OPERATOR_PROVIDER; AUDITOR to either. `SUPERVISOR` was renamed to `OPERATIONAL_SUPERVISOR`
+// (see the role_model_expansion migration) once the clinic side got its own distinct
+// LOCAL_SUPERVISOR.
 enum UserRole {
   PLATFORM_ADMIN
   CLINIC_ADMIN
-  SUPERVISOR
+  LOCAL_SUPERVISOR
+  NURSING
+  LOCAL_IT
+  OPERATOR_ADMIN
+  OPERATIONAL_SUPERVISOR
   OPERATOR
   AUDITOR
 }
@@ -31,6 +41,34 @@ enum EquipmentStatus {
   OFFLINE
   DEGRADED
   MAINTENANCE
+}
+
+/// The kind of exam a scanner performs -- the clinical identity of the device, as opposed to
+/// `TargetOs`/`MouseMode`/`keymap` below, which describe the *console* this platform drives
+/// remotely. Deliberately an enum rather than free text so the equipment listing screen's
+/// modality filter and per-modality counts, and the unit registration screen's
+/// `Unit.declaredModalities`, can be computed from a closed set. `XRAY` added alongside the
+/// unit-registration feature (its "Modalidades Instaladas" picker needs it); every
+/// `Record<ExamModality, ...>` map in `apps/web/src/lib/equipment-display.ts` had to grow a
+/// fourth entry when this was added -- that's `tsc` enforcing that the equipment screen's
+/// radio cards, filter, and per-modality counter can't silently miss a case.
+enum ExamModality {
+  MRI
+  CT
+  ULTRASOUND
+  XRAY
+}
+
+/// The kind of facility a unit is, for the registration screen's required dropdown and the
+/// unit-listing screen's TIPO filter. A closed set (not free text, unlike
+/// `User.professionalRegistration`) because the listing filter needs one to be reliable.
+enum EstablishmentType {
+  LABORATORY
+  IMAGING_CENTER
+  HOSPITAL
+  CLINIC
+  URGENT_CARE
+  MOBILE_UNIT
 }
 
 enum TargetOs {
@@ -58,69 +96,446 @@ enum QueueStatus {
   CANCELLED
 }
 
+/// Lifecycle of a clinic<->operating-company contract. Only ACTIVE grants access. REJECTED and
+/// REVOKED are distinct on purpose: one ended a proposal that never took effect, the other
+/// ended a contract under which real sessions may already have run -- and "was this clinic ever
+/// operated by that company, between which dates" is the question an auditor actually asks.
+/// See packages/shared/src/enums.ts for the full reasoning.
+enum AgreementStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  REVOKED
+}
+
+/// The nurse's in-room clinical preparation of a patient, tracked on QueueEntry alongside
+/// QueueStatus but deliberately orthogonal to it -- the same split as Equipment.status
+/// (health, poller-owned) vs Equipment.deactivatedAt (admin lifecycle). QueueStatus is the
+/// exam-*slot* lifecycle, owned by session start/end; PreparationStatus is owned by the
+/// nurse's three quick-action buttons ("Paciente Posicionado" / "Injetado" / "Paciente
+/// Liberado") and never touched by session code. INJECTED is deliberately skippable
+/// (POSITIONED -> RELEASED is a valid transition) -- see QueueEntry's own domain guard in
+/// apps/api/src/modules/queue/domain/queue-entry.entity.ts.
+enum PreparationStatus {
+  NOT_STARTED
+  POSITIONED
+  INJECTED
+  RELEASED
+}
+
+/// Patient sex, one of the nurse's editable exam-detail fields on QueueEntry (see the
+/// queue-reorder/exam-details feature). Closed set for the same reason as ExamModality --
+/// drives a fixed UI label, not free text. No UNSPECIFIED member: the column itself is
+/// nullable, which already covers "not recorded yet".
+enum PatientSex {
+  FEMALE
+  MALE
+  OTHER
+}
+
+/// The nurse's pre-procedure allergy check -- one of the three structured
+/// "Questionário de Segurança & Contraste" facts on QueueEntry (see the nursing day-view
+/// feature). See the shared enum's own docstring in packages/shared/src/enums.ts for why
+/// this is a closed two-value enum rather than a plain boolean.
+enum AllergyStatus {
+  NEGATED
+  PRESENT
+}
+
 model Tenant {
-  id            String     @id @default(uuid())
-  name          String
-  type          TenantType
-  createdAt     DateTime   @default(now())
+  id                   String              @id @default(uuid())
+  name                 String
+  type                 TenantType
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   // Soft-deactivation only, mirroring User.lockedAt -- see docs/architecture.md for why a
   // real DELETE is never appropriate here (it would cascade into deleting this tenant's
   // audit_logs rows, which the append-only trigger exists specifically to prevent).
-  deactivatedAt DateTime?
+  deactivatedAt        DateTime?
+  // Replaced by the `OperatorAgreement` join entity below. The column was a nullable self-FK,
+  // so it could only ever say "this clinic has at most one operating company" -- the real rule
+  // is many-to-many in both directions, and it also had no accept/reject handshake and no way
+  // to limit a company to some of the clinic's scanners. See OperatorAgreement's own comment.
+  agreementsAsClinic   OperatorAgreement[] @relation("AgreementClinic")
+  agreementsAsOperator OperatorAgreement[] @relation("AgreementOperator")
 
-  users     User[]
-  equipment Equipment[]
-  auditLogs AuditLog[]
+  // --- Institutional identity (meaningful for type = CLINIC; nullable for PLATFORM/
+  // OPERATOR_PROVIDER tenants and for any CLINIC row that predates this feature) ----------
+  // Digits only (14 chars), never the punctuated XX.XXX.XXX/XXXX-XX form -- this is a key,
+  // not free text: it carries a uniqueness constraint and is substring-sliced for the
+  // matriz/filial derivation (packages/shared/src/cnpj.ts), so canonical digits are the
+  // right storage form. Formatting is presentation-only, computed on read. Immutable after
+  // creation, deliberately -- see UpdateTenantRequestSchema's own docstring for why: this is
+  // the value the branch-grouping and uniqueness both key on, and changing it would silently
+  // re-parent a clinic's whole branch group rather than correct a typo.
+  cnpj               String?
+  institutionalEmail String?
+  phone              String?
 
+  // --- Registered address (same six-column shape as Unit's own address, and yes, that is a
+  // real duplication -- accepted deliberately: a clinic is the legal establishment (one
+  // CNPJ, one registered address), a Unit is the physical site beneath it (which may or may
+  // not be the same address). A single-site clinic simply has both, once. ------------------
+  zipCode    String?
+  street     String?
+  number     String?
+  complement String?
+  district   String?
+  city       String?
+  state      String?
+
+  // Person accountable for the clinic. Nullable, not required-then-corrected: a brand-new
+  // clinic has zero users to name (the same chicken-and-egg the units feature already hit
+  // for Unit.technicalManagerId), so this is assignable only after the clinic's first
+  // CLINIC_ADMIN exists -- see ResponsibleManagerValidator.
+  responsibleManagerId String?
+  responsibleManager   User?   @relation("TenantResponsibleManager", fields: [responsibleManagerId], references: [id])
+
+  users            User[]
+  equipment        Equipment[]
+  auditLogs        AuditLog[]
+  units            Unit[]
+  memberships      UserClinicMembership[]
+  messageShortcuts MessageShortcut[]
+
+  @@unique([cnpj])
+  @@index([responsibleManagerId])
   @@map("tenants")
 }
 
-model User {
-  id           String    @id @default(uuid())
-  tenantId     String
-  tenant       Tenant    @relation(fields: [tenantId], references: [id])
-  email        String    @unique
-  passwordHash String
-  role         UserRole
-  mfaSecret    String? // base32 TOTP secret, set once during MFA enrollment
-  mfaEnabledAt DateTime?
-  lastLoginAt  DateTime?
-  lockedAt     DateTime? // set by an admin (see LockUserHandler); null means not locked
-  createdAt    DateTime  @default(now())
+/// A clinic's own sub-site ("like a hospital" -- a clinic/company can run more than one).
+/// Always a child of a CLINIC tenant; equipment belongs to a unit, not directly to the
+/// clinic, so an operator's navigation is clinic -> unit -> equipment. Clinic-side user
+/// membership (`UserClinicMembership`) is deliberately clinic-level, not unit-level: a
+/// manager/supervisor/nursing account linked to a clinic can see every one of its units.
+model Unit {
+  id             String    @id @default(uuid())
+  clinicTenantId String
+  clinic         Tenant    @relation(fields: [clinicTenantId], references: [id])
+  name           String
+  deactivatedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  operatedSessions   Session[] @relation("OperatorSessions")
-  supervisedSessions Session[] @relation("SupervisorSessions")
+  // --- Institutional/regulatory identity -----------------------------------------------
+  // All nullable, same reasoning as Equipment's clinical-identity columns
+  // (equipment_clinical_identity migration): rows created before the unit-registration
+  // screen existed -- including the migration-backfilled "Unidade Principal" every clinic
+  // got, and CreateEquipmentHandler's own on-the-fly auto-default -- have no honest value
+  // for any of these, and inventing one would fabricate a regulatory record. Every field
+  // except the contact trio is *required* for a new row through the HTTP API
+  // (CreateUnitRequestSchema), so the null set only ever shrinks; the auto-default path
+  // stays able to create a unit through the repository directly, with none of this.
+  establishmentType  EstablishmentType?
+  // Person accountable for this unit's day-to-day operation. A nullable FK, not a required
+  // one: same historical-row reasoning as the fields above, but also because unlike a
+  // brand or address, a technical manager can legitimately be unassigned after being set
+  // (the person left) -- UpdateUnitRequestSchema allows null here explicitly, unlike the
+  // other required-on-create fields, which may be corrected but not blanked.
+  technicalManagerId String?
+  technicalManager   User?              @relation("UnitTechnicalManager", fields: [technicalManagerId], references: [id])
+  // What this unit is declared to be equipped for -- a plan, which can precede the actual
+  // hardware arriving. Independent of Equipment.modality (what's actually installed);
+  // shown side by side on the unit detail screen so a mismatch is visible rather than
+  // silently reconciled. A native Postgres scalar array, not a join table -- the set is
+  // small (4 members) and nothing needs to query "which units offer MRI" at scale.
+  declaredModalities ExamModality[]
+
+  // --- Regulatory/contact (optional even for a new row) --------------------------------
+  // CNES: Brazil's National Registry of Health Establishments code. Free text, not a
+  // checksum-validated format -- nothing in this codebase has ever attempted to validate a
+  // Brazilian regulatory identifier structurally (see User.professionalRegistration's own
+  // precedent), and inventing that validation now would be scope this feature doesn't need.
+  cnesCode       String?
+  phone          String?
+  technicalEmail String?
+
+  // --- Physical address (required for a new row, like the columns above) ---------------
+  // Deliberately six separate columns, not one address blob: the listing screen's address
+  // column and future filtering/reporting want city/state as their own values, not text
+  // buried in a string. `state` is the two-letter UF -- stored as a plain string and
+  // validated against a closed 27-value set at the contract boundary
+  // (packages/shared/src/contracts/units.ts), the same pattern `keymap` already uses for
+  // PiKVM's closed set of layouts, rather than a 27-member Prisma enum.
+  zipCode    String?
+  street     String?
+  number     String?
+  complement String?
+  district   String?
+  city       String?
+  state      String?
+
+  equipment       Equipment[]
+  agreementScopes OperatorAgreementScope[]
+
+  @@index([clinicTenantId])
+  @@index([technicalManagerId])
+  @@map("units")
+}
+
+/// The contract between a clinic and an operating company, and the only thing that lets an
+/// OPERATOR reach equipment belonging to a tenant that is not their own.
+///
+/// Replaces `Tenant.operatorTenantId` (a nullable self-FK), which could express at most one
+/// operating company per clinic. The rule is many-to-many in both directions: a clinic
+/// contracts several companies, a company serves several clinics. It also had no handshake --
+/// a PLATFORM_ADMIN set it unilaterally -- whereas an agreement is *proposed* by one side and
+/// accepted by the other, which is what makes it a contract.
+///
+/// `@@unique([clinicTenantId, operatorTenantId])` means one row per pair, reused across its
+/// whole life rather than one row per negotiation round: re-proposing after a rejection moves
+/// this same row back to PENDING. That keeps "has this company ever been contracted here"
+/// answerable from a single row, and makes the scope rows below stable across re-proposals.
+/// The trade-off is that the row's own history lives in `audit_logs` (see the AGREEMENT_*
+/// actions) rather than as a table of transitions, which is consistent with how every other
+/// lifecycle in this schema records its past.
+model OperatorAgreement {
+  id               String          @id @default(uuid())
+  clinicTenantId   String
+  clinic           Tenant          @relation("AgreementClinic", fields: [clinicTenantId], references: [id])
+  operatorTenantId String
+  operatorTenant   Tenant          @relation("AgreementOperator", fields: [operatorTenantId], references: [id])
+  status           AgreementStatus @default(PENDING)
+
+  /// Which side opened the proposal. Load-bearing, not informational: a PENDING agreement may
+  /// only be accepted or rejected by the tenant that did *not* propose it, so without this
+  /// column either party could accept its own proposal and the handshake would be theatre.
+  proposedByTenantId String
+  /// Nullable for the same reason audit rows accept a null actor: the seed script and
+  /// migrations create agreements with no human admin acting.
+  proposedByUserId   String?
+  respondedByUserId  String?
+  respondedAt        DateTime?
+  revokedByUserId    String?
+  revokedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scopes OperatorAgreementScope[]
+
+  @@unique([clinicTenantId, operatorTenantId])
+  /// The hot path: "which clinics may this operating company reach right now", asked on every
+  /// clinic switch and every equipment read by operator-side staff.
+  @@index([operatorTenantId, status])
+  @@index([clinicTenantId, status])
+  @@map("operator_agreements")
+}
+
+/// One grant inside an agreement: a unit, or a single piece of equipment. Exactly one of the
+/// two columns is non-null, enforced by a CHECK constraint in the migration rather than only at
+/// the contract boundary, because migrations and admin scripts write here too.
+///
+/// An agreement with zero scope rows grants nothing. That is the deliberate default -- the safe
+/// answer to "which of our scanners may an outside company drive" is none, and a clinic
+/// granting everything says so explicitly. The migration that converted the old
+/// `operatorTenantId` links preserved prior access by writing a real grant per unit, rather
+/// than by making "empty means all" the rule forever.
+///
+/// Unit and equipment grants are not interchangeable: a unit grant follows the unit, so
+/// equipment installed there later is covered automatically, while an equipment grant names one
+/// device permanently. That is a genuine difference in how much ongoing trust the clinic
+/// extends, so both are offered rather than normalising one into the other.
+model OperatorAgreementScope {
+  id          String            @id @default(uuid())
+  agreementId String
+  agreement   OperatorAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  unitId      String?
+  unit        Unit?             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  equipmentId String?
+  equipment   Equipment?        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  /// Postgres treats NULLs as distinct in a unique index, so these two constraints stop the
+  /// same unit (or the same equipment) being granted twice within one agreement without
+  /// interfering with each other -- the equipment rows all have `unitId IS NULL` and vice
+  /// versa, so neither index ever sees a duplicate key from the other kind of row.
+  @@unique([agreementId, unitId])
+  @@unique([agreementId, equipmentId])
+  @@index([agreementId])
+  @@map("operator_agreement_scopes")
+}
+
+/// Grants a user access to a clinic beyond their one "home" tenant (`User.tenantId`,
+/// which stays the active/default clinic carried in the JWT -- see AccessTokenClaims and
+/// the active-clinic-switch endpoint). A Manager linked to N clinics has N rows here (one
+/// of which duplicates their home tenant); a single-clinic user (the common case) still
+/// gets exactly one row, created alongside the user itself so "which clinics can this
+/// user reach" never has to fall back to "just their home tenantId" as a special case.
+model UserClinicMembership {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  clinicTenantId String
+  clinic         Tenant   @relation(fields: [clinicTenantId], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, clinicTenantId])
+  @@index([userId])
+  @@map("user_clinic_memberships")
+}
+
+model User {
+  id                       String    @id @default(uuid())
+  tenantId                 String
+  tenant                   Tenant    @relation(fields: [tenantId], references: [id])
+  email                    String    @unique
+  passwordHash             String
+  role                     UserRole
+  // Nullable: historical rows predate these columns, and the mock this screen is built from
+  // never displays a name anywhere -- names exist solely to strengthen the password-policy
+  // "no personal info" check (see packages/shared/src/password-policy.ts), which always
+  // still runs via the email-local-part fallback when these are null. Required at the API
+  // for every *new* account (CreateUserRequestSchema), so the null set only ever shrinks.
+  firstName                String?
+  lastName                 String?
+  // Free-text, not a council-enum + number pair: the prefix (CRBM/CRM/COREN/...) varies by
+  // profession and nothing has specified that taxonomy -- see the identity-card mock, which
+  // renders this as one opaque string ("CRBM 14.820").
+  professionalRegistration String?
+  mfaSecret                String? // base32 TOTP secret, set once during MFA enrollment
+  mfaEnabledAt             DateTime?
+  lastLoginAt              DateTime?
+  lockedAt                 DateTime? // set by an admin (see LockUserHandler); null means not locked
+  // Set on every password change of *any* kind (self-service reset, forced in-band change,
+  // and -- as of the password-rotation work -- admin reset too) so RefreshTokensHandler can
+  // reject any refresh token issued before this moment, even one never individually
+  // denylisted by jti. Distinct from `passwordChangedAt` below: this is a session-revocation
+  // watermark, that's a credential-age clock -- they happen to move together today because
+  // every password-setting path now touches both, but a future "log everyone out" action
+  // (with no password change involved) would only ever need this one.
+  sessionsRevokedAt        DateTime?
+  // Drives the 90-day (PASSWORD_MAX_AGE_DAYS) expiry check in VerifyMfaHandler. Defaults to
+  // "now" at the migration that added this column, deliberately NOT backfilled from
+  // `createdAt` -- that would have instantly expired every account that existed before this
+  // feature shipped, the moment the migration ran.
+  passwordChangedAt        DateTime  @default(now())
+  // True for a password nobody has actually chosen for themselves yet: set on registration
+  // (an admin-issued temp password) and on admin-driven reset, cleared the moment the user
+  // sets their own via ResetPasswordHandler or the forced-change endpoint. Checked
+  // alongside password age in VerifyMfaHandler -- either one routes to
+  // "password_change_required" instead of a session.
+  mustChangePassword       Boolean   @default(false)
+  // Onboarding via a secure invitation link, replacing the admin-typed temp password (see
+  // InviteUserHandler/ActivateAccountHandler): set the moment RegisterUserHandler creates
+  // the row, cleared the moment the invitation is redeemed. `activatedAt == null` is what
+  // LoginHandler checks to reject a login attempt on an account nobody has claimed yet --
+  // distinct from `mustChangePassword`, which is about an *activated* account whose
+  // password is merely temporary/expired (e.g. after an admin reset).
+  invitedAt                DateTime? @default(now())
+  activatedAt              DateTime?
+  createdAt                DateTime  @default(now())
+
+  operatedSessions   Session[]              @relation("OperatorSessions")
+  supervisedSessions Session[]              @relation("SupervisorSessions")
   auditLogs          AuditLog[]
+  managedUnits       Unit[]                 @relation("UnitTechnicalManager")
+  managedClinics     Tenant[]               @relation("TenantResponsibleManager")
+  passwordHistory    PasswordHistory[]
+  clinicMemberships  UserClinicMembership[]
 
   @@index([tenantId])
   @@map("users")
 }
 
+/// Every password a user has ever set, including their current one -- reuse prevention
+/// (PASSWORD_HISTORY_DEPTH, default 5) checks new passwords against this table, not just
+/// `User.passwordHash`. Append-only in practice (nothing ever updates or reads a row's own
+/// hash back out for anything but comparison), but not enforced at the DB level the way
+/// AuditLog is -- there's no compliance requirement for this table to be tamper-evident,
+/// only for it to exist long enough to prevent an immediate rotate-back.
+model PasswordHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("password_history")
+}
+
 model Equipment {
-  id                       String          @id @default(uuid())
-  tenantId                 String
-  tenant                   Tenant          @relation(fields: [tenantId], references: [id])
-  name                     String
-  status                   EquipmentStatus @default(OFFLINE)
-  pikvmHost                String // e.g. https://10.0.1.50
-  pikvmUser                String
-  pikvmPasswordCiphertext  String // AES-256-GCM, see EncryptionService. Never plaintext.
+  id                        String          @id @default(uuid())
+  tenantId                  String
+  tenant                    Tenant          @relation(fields: [tenantId], references: [id])
+  // Nullable during the rollout: existing rows predate units entirely (backfilled to each
+  // clinic's own generated "Unidade Principal" by the migration that added this column,
+  // never left null for a *new* row -- see CreateEquipmentHandler). Kept alongside
+  // `tenantId`, not instead of it: every existing multi-tenant-isolation check
+  // (`belongsToTenant`, the audit hash chain, ~20 call sites) already keys on `tenantId`,
+  // and duplicating it here means none of that had to change to add units.
+  unitId                    String?
+  unit                      Unit?           @relation(fields: [unitId], references: [id])
+  name                      String
+  status                    EquipmentStatus @default(OFFLINE)
+  // Decommissioned / taken out of service by an admin. A nullable timestamp, not an
+  // `EquipmentStatus.INACTIVE` member, and the distinction is load-bearing rather than
+  // stylistic: `status` is a *health* field owned by PiKvmHealthPoller, which overwrites it
+  // for every non-MAINTENANCE device every 10 seconds. Anything expressing "an admin retired
+  // this device" through `status` would be silently reverted to ONLINE on the next poll the
+  // moment the device answered a health check. So this is orthogonal to health, matching the
+  // established soft-deactivation pattern on `Tenant.deactivatedAt`/`Unit.deactivatedAt`
+  // (and doubling as a "when," like `User.lockedAt`). The poller skips these rows, so a
+  // deactivated device's last-known `status` simply freezes, and
+  // `Equipment.isAvailableForSession()` refuses to start a session against it regardless of
+  // what that frozen value happens to say.
+  deactivatedAt             DateTime?
+  // --- Clinical identity of the device -------------------------------------------------
+  // All nullable for exactly the same reason `unitId` above is: rows created before the
+  // equipment-registration screen existed have no values for any of them, and backfilling
+  // an invented brand/model/serial would be fabricating asset-tracking data. Every field
+  // here except the DICOM trio is *required* for a new row
+  // (CreateEquipmentRequestSchema enforces that), so the null set only ever shrinks.
+  modality                  ExamModality?
+  brand                     String?
+  model                     String?
+  // The manufacturer's serial, used for calibration/asset tracking. Not unique-constrained:
+  // uniqueness would have to be scoped per-tenant (two clinics can legitimately register
+  // devices whose serials collide, and nothing verifies these against a real registry
+  // anyway), and a false global constraint would reject a legitimate second tenant's row.
+  serialNumber              String?
+  // Free text, not an FK to a Room/Sala table: the registration screen collects this as one
+  // opaque human-readable location string ("Sala RM-01 - Pavimento Terreo"), there is no
+  // room-management screen anywhere to maintain such a table from, and nothing in the app
+  // needs to query or aggregate by room. Promote to a real entity if that changes.
+  roomLabel                 String?
+  // Date the device was released for clinical use, not `createdAt` (when someone got around
+  // to registering it here) -- they are frequently months apart for pre-existing equipment.
+  installedAt               DateTime?
+  // --- DICOM node identity ------------------------------------------------------------
+  // Stored metadata only. This platform has no DICOM/PACS integration of any kind (see
+  // docs/architecture.md on the console mock's fabricated PACS status pill): nothing reads
+  // these to open a DICOM association, negotiate a presentation context, or send/receive an
+  // image. They exist so an operator can record the values an *external* PACS team gave
+  // them alongside the rest of the device's record, and are optional precisely because
+  // nothing here breaks when they're absent.
+  aeTitle                   String?
+  dicomIp                   String?
+  dicomPort                 Int?
+  // --- Teleoperation console (PiKVM) --------------------------------------------------
+  pikvmHost                 String // e.g. https://10.0.1.50
+  pikvmUser                 String
+  pikvmPasswordCiphertext   String // AES-256-GCM, see EncryptionService. Never plaintext.
   pikvmTotpSecretCiphertext String?
-  cameraUrl                String?
-  targetOs                 TargetOs        @default(WINDOWS)
-  keymap                   String          @default("en-us")
-  mouseMode                MouseMode       @default(ABSOLUTE)
-  screenWidth              Int             @default(1920)
-  screenHeight             Int             @default(1080)
+  cameraUrl                 String?
+  targetOs                  TargetOs        @default(WINDOWS)
+  keymap                    String          @default("en-us")
+  mouseMode                 MouseMode       @default(ABSOLUTE)
+  screenWidth               Int             @default(1920)
+  screenHeight              Int             @default(1080)
   // ATX (power) and MSD (virtual USB drive) are intentionally NOT modeled here: the adapter
   // in packages/pikvm does not implement those endpoints at all, by design.
-  createdAt                DateTime        @default(now())
-  updatedAt                DateTime        @updatedAt
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
 
-  sessions Session[]
-  queue    QueueEntry[]
+  sessions        Session[]
+  queue           QueueEntry[]
+  agreementScopes OperatorAgreementScope[]
+  examMessages    ExamMessage[]
 
   @@index([tenantId])
+  @@index([unitId])
   @@map("equipment")
 }
 
@@ -153,19 +568,136 @@ model Session {
 }
 
 model QueueEntry {
-  id               String      @id @default(uuid())
-  equipmentId      String
-  equipment        Equipment   @relation(fields: [equipmentId], references: [id])
-  patientFirstName String
-  position         Int
-  status           QueueStatus @default(WAITING)
-  scheduledAt      DateTime?
-  createdAt        DateTime    @default(now())
+  id                     String            @id @default(uuid())
+  equipmentId            String
+  equipment              Equipment         @relation(fields: [equipmentId], references: [id])
+  patientFirstName       String
+  position               Int
+  status                 QueueStatus       @default(WAITING)
+  scheduledAt            DateTime?
+  createdAt              DateTime          @default(now())
+  /// See PreparationStatus's own docstring above. Written only by
+  /// UpdatePreparationStatusHandler, one column write per transition alongside whichever of
+  /// the three timestamps below matches it -- never independently, so the enum and its
+  /// timestamp can't diverge.
+  preparationStatus      PreparationStatus @default(NOT_STARTED)
+  positionedAt           DateTime?
+  injectedAt             DateTime?
+  releasedAt             DateTime?
+  /// The nurse's editable "exam details" (see the queue-reorder/exam-details feature).
+  /// Written only by UpdateQueueEntryDetailsHandler -- deliberately not a Patient model,
+  /// still exactly one row on this same QueueEntry, same first-name-only PHI posture the
+  /// rest of this table already has.
+  examDescription        String?
+  contrastRequired       Boolean           @default(false)
+  patientSex             PatientSex?
+  patientWeightKg        Int?
+  preparationNotes       String?
+  /// The nurse's structured "Questionário de Segurança & Contraste" -- three pre-procedure
+  /// facts, recorded and displayed as-is, never used to gate anything server-side (the one
+  /// derived state, "ALERTA JEJUM", is computed client-side from fastingConfirmed alone).
+  /// creatinineMgDl is a plain Float, not a Decimal -- this schema has no Decimal type
+  /// anywhere yet, and a single display-only lab value (never used in arithmetic here)
+  /// doesn't justify introducing the Decimal.js conversion boundary that would come with
+  /// one. contrastVolumeMl is the nurse's own recorded dose from the exam's protocol, not a
+  /// value this platform computes from patientWeightKg -- see this feature's own
+  /// architecture note on why a mL figure is never derived here.
+  fastingConfirmed       Boolean           @default(false)
+  fastingHours           Int?
+  creatinineMgDl         Float?
+  allergyStatus          AllergyStatus?
+  allergyNotes           String?
+  contrastVolumeMl       Int?
+  /// Attribution for the exam-detail form's own fields -- "Registrado às HH:mm por <nome>".
+  /// A plain nullable id, not a relation: resolved through the same
+  /// SessionParticipantNameService/summarizeDisplayNames path SessionState.operatorName
+  /// already uses, so User needs no back-reference for this. Both null until the first
+  /// PATCH /queue/:id ever lands on this entry.
+  detailsUpdatedAt       DateTime?
+  detailsUpdatedByUserId String?
+  /// The remote operator's own procedural note ("contrast administered, no signs of
+  /// extravasation") -- deliberately its own column, not folded into `preparationNotes`
+  /// above: that field is written by `UpdateQueueEntryDetailsHandler` under the nurse's own
+  /// authorization boundary, and this one is written by a narrower, operator-side-only
+  /// command (`UpdateTeleoperationNotesHandler`). Two columns keep the two write paths from
+  /// ever needing to reconcile who overwrote whose note last.
+  teleoperationNotes     String?
 
-  session Session?
+  session      Session?
+  examMessages ExamMessage[]
 
   @@index([equipmentId, status])
+  /// listByEquipment orders by position asc -- this is the WAITING-queue read path
+  /// ReorderQueueHandler's full-set permutation check and NursingQueuePage both hit on
+  /// every load/reorder.
+  @@index([equipmentId, position])
   @@map("queue_entries")
+}
+
+/// The exam-support chat: a persisted, tenant-scoped clinic<->operator text channel, tied to
+/// the equipment (the room) rather than to any one session -- a message sent before or between
+/// sessions ("scanner calibrated, ready when you are") stays visible to whoever joins next.
+/// `queueEntryId` is stamped opportunistically from whichever entry is the room's *current*
+/// patient at send time (see the gateway handler that writes these), so a transcript can later
+/// be filtered to one exam without that being the only way to reach a message.
+///
+/// Deliberately not a relation on `Session`: sessions start and end constantly through a single
+/// exam's own life (takeover, idle-timeout abort, a deliberate end-and-restart), and a message
+/// tied to one specific session row would vanish from view the moment that session ended, which
+/// is exactly the behaviour this feature exists to avoid.
+model ExamMessage {
+  id                  String      @id @default(uuid())
+  equipmentId         String
+  equipment           Equipment   @relation(fields: [equipmentId], references: [id])
+  queueEntryId        String?
+  queueEntry          QueueEntry? @relation(fields: [queueEntryId], references: [id])
+  /// Plain id, not a relation -- same "resolve the display name at the presentation boundary,
+  /// never store or join it" pattern `QueueEntry.detailsUpdatedByUserId` already established.
+  authorUserId        String
+  body                String
+  /// One optional attachment per message, not a separate one-to-many table -- this chat has
+  /// no reason to let one message carry several files (see `ExamMessageAttachmentSchema`'s
+  /// own docstring), and a single nullable group of columns says that directly instead of via
+  /// a child table a caller would still have to treat as "zero or one row, never more".
+  /// `attachmentPath` is the storage key `ChatAttachmentStorageService` returned, never
+  /// exposed to a client directly -- `GET /chat/messages/:id/attachment` resolves it through
+  /// this row after its own tenancy/scope check, the same "never take a path from the URL"
+  /// rule `SessionSnapshot.imagePath` already follows.
+  attachmentPath      String?
+  attachmentFilename  String?
+  attachmentMimeType  String?
+  attachmentSizeBytes Int?
+  createdAt           DateTime    @default(now())
+
+  @@index([equipmentId, createdAt])
+  @@index([queueEntryId])
+  @@map("exam_messages")
+}
+
+/// A canned quick-reply for the exam-support chat, scoped to one clinic tenant -- see
+/// `MessageShortcutSchema`'s own docstring in packages/shared for why this is per-clinic
+/// rather than per-operator-company. `code` is the short chip label ("CONT", "PL"); `body` is
+/// the text a click inserts into the composer.
+model MessageShortcut {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  code            String
+  label           String
+  body            String
+  /// Plain id, not a relation -- same reasoning as ExamMessage.authorUserId above.
+  createdByUserId String?
+  deactivatedAt   DateTime?
+  createdAt       DateTime  @default(now())
+
+  /// One code per clinic, so "CONT" always means the same button in the same clinic's chat --
+  /// case-sensitivity is enforced at the application boundary (CreateMessageShortcutHandler),
+  /// not by this index, since Postgres's default collation is already case-sensitive for a
+  /// plain unique constraint and a citext/lower() column would be new infrastructure this one
+  /// feature does not need.
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("message_shortcuts")
 }
 
 /// Append-only by construction: a migration revokes UPDATE/DELETE from the application's

@@ -1,8 +1,17 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    // shadcn/ui's own convention (`@/components/...`) -- mirrored in tsconfig.json's own
+    // `paths` so `tsc` resolves the same imports the shadcn CLI generates.
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   server: {
     port: 5173,
   },

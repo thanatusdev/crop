@@ -21,14 +21,24 @@ const httpServer = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://internal");
 
   if (url.pathname === "/api/info") {
+    // Confirmed against real hardware (PiKVM Mini, kvmd 4.61): "hid" is not a valid `fields`
+    // value here at all (the real device 400s on it) and never appears in the unfiltered
+    // payload either -- HID state lives at its own GET /api/hid. Mirroring that split, not
+    // the platform's original (incorrect) assumption, is the whole point of this mock.
+    const fields = url.searchParams.get("fields")?.split(",");
+    const full = { hw: { health: { temp: { cpu: 42.0 } } } };
+    const result = fields ? Object.fromEntries(Object.entries(full).filter(([k]) => fields.includes(k))) : full;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, result }));
+    return;
+  }
+
+  if (url.pathname === "/api/hid") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
         ok: true,
-        result: {
-          hid: { online: true, keyboard: { online: true, leds: { caps: false, num: false, scroll: false } }, mouse: { online: true, absolute: true } },
-          hw: { health: { temp: { cpu: 42.0 } } },
-        },
+        result: { online: true, keyboard: { online: true, leds: { caps: false, num: false, scroll: false } }, mouse: { online: true, absolute: true } },
       })
     );
     return;
@@ -67,9 +77,11 @@ hidWss.on("connection", (ws) => {
   console.log("[mock-pikvm] HID socket connected");
 
   // Mirrors the exact bundle-of-states-then-loop sequence real PiKVM sends on connect.
+  // event_type "hid" (not "hid_state" -- confirmed against real hardware, see rest-client.ts
+  // and hid-client.ts) carries the same keyboard/mouse online+LED shape GET /api/hid returns.
   ws.send(
     JSON.stringify({
-      event_type: "hid_state",
+      event_type: "hid",
       event: { online: true, keyboard: { online: true, leds: { caps: false, num: false, scroll: false } }, mouse: { online: true, absolute: true } },
     })
   );

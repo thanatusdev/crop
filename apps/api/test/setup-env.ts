@@ -16,3 +16,10 @@ process.env.PORT = "3999"; // unused -- tests call app.init(), never app.listen(
 // Otherwise fires every 10s against these tests' deliberately-fake PiKVM hosts and "corrects"
 // fixture equipment status mid-test-run -- see PiKvmHealthPoller's own comment on this flag.
 process.env.DISABLE_HEALTH_POLLER = "true";
+// Explicit, even though "file" is also the schema default: password-reset.e2e.spec.ts reads
+// this exact path back to get the emailed reset link, and a *different* test file's app
+// instance (or a developer's own `make demo` running alongside `pnpm test:e2e`) writing to
+// the same default `./storage/mail-outbox.jsonl` would make that read racy.
+process.env.MAILER_DRIVER = "file";
+process.env.MAIL_OUTBOX_PATH = "./storage/mail-outbox.test.jsonl";
+process.env.APP_PUBLIC_URL = "http://localhost:5173";

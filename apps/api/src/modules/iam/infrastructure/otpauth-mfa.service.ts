@@ -2,7 +2,11 @@ import { Injectable } from "@nestjs/common";
 import * as OTPAuth from "otpauth";
 import type { MfaSecretAndUri, MfaServicePort } from "../application/ports/mfa-service.port.js";
 
-const ISSUER = "CROP";
+// Cosmetic only: `verifyCode` builds its TOTP from the stored secret alone (see below), never
+// from this string, so changing it doesn't invalidate any existing enrollment. It does mean
+// a user enrolled before this rename keeps seeing "CROP" in their authenticator app, since
+// the issuer is baked into the entry at scan time -- only *new* enrollments see "RadLink".
+const ISSUER = "RadLink";
 
 @Injectable()
 export class OtpauthMfaService implements MfaServicePort {

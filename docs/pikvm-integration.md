@@ -12,6 +12,22 @@ minute), on exactly the path (`releaseAll()` -> `/api/hid/reset`) meant to be th
 reliable safety net for stuck input. See `docs/architecture.md`'s "Every network call to
 hardware needs a timeout" for the full story, including how it was actually found.
 
+PiKVM ships a self-signed HTTPS cert by default (confirmed against a real PiKVM Mini: Node's
+global `fetch` fails every request with `DEPTH_ZERO_SELF_SIGNED_CERT` otherwise).
+`PiKvmHidClient`/`PiKvmMediaRelay` already relaxed this for their `ws` connections
+(`rejectUnauthorized: false`); `PiKvmRestClient` now does the same for `fetch` via an
+`undici` `Agent({ connect: { rejectUnauthorized: false } })` passed as `dispatcher` -- Node's
+global `fetch` is undici under the hood and honours that option without switching away from
+the global function (which is what let this stay a one-line change and kept the existing
+`vi.fn()`-mocked `global.fetch` tests working unmodified).
+
+`PiKvmRestClient.getInfo()` originally assumed `GET /api/info?fields=hid,hw` -- also wrong on
+real hardware (kvmd 4.61): `/api/info` has no `hid` key at all, and `?fields=hid` itself gets
+a `400 ValidatorError`. HID state lives at its own `GET /api/hid`, whose result shape is the
+`hid` object callers expect, unwrapped. `getInfo()` now issues both requests
+(`GET /api/hid` and `GET /api/info?fields=hw`) and merges them, so `PiKvmHealthPoller` and
+anything else consuming `PiKvmInfo` never had to change.
+
 ## Authentication
 
 `X-KVMD-User` / `X-KVMD-Passwd` headers. With PiKVM device-level 2FA enabled, the password is
@@ -20,7 +36,7 @@ the plain password with the current TOTP code concatenated directly, **no separa
 30s TOTP window can land just as the code rotates and get `403`; `@crop/pikvm`'s
 `remainingTotpWindowMs` exists to let a caller defer such a request by a beat.
 
-This is unrelated to the platform's own 2FA (mandatory for every CROP user, see
+This is unrelated to the platform's own 2FA (mandatory for every RadLink user, see
 `docs/architecture.md`) -- PiKVM device 2FA is optional and per-equipment.
 
 ## HID over `/api/ws?stream=1`
@@ -39,6 +55,17 @@ Wire shapes (exact, from `kvmd`'s `mouse.js`/`keyboard.js`):
 {"event_type":"mouse_button",  "event":{"button":"left","state":true}}
 {"event_type":"mouse_wheel",   "event":{"delta":{"x":0,"y":-5}}}
 ```
+
+### Incoming HID state: `event_type` is `"hid"`, not `"hid_state"`
+
+`/api/ws?stream=1` is a multiplexed channel -- alongside HID it also pushes `gpio`, `atx`,
+`msd`, `ocr`, `streamer`, and general `info` events, unprompted, as soon as the connection
+opens. `PiKvmHidClient.handleMessage` only cares about two of these: `"loop"` (connection
+ready) and the keyboard/mouse online+LED status, which a stock PiKVM Mini running kvmd 4.61
+sends as `{"event_type":"hid","event":{...}}` -- confirmed by capturing the real event stream
+from physical hardware. (`"hid_state"` was this codebase's original assumption and does not
+appear anywhere in the actual stream; nothing in production consumed the `state` event yet,
+so this was corrected before it became a silent dependency.)
 
 ### The stuck-key/button hazard
 

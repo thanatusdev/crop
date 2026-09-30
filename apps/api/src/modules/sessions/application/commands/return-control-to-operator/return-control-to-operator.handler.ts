@@ -13,10 +13,13 @@ import { ReturnControlToOperatorCommand } from "./return-control-to-operator.com
 // away from the operator is also who gets to decide when it's safe to hand it back. The
 // operator can never reclaim their own session unilaterally just by asking -- if they could,
 // a takeover would be trivially reversible by the very person it was needed against.
+// OPERATOR_ADMIN added alongside the clinic/operator-provider role split (see
+// packages/shared/src/roles.ts).
 const RETURN_CONTROL_ALLOWED_ROLES: readonly UserRole[] = [
-  UserRole.SUPERVISOR,
+  UserRole.OPERATIONAL_SUPERVISOR,
   UserRole.CLINIC_ADMIN,
   UserRole.PLATFORM_ADMIN,
+  UserRole.OPERATOR_ADMIN,
 ];
 
 /**

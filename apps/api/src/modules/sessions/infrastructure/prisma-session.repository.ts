@@ -66,6 +66,11 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
     return row ? this.toDomain(row) : null;
   }
 
+  async findByQueueEntryId(queueEntryId: string): Promise<Session | null> {
+    const row = await this.prisma.session.findUnique({ where: { queueEntryId }, include: WITH_TENANT });
+    return row ? this.toDomain(row) : null;
+  }
+
   async listActiveByTenant(tenantId: string): Promise<Session[]> {
     const rows = await this.prisma.session.findMany({
       where: {

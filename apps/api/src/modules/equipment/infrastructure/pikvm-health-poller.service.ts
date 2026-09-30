@@ -39,7 +39,15 @@ export class PiKvmHealthPoller {
     // silently revert a manual override back to ONLINE/OFFLINE/DEGRADED, making the feature
     // pointless. Only ClearMaintenanceHandler is allowed to move equipment out of
     // MAINTENANCE; see its own comment for what it reverts to and why.
-    const pollable = equipment.filter((item) => !item.isInMaintenance());
+    //
+    // Deactivated (retired) equipment is skipped for a related but distinct reason: it is not
+    // that polling it would break a manual override, it is that polling a decommissioned
+    // device is pointless work whose result nobody acts on -- and if the hardware is still
+    // physically reachable, it would keep the row flapping between ONLINE and OFFLINE (each
+    // transition writing an audit row) for a scanner that is no longer in service at all.
+    // Its `status` simply freezes at whatever it last was; `isAvailableForSession()` is what
+    // keeps that stale value from being mistaken for availability.
+    const pollable = equipment.filter((item) => !item.isInMaintenance() && !item.isDeactivated());
     await Promise.all(pollable.map((item) => this.pollOne(item.id)));
   }
 

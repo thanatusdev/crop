@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { io, type Socket } from "socket.io-client";
 import { RT_EVENTS, UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * `PiKvmConnectionRegistry` (apps/api/src/modules/sessions/infrastructure/pikvm-connection-registry.ts)
@@ -46,12 +46,12 @@ describe("Cross-tenant PiKVM-failure isolation", () => {
     const tenantA = await createTenant(prisma, `CrossTenantIso-A-${crypto.randomUUID()}`);
     const adminA = await createLoggedInUser(app, { tenantId: tenantA.id, role: UserRole.CLINIC_ADMIN });
     adminAToken = adminA.accessToken;
-    const operatorA = await createLoggedInUser(app, { tenantId: tenantA.id, role: UserRole.OPERATOR });
+    const operatorA = await createContractedOperator(app, prisma, { clinicTenantId: tenantA.id, role: UserRole.OPERATOR });
     operatorAToken = operatorA.accessToken;
     const equipmentA = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${adminAToken}`)
-      .send({ name: "Iso-Test-MRI-A", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Iso-Test-MRI-A", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     await prisma.equipment.update({ where: { id: equipmentA.body.id }, data: { status: "ONLINE" } });
     const sessionA = await http
@@ -68,12 +68,12 @@ describe("Cross-tenant PiKVM-failure isolation", () => {
     const tenantB = await createTenant(prisma, `CrossTenantIso-B-${crypto.randomUUID()}`);
     const adminB = await createLoggedInUser(app, { tenantId: tenantB.id, role: UserRole.CLINIC_ADMIN });
     adminBToken = adminB.accessToken;
-    const operatorB = await createLoggedInUser(app, { tenantId: tenantB.id, role: UserRole.OPERATOR });
+    const operatorB = await createContractedOperator(app, prisma, { clinicTenantId: tenantB.id, role: UserRole.OPERATOR });
     operatorBToken = operatorB.accessToken;
     const equipmentB = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${adminBToken}`)
-      .send({ name: "Iso-Test-CT-B", pikvmHost: "https://192.0.2.2", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Iso-Test-CT-B", pikvmHost: "https://192.0.2.2" }))
       .expect(201);
     await prisma.equipment.update({ where: { id: equipmentB.body.id }, data: { status: "ONLINE" } });
     const sessionB = await http

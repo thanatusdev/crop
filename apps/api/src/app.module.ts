@@ -17,6 +17,10 @@ import { SessionsModule } from "./modules/sessions/sessions.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { QueueModule } from "./modules/queue/queue.module.js";
 import { TenantsModule } from "./modules/tenants/tenants.module.js";
+import { UnitsModule } from "./modules/units/units.module.js";
+import { AccessModule } from "./modules/access/access.module.js";
+import { AgreementsModule } from "./modules/agreements/agreements.module.js";
+import { ChatModule } from "./modules/chat/chat.module.js";
 
 @Module({
   imports: [
@@ -38,6 +42,10 @@ import { TenantsModule } from "./modules/tenants/tenants.module.js";
     SessionsModule,
     QueueModule,
     TenantsModule,
+    UnitsModule,
+    AccessModule,
+    AgreementsModule,
+    ChatModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
 })

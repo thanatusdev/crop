@@ -4,6 +4,7 @@ import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { EncryptionService } from "../../../../../shared/infrastructure/crypto/encryption.service.js";
+import { UNIT_REPOSITORY, type UnitRepositoryPort } from "../../../../units/application/ports/unit-repository.port.js";
 import { Equipment } from "../../../domain/equipment.entity.js";
 import { EQUIPMENT_REPOSITORY, type EquipmentRepositoryPort, type UpdateEquipmentData } from "../../ports/equipment-repository.port.js";
 import { UpdateEquipmentCommand } from "./update-equipment.command.js";
@@ -12,6 +13,7 @@ import { UpdateEquipmentCommand } from "./update-equipment.command.js";
 export class UpdateEquipmentHandler implements ICommandHandler<UpdateEquipmentCommand, Equipment> {
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
+    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
     private readonly encryption: EncryptionService,
     private readonly commandBus: CommandBus
   ) {}
@@ -21,6 +23,17 @@ export class UpdateEquipmentHandler implements ICommandHandler<UpdateEquipmentCo
     if (!existing) throw new NotFoundError("Equipment", command.equipmentId);
     if (!existing.belongsToTenant(command.tenantId)) {
       throw new ForbiddenError("Equipment does not belong to your tenant");
+    }
+
+    // Same validation CreateEquipmentHandler applies to an explicit unitId -- reassigning
+    // equipment to a unit outside its own tenant would silently break every
+    // `belongsToTenant` check elsewhere, since `tenantId` is what those still key on.
+    if (command.changes.unitId) {
+      const unit = await this.units.findById(command.changes.unitId);
+      if (!unit) throw new NotFoundError("Unit", command.changes.unitId);
+      if (unit.clinicTenantId !== existing.tenantId) {
+        throw new ForbiddenError(`Unit ${command.changes.unitId} does not belong to this tenant`);
+      }
     }
 
     const { pikvmPassword, ...rest } = command.changes;

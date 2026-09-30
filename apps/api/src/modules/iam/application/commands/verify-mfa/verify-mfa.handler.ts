@@ -1,5 +1,6 @@
 import { Inject, Logger } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { ConfigService } from "@nestjs/config";
 import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
@@ -21,6 +22,7 @@ export class VerifyMfaHandler implements ICommandHandler<VerifyMfaCommand, Verif
     @Inject(MFA_SERVICE) private readonly mfa: MfaServicePort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
+    private readonly config: ConfigService,
     private readonly commandBus: CommandBus
   ) {}
 
@@ -60,15 +62,38 @@ export class VerifyMfaHandler implements ICommandHandler<VerifyMfaCommand, Verif
     // attacker with only the password never reaches this line without the TOTP device too.
     await this.audit(user.tenantId, user.id, AuditAction.LOGIN_SUCCESS, {});
 
+    // Both factors just passed -- the ONLY point where that's true and a session hasn't
+    // been minted yet. Checking earlier (e.g. in LoginHandler, right after the password) is
+    // wrong: it would tell someone holding only a stolen password that it was correct,
+    // before they've proven they also hold the TOTP device. See User.passwordChangeReason
+    // for which of the two reasons wins when both would apply.
+    const maxAgeDays = this.config.get<number>("PASSWORD_MAX_AGE_DAYS", 90);
+    const reason = user.passwordChangeReason(maxAgeDays);
+    if (reason) {
+      return {
+        status: "password_change_required",
+        changeToken: this.tokens.signPasswordChange(user.id, clientOs),
+        reason,
+        email: user.email,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        professionalRegistration: user.professionalRegistration,
+      };
+    }
+
     const accessToken = this.tokens.signAccessToken({
       sub: user.id,
       tenantId: user.tenantId,
       role: user.role,
       clientOs,
+      // A fresh login always starts in the account's own tenant, so these are equal here. They
+      // diverge only after an active-clinic switch -- see AccessTokenClaims.homeTenantId.
+      homeTenantId: user.tenantId,
     });
     const refreshToken = this.tokens.signRefreshToken({ sub: user.id, tenantId: user.tenantId, clientOs });
 
-    return { accessToken, refreshToken };
+    return { status: "ok", accessToken, refreshToken };
   }
 
   private async audit(tenantId: string, userId: string, action: AuditAction, details: unknown): Promise<void> {

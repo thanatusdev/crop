@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help install up down ps logs reset-db migrate seed seed-mock totp bootstrap-superadmin \
+.PHONY: help install up down ps logs reset-db migrate seed seed-mock totp backfill-shortcuts bootstrap-superadmin \
         mock dev build typecheck lint test test-e2e \
         demo demo-stop demo-status demo-logs demo-restart-api demo-reset \
         psql redis-cli clean
@@ -65,6 +65,9 @@ seed-mock: ## Seed demo data pointed at the local mock PiKVM instead (no hardwar
 
 totp: ## Print each seeded user's email, password, and a currently-valid TOTP code
 	@pnpm totp
+
+backfill-shortcuts: ## Seed the six default chat shortcuts into every CLINIC tenant that doesn't have them yet (idempotent)
+	@pnpm backfill-shortcuts
 
 bootstrap-superadmin: ## Create the one PLATFORM_ADMIN account + its home tenant (idempotent, safe to re-run)
 	pnpm bootstrap:superadmin
@@ -178,6 +181,8 @@ demo-restart-api: ## Restart just the API dev server (e.g. after changing .env)
 demo-reset: ## Wipe and reseed the demo database against the mock PiKVM (keeps servers running)
 	@$(MAKE) --no-print-directory reset-db
 	@$(MAKE) --no-print-directory seed-mock
+	@docker compose exec -T redis redis-cli FLUSHDB > /dev/null
+	@echo "Redis flushed -- login/password-reset rate limits and revoked-token denylists reset too, not just Postgres."
 
 demo-stop: ## Stop all background demo processes (leaves docker compose infra running)
 	@pkill -f "spike:mock" 2>/dev/null || true

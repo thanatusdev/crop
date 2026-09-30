@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
  * (including PiKVM itself) demonstrate latency claims.
  *
  * Deliberately outside the authenticated app shell (see App.tsx): the target machine has no
- * reason to ever hold a CROP login.
+ * reason to ever hold a RadLink login.
  */
 export default function LatencyClockPage() {
   const [now, setNow] = useState(() => new Date());

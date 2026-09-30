@@ -45,7 +45,7 @@ export class SessionIdleScheduler implements OnModuleInit, OnModuleDestroy {
       if (now - lastActivity <= idleTimeoutMs) continue;
 
       await this.commandBus.execute(new AbortIdleSessionCommand(session.id));
-      this.gateway.broadcastSessionEnded(session.id);
+      await this.gateway.broadcastSessionEnded(session.id);
     }
   }
 }

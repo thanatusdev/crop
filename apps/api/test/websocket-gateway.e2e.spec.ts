@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { io, type Socket } from "socket.io-client";
 import { RT_EVENTS, UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * Regression test for a real bug found while load-testing this phase: `MediaStreamServer`
@@ -37,14 +37,14 @@ describe("WebSocket gateway coexists with the media stream server", () => {
     const tenant = await createTenant(prisma, `WsGateway-${crypto.randomUUID()}`);
     const admin = await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.CLINIC_ADMIN });
     adminToken = admin.accessToken;
-    const operator = await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.OPERATOR });
+    const operator = await createContractedOperator(app, prisma, { clinicTenantId: tenant.id, role: UserRole.OPERATOR });
     operatorToken = operator.accessToken;
 
     const http = request(baseUrl);
     const equipmentRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ name: "WS-Test-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "WS-Test-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     await prisma.equipment.update({ where: { id: equipmentRes.body.id }, data: { status: "ONLINE" } });
 

@@ -12,13 +12,16 @@ import {
 import type { Server, Socket } from "socket.io";
 import {
   HidInputEventSchema,
+  JoinEquipmentChatRequestSchema,
   PrintTextRequestSchema,
   RT_EVENTS,
   UserRole,
   type AccessTokenClaims,
   type ControllerChangedEvent,
   type EquipmentStatus,
+  type ExamMessageDto,
   type HidInputEvent,
+  type PatientPreparationUpdatedEvent,
   type TargetOs,
 } from "@crop/shared";
 import { TOKEN_SERVICE, type TokenServicePort } from "../../iam/application/ports/token-service.port.js";
@@ -30,6 +33,8 @@ import { ProcessHidInputCommand } from "../application/commands/process-hid-inpu
 import { GetSessionQuery } from "../application/queries/get-session/get-session.query.js";
 import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../application/ports/pikvm-gateway.port.js";
 import { SESSION_RUNTIME, type SessionRuntimePort } from "../application/ports/session-runtime.port.js";
+import { SessionParticipantNameService } from "../application/session-participant-name.service.js";
+import { CanAccessEquipmentChatQuery } from "../../chat/application/queries/can-access-equipment-chat/can-access-equipment-chat.query.js";
 import { toSessionDto } from "./session.dto.js";
 
 interface JoinedSessionContext {
@@ -52,6 +57,16 @@ function tenantRoom(tenantId: string): string {
   return `tenant:${tenantId}`;
 }
 
+/** The exam-support chat's own room, joined via `JOIN_EQUIPMENT_CHAT` -- deliberately not
+ * `room(equipmentId)` (a different id namespace than `session:<id>`, but string-templated
+ * ids from two different entity types have collided by coincidence before in less careful
+ * codebases, so this stays its own named prefix rather than relying on session ids and
+ * equipment ids never accidentally matching). See `RT_EVENTS.JOIN_EQUIPMENT_CHAT`'s own
+ * docstring for why this room exists independently of `room(sessionId)` at all. */
+function equipmentChatRoom(equipmentId: string): string {
+  return `equipment:${equipmentId}`;
+}
+
 // Deliberately the same set ExecuteTakeoverHandler/ReturnControlToOperatorHandler use:
 // whoever is eligible to take control away from the operator must also be able to *watch*
 // the session live before doing so (e.g. via DashboardPage's "Rejoin session", which shows
@@ -65,7 +80,16 @@ function tenantRoom(tenantId: string): string {
 // "End session" button also failed (EndSessionHandler correctly requires `isParticipant`),
 // and with no SESSION_ENDED ever reaching them, nothing ever redirected them away either.
 // Real bug, found by hand, not by an e2e test -- see docs/architecture.md.
-const VIEW_ALLOWED_ROLES: readonly UserRole[] = [UserRole.SUPERVISOR, UserRole.CLINIC_ADMIN, UserRole.PLATFORM_ADMIN];
+// OPERATOR_ADMIN added alongside the clinic/operator-provider role split (see
+// packages/shared/src/roles.ts) -- an operator company's admin needs the same live-view
+// eligibility as OPERATIONAL_SUPERVISOR (renamed from SUPERVISOR) and CLINIC_ADMIN already
+// have.
+const VIEW_ALLOWED_ROLES: readonly UserRole[] = [
+  UserRole.OPERATIONAL_SUPERVISOR,
+  UserRole.CLINIC_ADMIN,
+  UserRole.PLATFORM_ADMIN,
+  UserRole.OPERATOR_ADMIN,
+];
 
 /**
  * The real-time control plane: session join, HID input, print-text, takeover, and latency
@@ -100,7 +124,8 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     private readonly commandBus: CommandBus,
-    private readonly queryBus: QueryBus
+    private readonly queryBus: QueryBus,
+    private readonly participantNames: SessionParticipantNameService
   ) {}
 
   handleConnection(client: Socket): void {
@@ -125,10 +150,14 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   async handleDisconnect(client: Socket): Promise<void> {
     const data = client.data as SocketData;
-    // Safety net for a crashed/closed tab: if the disconnecting socket was the current
-    // controller, release any physically-held key/button rather than waiting for an
-    // explicit "End Session" that may never come. See docs/architecture.md.
-    if (data.session && this.runtime.getController(data.session.sessionId) === data.user.sub) {
+    if (!data.session) return;
+
+    // If the disconnecting socket was the current controller, release any physically-held
+    // key/button rather than waiting for an explicit "End Session" that may never come. See
+    // docs/architecture.md. (Used to run alongside a second, push-to-talk cleanup branch in
+    // a `Promise.all` -- removed with the intercom feature itself; see that feature's own
+    // removal note on `INTERCOM_PRESENCE`.)
+    if (this.runtime.getController(data.session.sessionId) === data.user.sub) {
       await this.pikvm.releaseAllInput(data.session.equipmentId).catch((err: Error) => {
         this.logger.error(`releaseAllInput on disconnect failed: ${err.message}`);
       });
@@ -205,6 +234,41 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     );
   }
 
+  /**
+   * Joins the socket to one equipment's own exam-support chat room -- see
+   * `RT_EVENTS.JOIN_EQUIPMENT_CHAT`'s own docstring for why this room is separate from
+   * `room(sessionId)`. Sending itself is `POST /chat/messages` now (see
+   * `SendExamMessageRequestSchema`'s own docstring); this handler exists purely so a joined
+   * socket receives the live `EXAM_MESSAGE_CREATED` broadcast that write produces. Dispatches
+   * a query into `ChatModule` (`CanAccessEquipmentChatQuery`) rather than checking access
+   * inline, the same anti-cycle shape `onJoinSession`'s own `GetEquipmentQuery` dispatch
+   * already uses for `EquipmentModule` -- see that query's own docstring.
+   */
+  /**
+   * Joins the socket to one equipment's own exam-support chat room -- see
+   * `RT_EVENTS.JOIN_EQUIPMENT_CHAT`'s own docstring for why this room is separate from
+   * `room(sessionId)`. Sending itself is `POST /chat/messages` now (see
+   * `SendExamMessageRequestSchema`'s own docstring); this handler exists purely so a joined
+   * socket receives the live `EXAM_MESSAGE_CREATED` broadcast that write produces. Dispatches
+   * a query into `ChatModule` (`CanAccessEquipmentChatQuery`) rather than checking access
+   * inline, the same anti-cycle shape `onJoinSession`'s own `GetEquipmentQuery` dispatch
+   * already uses for `EquipmentModule` -- see that query's own docstring.
+   */
+  @SubscribeMessage(RT_EVENTS.JOIN_EQUIPMENT_CHAT)
+  async onJoinEquipmentChat(@ConnectedSocket() client: Socket, @MessageBody() body: unknown): Promise<void> {
+    const data = client.data as SocketData;
+    const parsed = JoinEquipmentChatRequestSchema.safeParse(body);
+    if (!parsed.success) return;
+
+    try {
+      await this.queryBus.execute(new CanAccessEquipmentChatQuery(parsed.data.equipmentId, data.user));
+    } catch (err) {
+      client.emit(RT_EVENTS.ERROR, { message: err instanceof Error ? err.message : "Not authorized to join this room's chat" });
+      return;
+    }
+    await client.join(equipmentChatRoom(parsed.data.equipmentId));
+  }
+
   @SubscribeMessage(RT_EVENTS.TAKEOVER_REQUEST)
   async onTakeoverRequest(@ConnectedSocket() client: Socket, @MessageBody() body: { sessionId: string }): Promise<void> {
     const data = client.data as SocketData;
@@ -222,14 +286,19 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     // through two real browser sessions instead of only backend-level e2e tests.
     await this.joinRoom(client, data, session.id, session.equipmentId, data.user.tenantId);
 
+    // Used to be `data.user.sub` -- a raw userId, not a name (see ControllerChangedEvent's
+    // own docstring). The acting caller here always is the incoming controller (unlike
+    // return-control below), so their own claims already have everything needed except the
+    // display name itself.
+    const controllerName = await this.participantNames.resolveUserName(data.user.sub);
     const payload: ControllerChangedEvent = {
       sessionId: session.id,
       controllerUserId: session.controllerUserId,
-      controllerName: data.user.sub, // email is only known to IAM; sub (userId) is enough to key UI state client-side
+      controllerName,
       reason: "takeover",
     };
     this.server.to(room(session.id)).emit(RT_EVENTS.CONTROLLER_CHANGED, payload);
-    this.server.to(room(session.id)).emit(RT_EVENTS.SESSION_STATE, toSessionDto(session));
+    this.server.to(room(session.id)).emit(RT_EVENTS.SESSION_STATE, toSessionDto(session, await this.participantNames.resolveOperatorProfile(session)));
   }
 
   @SubscribeMessage(RT_EVENTS.RETURN_CONTROL_REQUEST)
@@ -248,14 +317,19 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     // either. Kept for symmetry with onTakeoverRequest and because it's harmless either way.
     await this.joinRoom(client, data, session.id, session.equipmentId, data.user.tenantId);
 
+    // Control always goes to the operator on return (see ReturnControlToOperatorHandler),
+    // so `session.controllerUserId` is now the operator's id, not the acting caller's --
+    // resolve *that* id's name, not `data.user.sub`. Used to be `session.controllerUserId`
+    // itself (a raw userId, not a name -- see ControllerChangedEvent's own docstring).
+    const controllerName = await this.participantNames.resolveUserName(session.controllerUserId);
     const payload: ControllerChangedEvent = {
       sessionId: session.id,
       controllerUserId: session.controllerUserId,
-      controllerName: session.controllerUserId,
+      controllerName,
       reason: "return_to_operator",
     };
     this.server.to(room(session.id)).emit(RT_EVENTS.CONTROLLER_CHANGED, payload);
-    this.server.to(room(session.id)).emit(RT_EVENTS.SESSION_STATE, toSessionDto(session));
+    this.server.to(room(session.id)).emit(RT_EVENTS.SESSION_STATE, toSessionDto(session, await this.participantNames.resolveOperatorProfile(session)));
   }
 
   @SubscribeMessage(RT_EVENTS.LATENCY_PING)
@@ -263,8 +337,9 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     client.emit(RT_EVENTS.LATENCY_PONG, { clientTs: body.clientTs, serverTs: Date.now() });
   }
 
-  /** Called by SessionsController after a REST-initiated end, so every connected participant's UI updates live. */
-  broadcastSessionEnded(sessionId: string): void {
+  /** Called by SessionsController after a REST-initiated end, so every connected participant's
+   * UI updates live. */
+  async broadcastSessionEnded(sessionId: string): Promise<void> {
     this.server.to(room(sessionId)).emit(RT_EVENTS.SESSION_ENDED, { sessionId });
   }
 
@@ -280,6 +355,31 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.server.to(tenantRoom(tenantId)).emit(RT_EVENTS.EQUIPMENT_STATUS_CHANGED, { equipmentId, status });
   }
 
+  /** Called by BroadcastPatientPreparationUpdatedHandler, reacting to
+   * PatientPreparationUpdatedEvent (published by the queue module's
+   * UpdatePreparationStatusHandler) -- same anti-cycle indirection as
+   * broadcastQueueUpdated. Emitted to the equipment's tenant room always (drives
+   * NursingPage's queue table and DashboardPage), and additionally to the session room when
+   * one exists yet (drives SessionPage's live "Preparo do Paciente" panel with zero
+   * refetch) -- mirrors CONTROLLER_CHANGED/SESSION_STATE's own room fan-out above. */
+  broadcastPatientPreparationUpdated(tenantId: string, sessionId: string | null, payload: PatientPreparationUpdatedEvent): void {
+    this.server.to(tenantRoom(tenantId)).emit(RT_EVENTS.PATIENT_PREPARATION_UPDATED, payload);
+    if (sessionId) {
+      this.server.to(room(sessionId)).emit(RT_EVENTS.PATIENT_PREPARATION_UPDATED, payload);
+    }
+  }
+
+  /** Called by `BroadcastExamMessageHandler`, reacting to `ExamMessageSentEvent` (published
+   * by `ChatModule`'s own `SendExamMessageHandler` after `POST /chat/messages` persists a
+   * message) -- same anti-cycle indirection as `broadcastQueueUpdated`, just travelling from
+   * `ChatModule` into this one instead of from `QueueModule`. Broadcast to the equipment's
+   * own chat room (`equipmentChatRoom`), not `room(sessionId)` -- see
+   * `RT_EVENTS.JOIN_EQUIPMENT_CHAT`'s own docstring for why this chat outlives, and is
+   * reachable outside of, any one session. */
+  broadcastExamMessage(equipmentId: string, message: ExamMessageDto): void {
+    this.server.to(equipmentChatRoom(equipmentId)).emit(RT_EVENTS.EXAM_MESSAGE_CREATED, message);
+  }
+
   /**
    * Populates `data.session` (required by onHidInput/onPrintText) and joins the socket to
    * the session's room (required to receive CONTROLLER_CHANGED/SESSION_STATE/SESSION_ENDED
@@ -287,13 +387,7 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
    * see the latter two's comments for why a caller who just won or lost control needs this
    * exact side effect applied to *their own* socket, not just a room-wide broadcast.
    */
-  private async joinRoom(
-    client: Socket,
-    data: SocketData,
-    sessionId: string,
-    equipmentId: string,
-    tenantId: string
-  ): Promise<void> {
+  private async joinRoom(client: Socket, data: SocketData, sessionId: string, equipmentId: string, tenantId: string): Promise<void> {
     const equipment = await this.queryBus.execute(new GetEquipmentQuery(equipmentId, tenantId));
     data.session = { sessionId, equipmentId, targetOs: equipment.targetOs, keymap: equipment.keymap };
     await client.join(room(sessionId));

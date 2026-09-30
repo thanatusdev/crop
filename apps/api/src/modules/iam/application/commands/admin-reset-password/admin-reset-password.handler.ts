@@ -1,28 +1,37 @@
 import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { ConfigService } from "@nestjs/config";
 import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { PASSWORD_HASHER, type PasswordHasherPort } from "../../ports/password-hasher.port.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
+import { assertPasswordNotReused, assertPasswordPolicy } from "../../enforce-password-policy.js";
 import { AdminResetPasswordCommand } from "./admin-reset-password.command.js";
 
 /**
- * There is no self-service "forgot password" flow (see docs/architecture.md): user
- * provisioning is already an out-of-band admin action (RegisterUserCommand has no HTTP
- * endpoint at all -- only the seed script calls it), so a lost password is handled the same
- * administrative way, with no email/SMTP dependency to build or secure.
+ * The admin-driven counterpart to RequestPasswordResetHandler/ResetPasswordHandler's
+ * self-service, email-link flow: a self-service reset now exists (see those two handlers'
+ * docstrings for why that decision reversed once a mailer was added), but it's useless to a
+ * user who's lost access to their inbox too, or whose admin wants to act without waiting for
+ * them to click a link at all.
  *
- * Deliberately does NOT revoke the target's existing refresh tokens or lock the account --
- * those are LockUserCommand's job, orthogonal to this one. An admin responding to a leaked
- * credential should call both; an admin just helping someone who forgot their password only
- * needs this one.
+ * Now revokes sessions AND forces a change on the target's next login -- this reverses what
+ * used to be documented here as deliberate ("does NOT revoke... orthogonal to locking").
+ * That was correct reasoning at the time, when the only alternative to an admin-set password
+ * being a *lasting* credential was nothing at all. It stopped being correct once
+ * ChangePasswordHandler existed: an admin-set password is now always a way back in, never a
+ * long-term one, the exact same shape as a brand-new account's temp password
+ * (`RegisterUserHandler`'s own `mustChangePassword: true`). Locking a device out for a
+ * *suspected compromise* is still LockUserCommand's separate job -- this handler answers "I
+ * need to get this person logged in again," not "I need to stop them."
  */
 @CommandHandler(AdminResetPasswordCommand)
 export class AdminResetPasswordHandler implements ICommandHandler<AdminResetPasswordCommand, void> {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
     @Inject(PASSWORD_HASHER) private readonly hasher: PasswordHasherPort,
+    private readonly config: ConfigService,
     private readonly commandBus: CommandBus
   ) {}
 
@@ -34,8 +43,17 @@ export class AdminResetPasswordHandler implements ICommandHandler<AdminResetPass
       throw new ForbiddenError("User does not belong to your tenant");
     }
 
+    // Same two checks every other password-setting path enforces -- see
+    // enforce-password-policy.ts. An admin picking the new password is not exempt from
+    // either: a temp password containing the target's own name is exactly as guessable as
+    // one the target chose themselves, and reuse prevention exists to stop a rotate-back
+    // regardless of who typed it in.
+    assertPasswordPolicy(command.newPassword, { email: target.email, firstName: target.firstName, lastName: target.lastName });
+    const historyDepth = this.config.get<number>("PASSWORD_HISTORY_DEPTH", 5);
+    await assertPasswordNotReused(command.newPassword, target.id, { users: this.users, hasher: this.hasher }, historyDepth);
+
     const passwordHash = await this.hasher.hash(command.newPassword);
-    await this.users.updatePasswordHash(target.id, passwordHash);
+    await this.users.setPassword(target.id, passwordHash, { mustChangePassword: true });
 
     await this.commandBus.execute(
       new RecordAuditEventCommand({

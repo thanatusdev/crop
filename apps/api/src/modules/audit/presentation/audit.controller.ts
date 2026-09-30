@@ -10,7 +10,18 @@ import { VerifyAuditChainQuery } from "../application/queries/verify-audit-chain
 
 @Controller("audit")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.AUDITOR, UserRole.CLINIC_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.SUPERVISOR)
+// LOCAL_SUPERVISOR and OPERATOR_ADMIN added alongside the clinic/operator-provider role
+// split (see packages/shared/src/roles.ts) -- a clinic's own local supervisor and an
+// operator company's admin both need to be able to review the audit trail for their tenant,
+// same reasoning as OPERATIONAL_SUPERVISOR (renamed from SUPERVISOR) already having it.
+@Roles(
+  UserRole.AUDITOR,
+  UserRole.CLINIC_ADMIN,
+  UserRole.PLATFORM_ADMIN,
+  UserRole.OPERATIONAL_SUPERVISOR,
+  UserRole.LOCAL_SUPERVISOR,
+  UserRole.OPERATOR_ADMIN
+)
 export class AuditController {
   constructor(private readonly queryBus: QueryBus) {}
 

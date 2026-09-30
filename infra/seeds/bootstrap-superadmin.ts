@@ -34,8 +34,13 @@ async function main(): Promise<void> {
   const commandBus = app.get(CommandBus);
   const queryBus = app.get(QueryBus);
 
-  const existingTenants: Array<{ id: string; type: string; name: string }> = await queryBus.execute(new ListTenantsQuery());
-  const existingPlatformTenant = existingTenants.find((t) => t.type === TenantType.PLATFORM);
+  // `ListTenantsQuery` resolves to `EnrichedTenant[]` (`{tenant, equipmentCount, ...}[]`),
+  // not `Tenant[]` -- unwrapped immediately. Missing this once already broke this exact
+  // idempotency check silently (it always read `undefined` for `type`/`id`/`name`, so this
+  // script would have created a second PLATFORM tenant on every re-run instead of detecting
+  // the first one -- caught before it ever ran, not after).
+  const existingTenants: Array<{ tenant: { id: string; type: string; name: string } }> = await queryBus.execute(new ListTenantsQuery());
+  const existingPlatformTenant = existingTenants.map((entry) => entry.tenant).find((t) => t.type === TenantType.PLATFORM);
 
   if (existingPlatformTenant) {
     console.log(`Already bootstrapped -- PLATFORM tenant "${existingPlatformTenant.name}" (${existingPlatformTenant.id}) already exists.`);
@@ -48,11 +53,17 @@ async function main(): Promise<void> {
   const password = process.env.SUPERADMIN_PASSWORD ?? "SenhaForte123!";
 
   console.log("Creating the Platform Operations tenant...");
-  const platformTenant = await commandBus.execute(new CreateTenantCommand("Platform Operations", TenantType.PLATFORM));
+  // `CommandBus.execute` for `CreateTenantCommand` resolves to an `EnrichedTenant`
+  // (`{tenant, equipmentCount, ...}`), not a bare `Tenant` -- destructured immediately, the
+  // same lesson `seed.ts`'s own `alpha`/`beta` already learned once for this exact command.
+  const { tenant: platformTenant } = await commandBus.execute(new CreateTenantCommand("Platform Operations", TenantType.PLATFORM));
 
   console.log("Creating the superadmin account (registering + auto-confirming MFA)...");
   const { userId, enrollmentToken, provisioningUri } = await commandBus.execute(
-    new RegisterUserCommand(platformTenant.id, email, password, UserRole.PLATFORM_ADMIN)
+    // directActivation: {password} -- same reasoning as seed.ts's registerAndEnroll: this
+    // script auto-confirms MFA a few lines down, simulating an already-onboarded account
+    // rather than sending it through the invitation-link flow.
+    new RegisterUserCommand(platformTenant.id, email, UserRole.PLATFORM_ADMIN, "Super", "Admin", null, null, null, [], true, { password })
   );
   const totpSecret = extractSecret(provisioningUri);
   const code = new OTPAuth.TOTP({ secret: totpSecret }).generate();

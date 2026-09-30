@@ -13,6 +13,7 @@
   "dependencies": {
     "@crop/shared": "workspace:*",
     "otpauth": "^9.3.6",
+    "undici": "^6.21.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

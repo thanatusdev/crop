@@ -57,6 +57,18 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
 
     if (!user) throw invalidCredentials();
 
+    // An account created via the invitation flow (see RegisterUserHandler) cannot log in
+    // at all until its link is redeemed -- its `passwordHash` is a random, permanently-
+    // unusable placeholder, so without this check it would just fail as "invalid
+    // credentials" forever, with no way for the user to tell why. Checked before the lock
+    // check below: an unactivated account might also happen to be locked (an admin
+    // registered it with `active: false`), but "activate your account first" is the more
+    // useful, more specific thing to tell them.
+    if (!user.isActivated()) {
+      await this.audit(user.tenantId, user.id, AuditAction.LOGIN_FAILURE, { reason: "not_activated" });
+      throw new ForbiddenError("This account has not been activated yet. Check your inbox for the activation link.");
+    }
+
     // Checked before the password: a locked account should be told plainly, not sent down
     // the "invalid credentials" path where a legitimate but locked-out user would keep
     // trying (and confusingly, keep burning their own rate-limit budget) assuming they'd

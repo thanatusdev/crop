@@ -1,15 +1,57 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import type { TenantDto, UserDto, UserRole } from "@crop/shared";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { ROLE_GRANTS, UserRole, evaluatePassword, requiresClinicAssignment, type MyClinic, type TenantDto, type UserDto } from "@crop/shared";
+import { Loader2 } from "lucide-react";
+import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
+import { PasswordStrength } from "../components/PasswordStrength.js";
+import { ConsoleShell } from "../components/ConsoleShell.js";
+import { RolePermissionSummary } from "../components/RolePermissionSummary.js";
+import { Button } from "../components/ui/button.js";
+import { Card, CardContent } from "../components/ui/card.js";
+import { Input } from "../components/ui/input.js";
+import { Label } from "../components/ui/label.js";
+import { Checkbox } from "../components/ui/checkbox.js";
+import { Badge } from "../components/ui/badge.js";
+import { Alert, AlertDescription } from "../components/ui/alert.js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 
-const CREATABLE_ROLES: UserRole[] = ["CLINIC_ADMIN", "SUPERVISOR", "OPERATOR", "AUDITOR"] as UserRole[];
+/** Same hex pairs as `.badge.online`/`.offline`/`.maintenance` in styles.css. */
+const STATUS_BADGE_CLASS = {
+  online: "bg-[#1d3d2b] text-[#5fdc8a]",
+  offline: "bg-[#3d1d1d] text-[#ff8b8b]",
+  maintenance: "bg-[#1d2f3d] text-[#6fb1ff]",
+} as const;
 
+/**
+ * Full pt-BR pass. Rebuilt on shadcn/ui in a later pass -- `Table` for the user listing,
+ * `Select` for the role/tenant pickers, `Checkbox` for the clinic multi-select and the
+ * "active" toggle, `Badge` for status pills (same hex pairs as the old
+ * `.badge.online`/`.maintenance`, carried over). `RolePermissionSummary` moved to shadcn in
+ * the same pass as this page, one of its two callers -- see that component's own docstring.
+ *
+ * Registration rule this page enforces client-side (the server, `RegisterUserHandler`, is
+ * the actual authority -- see `canGrantRole`/`ROLE_GRANTS` in roles.ts): "The System
+ * Administrator registers users with the Clinic Manager, Supervisor, and Nursing profiles.
+ * The Clinic Manager registers users with the Nursing profile." The role dropdown below is
+ * built from `ROLE_GRANTS[actingUser.role]`, not the full `ASSIGNABLE_ROLES` list, so a
+ * CLINIC_ADMIN is never even shown a role they aren't allowed to grant.
+ *
+ * There is no password field anymore -- `POST /users` sends the new account a secure,
+ * single-use, 24h invitation link instead (see SendInvitationHandler); the new user chooses
+ * their own first password when they redeem it at `/ativar-conta`.
+ *
+ * `DashboardPage`'s "Manage users" button that links here is deliberately still English --
+ * see this file's own note in architecture.md on that seam.
+ */
 export default function AdminUsersPage() {
-  const navigate = useNavigate();
+  const { t } = useTranslation(["adminUsers", "roles"]);
   const { user } = useAuth();
   const isSuperadmin = user?.role === "PLATFORM_ADMIN";
+  const grantableRoles = useMemo(() => (user ? ROLE_GRANTS[user.role] : []), [user]);
+
   const [users, setUsers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -22,32 +64,68 @@ export default function AdminUsersPage() {
 
   // Create user.
   const [newEmail, setNewEmail] = useState("");
-  const [newUserPassword, setNewUserPassword] = useState("");
-  const [newRole, setNewRole] = useState<UserRole>(CREATABLE_ROLES[2]!); // OPERATOR
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newProfessionalRegistration, setNewProfessionalRegistration] = useState("");
+  const [newRole, setNewRole] = useState<UserRole>(grantableRoles[0] ?? UserRole.NURSING);
+  const [newActive, setNewActive] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  // Shown once, right after creation -- there's no mailer, so this is the only place the
-  // admin ever sees these values. Cleared as soon as they navigate away or create another.
-  const [justCreated, setJustCreated] = useState<{ email: string; password: string; role: UserRole } | null>(null);
+  // Shown once, right after creation -- no password to relay anymore (see class docstring),
+  // just confirmation that the invitation was sent.
+  const [justCreated, setJustCreated] = useState<{ email: string; role: UserRole } | null>(null);
 
-  // PLATFORM_ADMIN-only: which tenant the new user should land in. Invisible to a
-  // CLINIC_ADMIN, who always implicitly creates within their own tenant -- see
-  // UsersController's create() for the matching server-side rule (this field is silently
-  // ignored for anyone but PLATFORM_ADMIN, never trusted client-side).
+  // Which clinics the new account should be linked to -- required (non-empty) exactly when
+  // `requiresClinicAssignment(newRole)`. Sourced from `GET /tenants` (every CLINIC tenant)
+  // for a PLATFORM_ADMIN caller, or `GET /auth/me/clinics` (only the caller's own clinics --
+  // RegisterUserHandler's actor-scope check rejects anything else) for a CLINIC_ADMIN.
   const [tenants, setTenants] = useState<TenantDto[]>([]);
+  const [myClinics, setMyClinics] = useState<MyClinic[]>([]);
+  const [selectedClinicIds, setSelectedClinicIds] = useState<string[]>([]);
+  const clinicAssignmentNeeded = requiresClinicAssignment(newRole);
+  const clinicOptions = useMemo(
+    () =>
+      isSuperadmin
+        ? tenants.filter((tenant) => tenant.type === "CLINIC").map((tenant) => ({ id: tenant.id, name: tenant.name, deactivated: tenant.deactivated }))
+        : myClinics.map((clinic) => ({ id: clinic.id, name: clinic.name, deactivated: clinic.deactivated })),
+    [isSuperadmin, tenants, myClinics]
+  );
+
+  // PLATFORM_ADMIN-only legacy single-tenant picker, for the roles this feature doesn't
+  // touch (LOCAL_IT, OPERATOR_ADMIN, OPERATIONAL_SUPERVISOR, OPERATOR, AUDITOR) -- see
+  // CreateUserRequestSchema's own comment on `tenantId` vs `clinicTenantIds`.
   const [targetTenantId, setTargetTenantId] = useState("");
 
   useEffect(() => {
     void load();
     if (isSuperadmin) void loadTenants();
+    else void loadMyClinics();
   }, []);
+
+  function handleRoleChange(role: UserRole) {
+    setNewRole(role);
+    setSelectedClinicIds([]);
+    setTargetTenantId("");
+  }
+
+  function toggleClinic(id: string, checked: boolean) {
+    setSelectedClinicIds((prev) => (checked ? [...prev, id] : prev.filter((existing) => existing !== id)));
+  }
 
   async function loadTenants() {
     try {
       setTenants(await api.get<TenantDto[]>("/tenants"));
     } catch {
-      // Non-fatal: the create-user form just won't offer a tenant picker if this fails: the
-      // user list itself (this page's main purpose) still loads and works independently.
+      // Non-fatal: the create-user form just won't offer a clinic picker if this fails --
+      // the user list itself (this page's main purpose) still loads and works independently.
+    }
+  }
+
+  async function loadMyClinics() {
+    try {
+      setMyClinics(await api.get<MyClinic[]>("/auth/me/clinics"));
+    } catch {
+      // Same non-fatal reasoning as loadTenants above.
     }
   }
 
@@ -57,20 +135,33 @@ export default function AdminUsersPage() {
     try {
       setUsers(await api.get<UserDto[]>("/users"));
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Could not load users.");
+      setLoadError(err instanceof Error ? err.message : t("adminUsers:loadError"));
     } finally {
       setLoading(false);
     }
   }
 
-  async function toggleLock(user: UserDto) {
+  async function toggleLock(target: UserDto) {
     setActionError(null);
-    setActingOnId(user.id);
+    setActingOnId(target.id);
     try {
-      await api.post(`/users/${user.id}/${user.locked ? "unlock" : "lock"}`);
+      await api.post(`/users/${target.id}/${target.locked ? "unlock" : "lock"}`);
       await load();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Could not update this user.");
+      setActionError(err instanceof Error ? err.message : t("adminUsers:genericActionError"));
+    } finally {
+      setActingOnId(null);
+    }
+  }
+
+  async function resendInvitation(target: UserDto) {
+    setActionError(null);
+    setActingOnId(target.id);
+    try {
+      await api.post(`/users/${target.id}/resend-invitation`);
+      await load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : t("adminUsers:genericResendError"));
     } finally {
       setActingOnId(null);
     }
@@ -85,7 +176,7 @@ export default function AdminUsersPage() {
       setResettingId(null);
       setNewPassword("");
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Could not reset this user's password.");
+      setActionError(err instanceof Error ? err.message : t("adminUsers:genericResetError"));
     } finally {
       setActingOnId(null);
     }
@@ -98,190 +189,282 @@ export default function AdminUsersPage() {
     try {
       await api.post("/users", {
         email: newEmail,
-        password: newUserPassword,
+        firstName: newFirstName,
+        lastName: newLastName,
+        professionalRegistration: newProfessionalRegistration || undefined,
         role: newRole,
-        ...(isSuperadmin && targetTenantId ? { tenantId: targetTenantId } : {}),
+        active: newActive,
+        ...(clinicAssignmentNeeded
+          ? { clinicTenantIds: selectedClinicIds }
+          : isSuperadmin && targetTenantId
+            ? { tenantId: targetTenantId }
+            : {}),
       });
-      setJustCreated({ email: newEmail, password: newUserPassword, role: newRole });
+      setJustCreated({ email: newEmail, role: newRole });
       setNewEmail("");
-      setNewUserPassword("");
-      setNewRole(CREATABLE_ROLES[2]!);
+      setNewFirstName("");
+      setNewLastName("");
+      setNewProfessionalRegistration("");
+      setSelectedClinicIds([]);
       setTargetTenantId("");
+      setNewActive(true);
       await load();
     } catch (err) {
-      setCreateError(err instanceof ApiError ? err.message : "Could not create this user.");
+      setCreateError(err instanceof ApiError ? err.message : t("adminUsers:genericCreateError"));
     } finally {
       setCreating(false);
     }
   }
 
+  const canSubmitCreate = !creating && (!clinicAssignmentNeeded || selectedClinicIds.length > 0);
+
   return (
-    <div>
-      <header className="topbar">
-        <strong>Manage users</strong>
-        <button className="btn secondary" onClick={() => navigate("/")}>
-          Back to dashboard
-        </button>
-      </header>
-
-      <main className="page">
-        <h1>Users</h1>
-
-        <div className="card">
-          <h2 style={{ marginTop: 0, fontSize: "1.1em" }}>Create user</h2>
-          <p style={{ color: "#9aa4b2", fontSize: 13, marginTop: -6 }}>
-            There's no mailer -- relay this email and password to them yourself (Slack, in person, whatever your clinic
-            already uses). They'll set up two-factor authentication themselves on their first login.
-          </p>
+    <ConsoleShell activeNav="users" pageTitle={t("adminUsers:heading")}>
+      {/* Same missing-heading gap `DashboardPage` had -- `ConsoleShell`'s topbar renders
+          `pageTitle` as a plain `<strong>`, not a heading, so this page needs its own
+          level-one one. Found by the same fresh a11y run against a reset demo stack. */}
+      <h1 className="sr-only">{t("adminUsers:heading")}</h1>
+      <Card className="mb-4">
+        <CardContent>
+          <h2 className="mt-0 text-lg font-semibold">{t("adminUsers:createTitle")}</h2>
+          <p className="-mt-1.5 mb-3 text-sm text-muted-foreground">{t("adminUsers:inviteNote")}</p>
           <form onSubmit={submitCreate}>
-            <div className="field">
-              <label htmlFor="new-user-email">Email</label>
-              <input id="new-user-email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-user-email">{t("adminUsers:emailLabel")}</Label>
+              <Input id="new-user-email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
             </div>
-            <div className="field">
-              <label htmlFor="new-user-password">Temporary password</label>
-              <input
-                id="new-user-password"
-                type="password"
-                minLength={8}
-                value={newUserPassword}
-                onChange={(e) => setNewUserPassword(e.target.value)}
-                required
+            <div className="mt-3 flex gap-3">
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label htmlFor="new-user-first-name">{t("adminUsers:firstNameLabel")}</Label>
+                <Input id="new-user-first-name" value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} required />
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label htmlFor="new-user-last-name">{t("adminUsers:lastNameLabel")}</Label>
+                <Input id="new-user-last-name" value={newLastName} onChange={(e) => setNewLastName(e.target.value)} required />
+              </div>
+            </div>
+            <div className="mt-3 flex flex-col gap-1.5">
+              <Label htmlFor="new-user-registration">{t("adminUsers:professionalRegistrationLabel")}</Label>
+              <Input
+                id="new-user-registration"
+                value={newProfessionalRegistration}
+                onChange={(e) => setNewProfessionalRegistration(e.target.value)}
               />
             </div>
-            <div className="field">
-              <label htmlFor="new-user-role">Role</label>
-              <select id="new-user-role" value={newRole} onChange={(e) => setNewRole(e.target.value as UserRole)}>
-                {CREATABLE_ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
+
+            <div className="mt-3.5 flex flex-col gap-1.5">
+              <Label htmlFor="new-user-role">{t("adminUsers:roleLabel")}</Label>
+              <Select value={newRole} onValueChange={(value) => handleRoleChange(value as UserRole)}>
+                <SelectTrigger id="new-user-role" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {grantableRoles.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {t(`roles:${role}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {isSuperadmin && (
-              <div className="field">
-                <label htmlFor="new-user-tenant">Tenant</label>
-                <select id="new-user-tenant" value={targetTenantId} onChange={(e) => setTargetTenantId(e.target.value)} required>
-                  <option value="" disabled>
-                    Select a tenant...
-                  </option>
-                  {tenants
-                    .filter((t) => t.type !== "PLATFORM")
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                        {t.deactivated ? " (deactivated)" : ""}
-                      </option>
+
+            <RolePermissionSummary role={newRole} />
+
+            {clinicAssignmentNeeded ? (
+              <fieldset className="rounded-lg border p-2.5">
+                <legend className="px-1 text-sm font-medium">{t("adminUsers:clinicsLabel")}</legend>
+                <p className="mt-0 text-xs text-muted-foreground">{t("adminUsers:clinicsHint")}</p>
+                {clinicOptions.length === 0 ? (
+                  <p className="text-muted-foreground">{t("adminUsers:clinicsEmpty")}</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {clinicOptions.map((clinic) => (
+                      <Label key={clinic.id} className="flex items-center gap-2 font-normal">
+                        <Checkbox
+                          checked={selectedClinicIds.includes(clinic.id)}
+                          onCheckedChange={(checked) => toggleClinic(clinic.id, checked === true)}
+                        />
+                        {clinic.name}
+                        {clinic.deactivated ? t("adminUsers:tenantDeactivatedSuffix") : ""}
+                      </Label>
                     ))}
-                </select>
-              </div>
+                  </div>
+                )}
+              </fieldset>
+            ) : (
+              isSuperadmin && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="new-user-tenant">{t("adminUsers:tenantLabel")}</Label>
+                  <Select value={targetTenantId} onValueChange={setTargetTenantId}>
+                    <SelectTrigger id="new-user-tenant" className="w-full">
+                      <SelectValue placeholder={t("adminUsers:tenantPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants
+                        .filter((tenant) => tenant.type !== "PLATFORM")
+                        .map((tenant) => (
+                          <SelectItem key={tenant.id} value={tenant.id}>
+                            {tenant.name}
+                            {tenant.deactivated ? t("adminUsers:tenantDeactivatedSuffix") : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )
             )}
+
+            <div className="mt-3.5">
+              <Label htmlFor="new-user-active" className="flex items-center gap-2 font-normal">
+                <Checkbox id="new-user-active" checked={newActive} onCheckedChange={(checked) => setNewActive(checked === true)} />
+                {t("adminUsers:statusActiveToggle")}
+              </Label>
+            </div>
+
             {createError && (
-              <p className="error" role="alert">
-                {createError}
-              </p>
+              <Alert variant="destructive" className="mt-3">
+                <AlertDescription>{createError}</AlertDescription>
+              </Alert>
             )}
-            <button className="btn" type="submit" disabled={creating}>
-              {creating ? "Creating..." : "Create user"}
-            </button>
+            <Button type="submit" disabled={!canSubmitCreate} className="mt-3.5">
+              {creating && <Loader2 className="animate-spin" />}
+              {creating ? t("adminUsers:creating") : t("adminUsers:create")}
+            </Button>
           </form>
           {justCreated && (
-            <div className="card" style={{ marginTop: 14, marginBottom: 0, borderColor: "#5fdc8a" }} role="status">
-              <strong style={{ color: "#5fdc8a" }}>User created.</strong> Give them these to sign in with:
-              <div style={{ fontFamily: "monospace", fontSize: 13, marginTop: 8 }}>
-                email: {justCreated.email}
-                <br />
-                password: {justCreated.password}
-                <br />
-                role: {justCreated.role}
-              </div>
-            </div>
+            <Alert role="status" className="mt-3.5 border-[#5fdc8a]">
+              <AlertDescription>
+                <strong className="text-[#166534]">{t("adminUsers:createdBannerTitle")}</strong> {t("adminUsers:createdBannerBody")}
+                <div className="mt-2 font-mono text-sm">
+                  {t("adminUsers:createdEmailField")}: {justCreated.email}
+                  <br />
+                  {t("adminUsers:createdRoleField")}: {t(`roles:${justCreated.role}`)}
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="card">
+      <Card>
+        <CardContent>
           {actionError && (
-            <p className="error" role="alert">
-              {actionError}
-            </p>
+            <Alert variant="destructive" className="mb-3">
+              <AlertDescription>{actionError}</AlertDescription>
+            </Alert>
           )}
           {loadError ? (
-            <p className="error" role="alert">
-              {loadError}{" "}
-              <button className="link-button" onClick={() => void load()}>
-                Retry
-              </button>
-            </p>
+            <Alert variant="destructive">
+              <AlertDescription>
+                {loadError}{" "}
+                <button className="underline" onClick={() => void load()}>
+                  {t("adminUsers:retry")}
+                </button>
+              </AlertDescription>
+            </Alert>
           ) : loading ? (
-            <p aria-live="polite">Loading...</p>
+            <p aria-live="polite">{t("adminUsers:loading")}</p>
           ) : users.length === 0 ? (
-            <p style={{ color: "#9aa4b2" }}>No users in your tenant yet.</p>
+            <p className="text-muted-foreground">{t("adminUsers:empty")}</p>
           ) : (
-            <div className="table-scroll">
-              <table>
-                <caption className="visually-hidden">Users in your tenant</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Email</th>
-                    <th scope="col">Role</th>
-                    <th scope="col">2FA</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td>{u.email}</td>
-                      <td>{u.role}</td>
-                      <td>{u.mfaEnrolled ? "Enrolled" : "Not enrolled yet"}</td>
-                      <td>
-                        <span className={`badge ${u.locked ? "offline" : "online"}`}>{u.locked ? "LOCKED" : "ACTIVE"}</span>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button className="btn secondary" disabled={actingOnId === u.id} onClick={() => toggleLock(u)}>
-                            {u.locked ? "Unlock" : "Lock"}
-                          </button>
-                          <button
-                            className="btn secondary"
-                            onClick={() => {
-                              setResettingId(resettingId === u.id ? null : u.id);
-                              setNewPassword("");
-                            }}
-                          >
-                            Reset password
-                          </button>
+            <Table>
+              <TableCaption className="sr-only">{t("adminUsers:tableCaption")}</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("adminUsers:colEmail")}</TableHead>
+                  <TableHead>{t("adminUsers:colName")}</TableHead>
+                  <TableHead>{t("adminUsers:colRole")}</TableHead>
+                  <TableHead>{t("adminUsers:colMfa")}</TableHead>
+                  <TableHead>{t("adminUsers:colActivation")}</TableHead>
+                  <TableHead>{t("adminUsers:colStatus")}</TableHead>
+                  <TableHead>{t("adminUsers:colActions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((target) => {
+                  const rowResetEvaluation = evaluatePassword(newPassword, {
+                    email: target.email,
+                    firstName: target.firstName,
+                    lastName: target.lastName,
+                  });
+                  return (
+                    <TableRow key={target.id}>
+                      <TableCell>{target.email}</TableCell>
+                      <TableCell>{[target.firstName, target.lastName].filter(Boolean).join(" ") || "—"}</TableCell>
+                      <TableCell>
+                        {t(`roles:${target.role}`)}
+                        {target.mustChangePassword && (
+                          <>
+                            {" "}
+                            <Badge className={cn("border-transparent", STATUS_BADGE_CLASS.maintenance)}>
+                              {t("adminUsers:mustChangeBadge")}
+                            </Badge>
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell>{target.mfaEnrolled ? t("adminUsers:mfaEnrolled") : t("adminUsers:mfaPending")}</TableCell>
+                      <TableCell>
+                        <Badge className={cn("border-transparent", target.activated ? STATUS_BADGE_CLASS.online : STATUS_BADGE_CLASS.maintenance)}>
+                          {target.activated ? t("adminUsers:activationDone") : t("adminUsers:activationPending")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn("border-transparent", target.locked ? STATUS_BADGE_CLASS.offline : STATUS_BADGE_CLASS.online)}>
+                          {target.locked ? t("adminUsers:statusLocked") : t("adminUsers:statusActive")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="secondary" size="sm" disabled={actingOnId === target.id} onClick={() => toggleLock(target)}>
+                            {target.locked ? t("adminUsers:unlock") : t("adminUsers:lock")}
+                          </Button>
+                          {target.activated ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setResettingId(resettingId === target.id ? null : target.id);
+                                setNewPassword("");
+                              }}
+                            >
+                              {t("adminUsers:resetPassword")}
+                            </Button>
+                          ) : (
+                            <Button variant="secondary" size="sm" disabled={actingOnId === target.id} onClick={() => resendInvitation(target)}>
+                              {t("adminUsers:resendInvite")}
+                            </Button>
+                          )}
                         </div>
-                        {resettingId === u.id && (
-                          <form onSubmit={(ev) => submitResetPassword(u.id, ev)} style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                            <label className="visually-hidden" htmlFor={`reset-pw-${u.id}`}>
-                              New password for {u.email}
-                            </label>
-                            <input
-                              id={`reset-pw-${u.id}`}
-                              type="password"
-                              placeholder="New password"
-                              minLength={8}
-                              value={newPassword}
-                              onChange={(e) => setNewPassword(e.target.value)}
-                              required
-                            />
-                            <button className="btn" type="submit" disabled={actingOnId === u.id}>
-                              Confirm
-                            </button>
+                        {resettingId === target.id && (
+                          <form onSubmit={(ev) => submitResetPassword(target.id, ev)} className="mt-2 flex max-w-[260px] flex-col gap-2">
+                            <Label className="sr-only" htmlFor={`reset-pw-${target.id}`}>
+                              {t("adminUsers:newPasswordFor")} {target.email}
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id={`reset-pw-${target.id}`}
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                required
+                                className="flex-1"
+                              />
+                              <Button type="submit" size="sm" disabled={actingOnId === target.id || !rowResetEvaluation.ok}>
+                                {t("adminUsers:confirm")}
+                              </Button>
+                            </div>
+                            <PasswordStrength password={newPassword} evaluation={rowResetEvaluation} />
                           </form>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
-        </div>
-      </main>
-    </div>
+        </CardContent>
+      </Card>
+    </ConsoleShell>
   );
 }
