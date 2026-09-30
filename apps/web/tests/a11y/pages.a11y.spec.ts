@@ -133,23 +133,82 @@ test("Recovery page: the rich reset screen reached via a real emailed link", asy
   await expectNoViolations(page);
 });
 
-test("ForcePasswordChangePage: an admin-created account's temp password forces a change on first real login", async ({ page }) => {
+test("ForcePasswordChangePage: an admin password-reset's temp password forces a change on next login", async ({ page }) => {
   // A dedicated, freshly created account for this one test -- not one of the shared
   // ADMIN/OPERATOR/SUPERADMIN fixtures every other test in this file reuses, so mutating its
   // password (which this test's whole point is to do) can't affect anything else in the
   // suite, this run or a later one. NURSING, not OPERATOR: since the role-model inversion
   // (see packages/shared/src/roles.ts), OPERATOR belongs to an OPERATOR_PROVIDER tenant only
   // -- a CLINIC_ADMIN like ADMIN below can no longer create one at all (ROLE_GRANTS would
-  // 403 the POST below), which is what broke this test until this fix.
+  // 403 the POST below).
+  //
+  // Rewritten from an earlier version that POSTed `{ password: tempPassword }` straight to
+  // `/users` and logged in with it directly -- CreateUserRequestSchema has no `password`
+  // field at all anymore (every HTTP-created account is invitation-only, see
+  // UsersController's own comment: "every HTTP-created account goes through the invitation
+  // flow ... never an admin-typed password"), and it also never sent `clinicTenantIds`,
+  // which NURSING has required since the Manager/Supervisor/Nursing membership model landed.
+  // `mustChangePassword` still exists and still routes here -- it just has one live producer
+  // now, an admin *resetting* an existing account's password (`POST /users/:id/reset-password`,
+  // AdminUsersPage's own "Redefinir senha" `KeyRound` button), not account creation. So this
+  // now: invites the account for real, activates it (own password, no forced change --
+  // ChangePasswordHandler's `mustChangePassword: false` on that path), lets it complete
+  // first-login MFA enrollment, and only then has the admin reset its password -- the one
+  // remaining path that actually produces the screen this test is about.
   await login(page, ADMIN.email, ADMIN.password);
-  const accessToken = await page.evaluate(() => localStorage.getItem("crop.accessToken"));
+  const adminToken = await page.evaluate(() => localStorage.getItem("crop.accessToken"));
+  const me = await page.request
+    .get("http://localhost:3000/auth/me", { headers: { Authorization: `Bearer ${adminToken}` } })
+    .then((r) => r.json());
+
   const email = `a11y-forced-change-${Date.now()}@test.crop.health`;
-  const tempPassword = "TempStart123!";
   const createRes = await page.request.post("http://localhost:3000/users", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    data: { email, password: tempPassword, role: "NURSING", firstName: "Novo", lastName: "Colega" },
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { email, role: "NURSING", firstName: "Novo", lastName: "Colega", clinicTenantIds: [me.tenantId] },
   });
   expect(createRes.ok()).toBeTruthy();
+  const { userId } = await createRes.json();
+
+  // Activation: the user's own choice of password, via the real emailed link -- no UI needed
+  // for this part, since the UI's own rendering of that same form is already covered by
+  // "Activate account page" below.
+  const activationLink = getLatestInvitationLink(email);
+  const activationToken = new URL(activationLink).searchParams.get("token");
+  const initialPassword = `Xk9!qLp7zM${Date.now()}`;
+  const activateRes = await page.request.post("http://localhost:3000/auth/activate", {
+    data: { token: activationToken, newPassword: initialPassword },
+  });
+  expect(activateRes.ok()).toBeTruthy();
+
+  await page.evaluate(() => localStorage.clear());
+  await page.goto("/login");
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(initialPassword);
+  await page.getByRole("button", { name: "Entrar" }).click();
+
+  // First-ever login: mandatory MFA enrollment, same as any brand-new account -- enrolling
+  // returns to the credentials step (LoginPage's own `setStep({ name: "credentials" })`), not
+  // a session, so a second real login is what actually reaches VerifyMfaHandler.
+  await page.getByLabel("Digite o código gerado para confirmar").waitFor();
+  await page.getByLabel("Digite o código gerado para confirmar").fill(await getLiveTotpCode(email));
+  await page.getByRole("button", { name: "Confirmar cadastro" }).click();
+
+  await page.getByLabel("E-mail").waitFor();
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(initialPassword);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByLabel("Código").waitFor();
+  await page.getByLabel("Código").fill(await getLiveTotpCode(email));
+  await page.getByRole("button", { name: "Verificar" }).click();
+  await page.waitForURL("/enfermagem");
+
+  // Now the admin resets it -- the one remaining path that sets `mustChangePassword: true`.
+  const tempPassword = "TempReset123!";
+  const resetRes = await page.request.post(`http://localhost:3000/users/${userId}/reset-password`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { newPassword: tempPassword },
+  });
+  expect(resetRes.ok()).toBeTruthy();
 
   await page.evaluate(() => localStorage.clear());
   await page.goto("/login");
@@ -157,20 +216,9 @@ test("ForcePasswordChangePage: an admin-created account's temp password forces a
   await page.getByLabel("Senha", { exact: true }).fill(tempPassword);
   await page.getByRole("button", { name: "Entrar" }).click();
 
-  // First-ever login: mandatory MFA enrollment, same as any brand-new account -- untouched
-  // by mustChangePassword, which only matters once MFA is already enrolled (see
-  // VerifyMfaHandler, not LoginHandler).
-  await page.getByLabel("Digite o código gerado para confirmar").waitFor();
-  await page.getByLabel("Digite o código gerado para confirmar").fill(await getLiveTotpCode(email));
-  await page.getByRole("button", { name: "Confirmar cadastro" }).click();
-
-  // Second login: MFA is enrolled now, so this one reaches VerifyMfaHandler -- and the
+  // MFA is enrolled already, so this reaches VerifyMfaHandler directly -- and the
   // admin-issued temp password routes straight to the forced-change screen instead of a
   // session.
-  await page.getByLabel("E-mail").waitFor();
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha", { exact: true }).fill(tempPassword);
-  await page.getByRole("button", { name: "Entrar" }).click();
   await page.getByLabel("Código").waitFor();
   await page.getByLabel("Código").fill(await getLiveTotpCode(email));
   await page.getByRole("button", { name: "Verificar" }).click();
@@ -200,9 +248,9 @@ test("Dashboard page", async ({ page }) => {
 
 test("Audit page", async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
-  await page.getByRole("button", { name: "Audit log" }).click();
+  await page.getByRole("button", { name: "Log de Auditoria" }).click();
   await page.waitForURL("/audit");
-  await page.getByRole("heading", { name: "Audit log" }).waitFor();
+  await page.getByRole("heading", { name: "Log de Auditoria" }).waitFor();
   await expectNoViolations(page);
 });
 

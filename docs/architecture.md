@@ -3593,3 +3593,103 @@ killed along the way; they were red herrings for *this* bug (both ran current co
 it was isolated) but had been silently determining which of two builds actually answered any
 given request for an unknown stretch of this session, and are exactly the kind of
 environment-state confusion worth killing on sight rather than reasoning around.
+
+## Icon-only action buttons, and three real bugs found while polishing the UI around them
+
+The admin-table cluster's row actions (view/edit/reactivate/deactivate on
+`AdminEquipmentPage`/`AdminUnitsPage`/`AdminClinicsPage`, lock/unlock/reset-password/resend-
+invite on `AdminUsersPage`, attach/send on `ExamChat`'s composer) moved from text buttons to
+`lucide-react` icons (`Eye`, `Pencil`, `Ban`, `RotateCcw`, `Wrench`/`CircleCheck`, `Lock`/
+`Unlock`, `KeyRound`, `Mail`, `Paperclip`, `Send`) at `size="icon-sm"`, each wrapped in
+`Tooltip`/`TooltipTrigger`/`TooltipContent` (`TooltipProvider` was already mounted app-wide in
+`App.tsx`) so the action is still nameable without a permanent text label crowding the row.
+Icons default to `aria-hidden`; the wrapping `Button`'s own `aria-label` carries the
+accessible name, the same split every other icon-only control in this app already uses.
+
+Fixing that surfaced three real bugs, not just a redesign:
+
+**`AgreementsPage`'s propose flow 403'd for the one role it exists for.** The operator-side
+"Propor Contrato" picker called `GET /tenants` to list clinic options — a route that answers
+`PLATFORM_ADMIN` only (see `TenantsController`'s own docstring: no caller's-own-tenant concept
+to scope against). An `OPERATOR_ADMIN` clicking the button got a 403 back from that call
+before ever reaching `POST /agreements`, on every attempt, unconditionally. The frontend had
+also, independently, still been offering the same button to `PLATFORM_ADMIN`, whose own
+`POST /agreements` attempt was *itself* a guaranteed rejection for an unrelated reason
+(`ProposeAgreementHandler` derives the proposer's side from `actor.homeTenantId`, which for a
+platform admin points at the `PLATFORM` tenant — neither `CLINIC` nor `OPERATOR_PROVIDER`).
+Fixed by removing the platform-admin propose path outright (it could never have succeeded)
+and adding `GET /agreements/clinic-options` (`ListClinicOptionsQuery`/`Handler`,
+`ClinicAgreementOptionSchema` in `@crop/shared`), an `OPERATOR_ADMIN`-scoped route that returns
+exactly the clinics the caller's own company could still propose to — not deactivated, and
+excluding any clinic already `PENDING`/`ACTIVE` with them, so the picker never offers a choice
+`ProposeAgreementHandler` would just reject with a `ConflictError` anyway.
+
+**The 403 itself then leaked onto the page it came from.** `RolesGuard`'s raw
+`"Requires one of roles: ..."` message landed in `actionError` — a single piece of state this
+page's propose modal, its scope-editing modal, *and* the plain accept/reject/revoke row
+actions all shared. Both modals render as an overlay; setting `actionError` while one is open
+therefore populated a top-level banner the overlay was currently hiding, which only became
+visible once the modal *closed* — reading, to whoever was looking, like a page-level error with
+no visible cause. Fixed by giving each modal its own `close*()` helper (`closePropose`,
+`closeScope`) that clears `actionError` on the way out, moving each modal's own error `Alert`
+inside it so it is visible exactly when it is relevant, and gating the top-level banner to
+`!proposeOpen && !scopeFor` so it is now only ever the row-actions' own error surface.
+
+**A multi-clinic Manager's equipment count in `ConsoleShell`'s header did not update after
+switching clinics** — it kept showing the *previous* clinic's numbers until a full reload.
+`useEffect(() => {...}, [])`, with an `eslint-disable-next-line react-hooks/exhaustive-deps`
+suppressing the warning that would have caught this: the fetch (`/equipment`, `/units`, and
+`/tenants` for a platform admin) reads the caller's *active* tenant server-side, but never
+re-ran when `useAuth().switchActiveClinic()` changed it. Fixed by keying the effect on
+`[user?.tenantId, nav.canManagePlatform]` and clearing the three counts to `null` up front on
+every re-run (so a stale "12/14 online" from the *old* clinic cannot sit there reading as
+current while the new fetch is in flight) — verified live with a fresh Playwright check: the
+seeded `gestor.multi@crop.health` account's pill genuinely changed from Alpha's own count to
+Beta's own count on switch, no reload.
+
+An audit for the same "mount-once, no clinic dependency" shape elsewhere turned up six more
+instances (`AdminEquipmentPage`, `AdminUsersPage`, `AuditPage`, `NursingPage`'s equipment/unit
+list, `ExamPage`'s active-session lookup) — none currently reachable, because this app fully
+unmounts every page on navigation and `switchActiveClinic` is only ever called from
+`DashboardPage`/`WorkstationPage`'s own pickers, so every other page only ever mounts *after*
+a switch has already resolved. Fixed anyway, keyed on `user?.tenantId`: cheap insurance against
+a future persistent nav/switcher silently reintroducing the exact bug just fixed above.
+
+## Finishing `DashboardPage`'s translation, and the inconsistency that translating it exposed
+
+`DashboardPage` was the one page in the shadcn migration's translation pass left mid-way — the
+`dashboard` namespace (heading, queue-table copy, error strings) existed in `pt-BR.ts` from an
+earlier pass, added but never wired in, so the page itself still read English. Finished here:
+every hardcoded string now goes through `t("dashboard:*")`, and the equipment-status badge and
+per-entry queue-status badge now reuse `equipment-display.ts`'s `statusLabelKeyOf`/
+`adminEquipment:status*` and `queue-display.ts`'s `queueStatusLabelKeyOf`/`nursing:queueStatus*`
+respectively — the same enum-to-label mapping `AdminEquipmentPage`/`NursingPage` already
+established, rather than a third copy of either vocabulary. `queue-display.ts`'s own docstring
+used to call this page out by name as the deliberately-unmigrated exception to that reuse; it
+no longer is.
+
+Translating the "Log de Auditoria" link this page navigates from broke the page it navigates
+*to*: `AuditPage` was still entirely English, so clicking through now landed on a page that
+switched languages mid-flow. Not a reason to revert the link's own translation — `AuditPage`
+was translated too (a new `audit` namespace), with one deliberate exception: the log table's
+own `action`/`resourceType` columns stay as their raw `AuditAction`/resource-type identifiers.
+That log's entire value proposition is the exact, hash-chained identifier a tamper check
+verifies against (see `AuditAction`'s own docstring) — translating those would trade a precise
+technical label for an approximate one in the one screen where precision is the point, the
+same reason a stack trace does not get localized either.
+
+The a11y suite's own "ForcePasswordChangePage" test was found broken by this work's own full-
+suite verification pass, on a freshly reset database — unrelated to anything above (confirmed
+via `git log`/`git diff` against the unmodified files), but real: it `POST`ed
+`{ password: tempPassword }` straight to `/users` to set up its fixture, a request shape
+`CreateUserRequestSchema` had already stopped accepting entirely once every HTTP-created
+account moved to the invitation flow (`SendInvitationHandler` — no admin-typed password has
+existed on that path for some time), and it never sent `clinicTenantIds`, which `NURSING` has
+required since the Manager/Supervisor/Nursing membership model landed. The underlying
+mechanism the test is about (`mustChangePassword` routing straight to the forced-change screen)
+is not dead, though — it just has exactly one live producer left, `POST /users/:id/reset-
+password` (`AdminResetPasswordHandler`, `AdminUsersPage`'s own "Redefinir senha" button), an
+admin resetting an *existing* account's password rather than setting one at creation. Rewritten
+to match: invite the account for real, activate it (the account's own password, no forced
+change), complete first-login MFA enrollment, and only then have the admin reset it — the one
+remaining path that actually produces the screen under test.

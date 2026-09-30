@@ -1329,6 +1329,68 @@ const ptBR = {
     notesError: "Não foi possível salvar as notas.",
     close: "Fechar",
   },
+
+  // The equipment/patient-queue landing page for every role except OPERATOR/NURSING (see
+  // role-routes.ts) -- DashboardPage.tsx. Reuses `adminEquipment:status*` for the equipment
+  // status badge and `nursing:queueStatus*` for the per-patient queue status, the same way
+  // that page already reuses `workstation:*` for its clinic-picker/scoped-room strings --
+  // one enum, one set of labels, never redefined per screen.
+  dashboard: {
+    heading: "Painel de Equipamentos",
+    loading: "Carregando...",
+    noEquipment: "Nenhum equipamento registrado para o seu tenant ainda.",
+    loadError: "Não foi possível carregar os equipamentos. Verifique sua conexão e tente novamente.",
+    retry: "Tentar novamente",
+    auditLog: "Log de Auditoria",
+    rejoinSession: "Reingressar na Sessão",
+    startSession: "Iniciar Sessão",
+    starting: "Iniciando...",
+    startSessionError: "Não foi possível iniciar a sessão.",
+    // {{status}} is the same translated equipment-status word the badge itself shows
+    // (adminEquipment:status*), so this reads e.g. "Equipamento está Offline, inacessível"
+    // rather than mixing a pt-BR sentence with a raw English enum value.
+    equipmentOfflineTitle: "Equipamento está {{status}}, inacessível",
+    keymapWord: "layout",
+    patientQueueHeading: "Fila de Pacientes",
+    queueEmpty: "Vazia.",
+    colNumber: "#",
+    colPatient: "Paciente",
+    colStatus: "Status",
+    colActions: "Ações",
+    cancel: "Cancelar",
+    addPatientLabel: "Adicionar um paciente à fila de {{name}}",
+    patientNamePlaceholder: "Nome do paciente",
+    addToQueue: "Adicionar à Fila",
+    addPatientError: "Não foi possível adicionar este paciente à fila.",
+    cancelQueueEntryError: "Não foi possível cancelar esta entrada da fila.",
+  },
+
+  // AuditPage.tsx -- the append-only hash-chain log, reachable from DashboardPage's own
+  // "Log de Auditoria" link (dashboard:auditLog). `action`/`resourceType` in the table stay
+  // untranslated on purpose: they're the exact `AuditAction`/resource-type identifiers this
+  // log's own integrity guarantee (see AuditAction's own docstring) is about, the same reason
+  // a stack trace or an HTTP method name would not get localized either -- translating them
+  // would trade a precise technical label for an approximate one, in the one screen where
+  // precision is the entire point.
+  audit: {
+    heading: "Log de Auditoria",
+    backToDashboard: "Voltar ao Painel",
+    verifyChain: "Verificar Cadeia de Hash",
+    verifying: "Verificando cadeia...",
+    verifyPass: "PASSOU — {{count}} linhas verificadas, cadeia intacta.",
+    verifyFail: "FALHOU — violação detectada na sequência #{{seq}}.",
+    verifyError: "Não foi possível verificar a cadeia de hash.",
+    loading: "Carregando...",
+    loadError: "Não foi possível carregar o log de auditoria.",
+    retry: "Tentar novamente",
+    tableCaption: "Entradas do log de auditoria, mais recentes primeiro",
+    colSeq: "Seq",
+    colTimestamp: "Data/Hora",
+    colAction: "Ação",
+    colResource: "Recurso",
+    colSession: "Sessão",
+    colHash: "Hash",
+  },
 } as const;
 
 export default ptBR;

@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
+import { useAuth } from "../lib/auth-context.js";
 import { createSessionSocket } from "../lib/socket-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
 import { ExamChat } from "../components/ExamChat.js";
@@ -149,6 +150,7 @@ import {
  */
 export default function NursingPage() {
   const { t } = useTranslation(["nursing"]);
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const selectedEquipmentId = params.get("equipmentId") ?? "";
   const today = useMemo(() => todayClinicDayString(), []);
@@ -176,8 +178,11 @@ export default function NursingPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
+    // `/equipment` and `/units` are scoped to the caller's *active* tenant server-side -- same
+    // reasoning as ConsoleShell's own fix for the multi-clinic-Manager staleness bug.
     void loadEquipmentList();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.tenantId]);
 
   async function loadEquipmentList() {
     try {

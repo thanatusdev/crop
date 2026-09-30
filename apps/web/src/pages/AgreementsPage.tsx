@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AgreementStatus,
+  type ClinicAgreementOption,
   type EquipmentDto,
   type MyClinic,
   type OperatorAgreementDto,
-  type TenantDto,
   type UnitDto,
 } from "@crop/shared";
 import { Plus } from "lucide-react";
@@ -70,15 +70,25 @@ export default function AgreementsPage() {
   const [statusFilter, setStatusFilter] = useState<AgreementStatus | "ALL">("ALL");
 
   // A clinic-side admin proposes to a company and vice versa, so the picker's contents depend on
-  // which side the viewer is. `GET /tenants` is PLATFORM_ADMIN-only, so a clinic admin cannot list
-  // operating companies -- which is why proposing is offered to the operator side and to a platform
-  // admin, and a clinic's own route into a contract is accepting one. Documented rather than
-  // papered over with a fake picker.
-  const isPlatformAdmin = user?.role === "PLATFORM_ADMIN";
+  // which side the viewer is. Clinic-side has no picker at all: `GET /tenants` (which would list
+  // operating companies) is `PLATFORM_ADMIN`-only and always will be -- see `TenantsController`'s
+  // own docstring -- so a clinic's own route into a contract stays "accept one", never "propose
+  // one". Operator-side gets a real, working picker instead: `GET /agreements/clinic-options`
+  // (`ListClinicOptionsHandler`), a narrow, properly-scoped list built for exactly this button,
+  // not a second way to read `GET /tenants`.
+  //
+  // `PLATFORM_ADMIN` used to be offered this same button, on the mistaken assumption that they
+  // could complete the flow because they alone can call `GET /tenants` -- they cannot actually
+  // *propose*, though: `ProposeAgreementHandler` derives the proposer's side from
+  // `actor.homeTenantId`, which for a platform admin is the `PLATFORM` tenant, neither `CLINIC`
+  // nor `OPERATOR_PROVIDER` -- so `POST /agreements` was always going to reject it with "An
+  // agreement is always between one CLINIC and one OPERATOR_PROVIDER tenant". A real, previously
+  // undiscovered dead end for that role, closed by removing the button rather than by chasing a
+  // proposer identity a platform admin structurally does not have.
   const isOperatorSide = user?.role === "OPERATOR_ADMIN";
 
   const [proposeOpen, setProposeOpen] = useState(false);
-  const [counterpartyOptions, setCounterpartyOptions] = useState<{ id: string; name: string }[]>([]);
+  const [counterpartyOptions, setCounterpartyOptions] = useState<ClinicAgreementOption[]>([]);
   const [proposeTarget, setProposeTarget] = useState("");
   const [proposing, setProposing] = useState(false);
 
@@ -104,24 +114,34 @@ export default function AgreementsPage() {
     }
   }
 
-  // Only fetched when the modal opens: a clinic admin cannot call `GET /tenants` at all, so doing it
-  // eagerly would put a guaranteed 403 in the console on every visit for the role that uses this
-  // page most.
+  // Only offered to (and only ever called for) `isOperatorSide` now -- see that flag's own
+  // docstring above. `actionError` is reset here on every open, not only on a fresh failure, so
+  // a stale message from a *previous* attempt (or from before the modal was closed -- see
+  // `closePropose`) can never be mistaken for a fresh one.
   async function openPropose() {
     setActionError(null);
     setProposeTarget("");
     setProposeOpen(true);
     try {
-      if (isPlatformAdmin || isOperatorSide) {
-        const tenants = await api.get<TenantDto[]>("/tenants");
-        const wanted = isOperatorSide ? "CLINIC" : "OPERATOR_PROVIDER";
-        setCounterpartyOptions(
-          tenants.filter((tenant) => tenant.type === wanted && !tenant.deactivated).map((tenant) => ({ id: tenant.id, name: tenant.name }))
-        );
-      }
+      const clinics = await api.get<ClinicAgreementOption[]>("/agreements/clinic-options");
+      setCounterpartyOptions(clinics);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : t("agreements:counterpartyLoadFailed"));
     }
+  }
+
+  // The one place the propose modal ever closes from -- Cancel, the `Modal`'s own `onClose`
+  // (Escape/backdrop), and a successful submit all route through this rather than a bare
+  // `setProposeOpen(false)`. That bare call is the bug this file's own history just had: closing
+  // left `actionError` (a stale "Requires one of roles..."/`counterpartyLoadFailed` message from
+  // *this* attempt) sitting in state, so it kept rendering in the top-level banner (`{actionError
+  // && <Alert>...}`) long after the modal that produced it was gone, with no way to tell it was
+  // no longer about anything on screen.
+  function closePropose() {
+    setProposeOpen(false);
+    setActionError(null);
+    setCounterpartyOptions([]);
+    setProposeTarget("");
   }
 
   async function submitPropose() {
@@ -129,10 +149,11 @@ export default function AgreementsPage() {
     setProposing(true);
     setActionError(null);
     try {
-      // Which field names the counterparty depends on the viewer's own side; the server derives the
-      // clinic/operator roles from tenant *types* regardless, so this only has to be self-consistent.
-      await api.post("/agreements", isOperatorSide ? { clinicTenantId: proposeTarget } : { operatorTenantId: proposeTarget });
-      setProposeOpen(false);
+      // Operator-side is the only caller now (see `isOperatorSide`'s own docstring) -- always a
+      // clinic counterparty, never the `operatorTenantId` branch this used to also send for a
+      // platform admin who could never have reached a successful response anyway.
+      await api.post("/agreements", { clinicTenantId: proposeTarget });
+      closePropose();
       await load();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : t("agreements:proposeFailed"));
@@ -180,13 +201,22 @@ export default function AgreementsPage() {
       // granularities in one form -- and a unit grant is the one that keeps covering rooms as
       // scanners are replaced, which is what a clinic almost always means.
       await api.put(`/agreements/${scopeFor.id}/scope`, { unitIds: selectedUnitIds, equipmentIds: [] });
-      setScopeFor(null);
+      closeScope();
       await load();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : t("agreements:scopeSaveFailed"));
     } finally {
       setSavingScope(false);
     }
+  }
+
+  // Same reasoning as `closePropose` -- the scope modal's own `openScope`/`saveScope` write to
+  // the same shared `actionError`, so closing it without clearing that state left the identical
+  // ghost-error bug behind: a `scopeLoadFailed`/`scopeSaveFailed` message set while this modal's
+  // own overlay hid it, surfacing on the main page only once the modal was gone.
+  function closeScope() {
+    setScopeFor(null);
+    setActionError(null);
   }
 
   const visible = useMemo(
@@ -209,7 +239,7 @@ export default function AgreementsPage() {
           <h1 className="mt-0 mb-1 text-xl font-semibold">{t("agreements:heading")}</h1>
           <p className="text-muted-foreground">{isOperatorSide ? t("agreements:subtitleOperator") : t("agreements:subtitleClinic")}</p>
         </div>
-        {(isOperatorSide || isPlatformAdmin) && (
+        {isOperatorSide && (
           <Button onClick={openPropose}>
             <Plus />
             {t("agreements:propose")}
@@ -217,7 +247,11 @@ export default function AgreementsPage() {
         )}
       </div>
 
-      {actionError && (
+      {/* Not shown while either modal is open -- both render this same `actionError` themselves,
+          right next to the control that produced it (see `closePropose`/`closeScope`'s own
+          docstrings for the ghost-error bug that motivated the split). This banner is only ever
+          for accept/reject/revoke, the three actions with no modal of their own. */}
+      {actionError && !proposeOpen && !scopeFor && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{actionError}</AlertDescription>
         </Alert>
@@ -345,9 +379,9 @@ export default function AgreementsPage() {
       </Card>
 
       {proposeOpen && (
-        <Modal title={t("agreements:proposeTitle")} onClose={() => setProposeOpen(false)}>
+        <Modal title={t("agreements:proposeTitle")} onClose={closePropose}>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="propose-counterparty">{isOperatorSide ? t("agreements:pickClinic") : t("agreements:pickOperator")}</Label>
+            <Label htmlFor="propose-counterparty">{t("agreements:pickClinic")}</Label>
             <Select value={proposeTarget} onValueChange={setProposeTarget}>
               <SelectTrigger id="propose-counterparty" className="w-full">
                 <SelectValue placeholder={t("agreements:pickPlaceholder")} />
@@ -362,11 +396,16 @@ export default function AgreementsPage() {
             </Select>
             <p className="text-xs text-muted-foreground">{t("agreements:proposeHint")}</p>
           </div>
+          {actionError && (
+            <Alert variant="destructive" className="mt-3">
+              <AlertDescription>{actionError}</AlertDescription>
+            </Alert>
+          )}
           <div className="mt-4 flex justify-end gap-2.5">
             <Button disabled={!proposeTarget || proposing} onClick={() => void submitPropose()}>
               {proposing ? t("agreements:saving") : t("agreements:proposeSubmit")}
             </Button>
-            <Button variant="outline" onClick={() => setProposeOpen(false)}>
+            <Button variant="outline" onClick={closePropose}>
               {t("agreements:cancel")}
             </Button>
           </div>
@@ -374,7 +413,7 @@ export default function AgreementsPage() {
       )}
 
       {scopeFor && (
-        <Modal title={t("agreements:scopeTitle", { name: counterpartyOf(scopeFor, isOperatorSide) })} onClose={() => setScopeFor(null)}>
+        <Modal title={t("agreements:scopeTitle", { name: counterpartyOf(scopeFor, isOperatorSide) })} onClose={closeScope}>
           <p className="text-sm text-muted-foreground">{t("agreements:scopeHint")}</p>
           {scopeUnits.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("agreements:scopeNoUnits")}</p>
@@ -391,11 +430,16 @@ export default function AgreementsPage() {
               }))}
             />
           )}
+          {actionError && (
+            <Alert variant="destructive" className="mt-3">
+              <AlertDescription>{actionError}</AlertDescription>
+            </Alert>
+          )}
           <div className="mt-4 flex justify-end gap-2.5">
             <Button disabled={savingScope} onClick={() => void saveScope()}>
               {savingScope ? t("agreements:saving") : t("agreements:scopeSubmit")}
             </Button>
-            <Button variant="outline" onClick={() => setScopeFor(null)}>
+            <Button variant="outline" onClick={closeScope}>
               {t("agreements:cancel")}
             </Button>
           </div>

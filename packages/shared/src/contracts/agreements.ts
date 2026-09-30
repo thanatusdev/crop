@@ -95,3 +95,18 @@ export const SetAgreementScopeRequestSchema = z.object({
   equipmentIds: z.array(z.string().uuid()),
 });
 export type SetAgreementScopeRequest = z.infer<typeof SetAgreementScopeRequestSchema>;
+
+/**
+ * `GET /agreements/clinic-options` -- what the operator-side "Propor Contrato" picker offers:
+ * every non-deactivated `CLINIC` tenant the caller's own company does not already have a
+ * `PENDING` or `ACTIVE` agreement with. Deliberately not the full `TenantDto` `GET /tenants`
+ * would return (that route is `PLATFORM_ADMIN`-only precisely because it has no tenant-scoping
+ * concept at all -- see `TenantsController`'s own docstring) -- this is the narrow, properly
+ * -scoped "options" shape the same handful of admin pickers in this app already use (e.g.
+ * `ResponsibleManagerOption`), not a second way to enumerate the whole platform's tenants.
+ */
+export const ClinicAgreementOptionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+export type ClinicAgreementOption = z.infer<typeof ClinicAgreementOptionSchema>;

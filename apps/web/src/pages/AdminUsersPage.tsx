@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ROLE_GRANTS, UserRole, evaluatePassword, requiresClinicAssignment, type MyClinic, type TenantDto, type UserDto } from "@crop/shared";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock, Unlock, KeyRound, Mail } from "lucide-react";
 import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
@@ -17,6 +17,7 @@ import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip.js";
 
 /** Same hex pairs as `.badge.online`/`.offline`/`.maintenance` in styles.css. */
 const STATUS_BADGE_CLASS = {
@@ -97,10 +98,15 @@ export default function AdminUsersPage() {
   const [targetTenantId, setTargetTenantId] = useState("");
 
   useEffect(() => {
+    // `/users` (`load`) is scoped to the caller's *active* tenant server-side, so it depends
+    // on `user?.tenantId` -- same reasoning as ConsoleShell's own fix. `/tenants` and
+    // `/auth/me/clinics` are platform-wide/home-tenant scoped respectively, immune to an
+    // active-clinic switch, so they stay mount-once.
     void load();
     if (isSuperadmin) void loadTenants();
     else void loadMyClinics();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.tenantId]);
 
   function handleRoleChange(role: UserRole) {
     setNewRole(role);
@@ -415,24 +421,52 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
-                          <Button variant="secondary" size="sm" disabled={actingOnId === target.id} onClick={() => toggleLock(target)}>
-                            {target.locked ? t("adminUsers:unlock") : t("adminUsers:lock")}
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="secondary"
+                                size="icon-sm"
+                                aria-label={target.locked ? t("adminUsers:unlock") : t("adminUsers:lock")}
+                                disabled={actingOnId === target.id}
+                                onClick={() => toggleLock(target)}
+                              >
+                                {target.locked ? <Unlock /> : <Lock />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{target.locked ? t("adminUsers:unlock") : t("adminUsers:lock")}</TooltipContent>
+                          </Tooltip>
                           {target.activated ? (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => {
-                                setResettingId(resettingId === target.id ? null : target.id);
-                                setNewPassword("");
-                              }}
-                            >
-                              {t("adminUsers:resetPassword")}
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="secondary"
+                                  size="icon-sm"
+                                  aria-label={t("adminUsers:resetPassword")}
+                                  onClick={() => {
+                                    setResettingId(resettingId === target.id ? null : target.id);
+                                    setNewPassword("");
+                                  }}
+                                >
+                                  <KeyRound />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminUsers:resetPassword")}</TooltipContent>
+                            </Tooltip>
                           ) : (
-                            <Button variant="secondary" size="sm" disabled={actingOnId === target.id} onClick={() => resendInvitation(target)}>
-                              {t("adminUsers:resendInvite")}
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="secondary"
+                                  size="icon-sm"
+                                  aria-label={t("adminUsers:resendInvite")}
+                                  disabled={actingOnId === target.id}
+                                  onClick={() => resendInvitation(target)}
+                                >
+                                  <Mail />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminUsers:resendInvite")}</TooltipContent>
+                            </Tooltip>
                           )}
                         </div>
                         {resettingId === target.id && (

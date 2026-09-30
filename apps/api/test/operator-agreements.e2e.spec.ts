@@ -283,6 +283,50 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     }
   });
 
+  /**
+   * `GET /agreements/clinic-options` backs the operator-side propose modal's clinic picker.
+   * Before this, the frontend called `GET /tenants` -- which only a PLATFORM_ADMIN can reach -- and
+   * filtered client-side, so an OPERATOR_ADMIN's own "Propor Contrato" button 403'd on every attempt.
+   * This is the OPERATOR_ADMIN-reachable replacement, and it does the exclusion filtering
+   * server-side rather than trusting the client to.
+   */
+  it("lists clinics an operator may propose to, excluding ones it already has a pending or active agreement with", async () => {
+    const company = (await createTenant(prisma, `AgreeOptCompany-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
+    const companyAdmin = (
+      await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-opt-admin" })
+    ).accessToken;
+
+    const pendingClinic = (await createTenant(prisma, `AgreeOptPending-${crypto.randomUUID()}`)).id;
+    const activeClinic = (await createTenant(prisma, `AgreeOptActive-${crypto.randomUUID()}`)).id;
+    const activeClinicAdmin = (
+      await createLoggedInUser(app, { tenantId: activeClinic, role: UserRole.CLINIC_ADMIN, emailPrefix: "agree-opt-active-admin" })
+    ).accessToken;
+    const openClinic = (await createTenant(prisma, `AgreeOptOpen-${crypto.randomUUID()}`)).id;
+    const deactivatedClinic = (await createTenant(prisma, `AgreeOptDeactivated-${crypto.randomUUID()}`)).id;
+    await prisma.tenant.update({ where: { id: deactivatedClinic }, data: { deactivatedAt: new Date() } });
+
+    await http.post("/agreements").set("Authorization", `Bearer ${companyAdmin}`).send({ clinicTenantId: pendingClinic }).expect(201);
+    const activeProposal = await http
+      .post("/agreements")
+      .set("Authorization", `Bearer ${companyAdmin}`)
+      .send({ clinicTenantId: activeClinic })
+      .expect(201);
+    await http.post(`/agreements/${activeProposal.body.id}/accept`).set("Authorization", `Bearer ${activeClinicAdmin}`).expect(201);
+
+    const options = await http.get("/agreements/clinic-options").set("Authorization", `Bearer ${companyAdmin}`).expect(200);
+    const ids = (options.body as { id: string; name: string }[]).map((o) => o.id);
+
+    expect(ids).toContain(openClinic);
+    expect(ids).not.toContain(pendingClinic);
+    expect(ids).not.toContain(activeClinic);
+    expect(ids).not.toContain(deactivatedClinic);
+
+    // Refused, not just filtered, to a role that cannot propose in the first place -- a clinic
+    // admin has no use for "which clinics can I propose to" and platform admins structurally
+    // cannot propose at all (see `AgreementsPage.tsx`'s `isOperatorSide` docstring).
+    await http.get("/agreements/clinic-options").set("Authorization", `Bearer ${clinicAdminToken}`).expect(403);
+  });
+
   it("audits the whole lifecycle against the clinic, since the clinic is the party whose exposure changes", async () => {
     const company = (await createTenant(prisma, `AgreeAudit-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
     const companyAdmin = (await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-audit-admin" }))

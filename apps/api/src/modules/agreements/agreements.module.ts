@@ -13,6 +13,7 @@ import { RevokeAgreementHandler } from "./application/commands/revoke-agreement/
 import { SetAgreementScopeHandler } from "./application/commands/set-agreement-scope/set-agreement-scope.handler.js";
 import { ListAgreementsHandler } from "./application/queries/list-agreements/list-agreements.handler.js";
 import { GetAgreementHandler } from "./application/queries/get-agreement/get-agreement.handler.js";
+import { ListClinicOptionsHandler } from "./application/queries/list-clinic-options/list-clinic-options.handler.js";
 
 const COMMAND_AND_QUERY_HANDLERS = [
   ProposeAgreementHandler,
@@ -21,6 +22,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
   SetAgreementScopeHandler,
   ListAgreementsHandler,
   GetAgreementHandler,
+  ListClinicOptionsHandler,
 ];
 
 /**

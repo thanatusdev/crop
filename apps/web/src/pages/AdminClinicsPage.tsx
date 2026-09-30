@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { type TenantDto } from "@crop/shared";
-import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, Eye, Pencil, Ban, RotateCcw } from "lucide-react";
 import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
@@ -15,6 +15,7 @@ import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip.js";
 import { MODALITY_ABBREVIATION } from "../lib/equipment-display.js";
 import { formatClinicCityState, formatClinicCnpj, summarizeClinics } from "../lib/clinic-display.js";
 
@@ -352,20 +353,56 @@ export default function AdminClinicsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1.5">
-                            <Button variant="secondary" size="sm" asChild>
-                              <Link to={`/superadmin/clinics/${clinic.id}`}>{t("adminClinics:actionView")}</Link>
-                            </Button>
-                            <Button variant="secondary" size="sm" asChild>
-                              <Link to={`/superadmin/clinics/${clinic.id}/edit`}>{t("adminClinics:actionEdit")}</Link>
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="secondary" size="icon-sm" aria-label={t("adminClinics:actionView")} asChild>
+                                  <Link to={`/superadmin/clinics/${clinic.id}`}>
+                                    <Eye />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminClinics:actionView")}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="secondary" size="icon-sm" aria-label={t("adminClinics:actionEdit")} asChild>
+                                  <Link to={`/superadmin/clinics/${clinic.id}/edit`}>
+                                    <Pencil />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminClinics:actionEdit")}</TooltipContent>
+                            </Tooltip>
                             {clinic.deactivated ? (
-                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => void runAction(clinic, "reactivate")}>
-                                {t("adminClinics:actionReactivate")}
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="secondary"
+                                    size="icon-sm"
+                                    aria-label={t("adminClinics:actionReactivate")}
+                                    disabled={busy}
+                                    onClick={() => void runAction(clinic, "reactivate")}
+                                  >
+                                    <RotateCcw />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("adminClinics:actionReactivate")}</TooltipContent>
+                              </Tooltip>
                             ) : (
-                              <Button variant="destructive" size="sm" disabled={busy} onClick={() => setConfirmingDeactivation(clinic)}>
-                                {t("adminClinics:actionDeactivate")}
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="destructive"
+                                    size="icon-sm"
+                                    aria-label={t("adminClinics:actionDeactivate")}
+                                    disabled={busy}
+                                    onClick={() => setConfirmingDeactivation(clinic)}
+                                  >
+                                    <Ban />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("adminClinics:actionDeactivate")}</TooltipContent>
+                              </Tooltip>
                             )}
                           </div>
                         </TableCell>
