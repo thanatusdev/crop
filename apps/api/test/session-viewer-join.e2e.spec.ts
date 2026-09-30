@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { io, type Socket } from "socket.io-client";
 import { RT_EVENTS, UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * Regression test for a real bug found and reported by hand, not by an earlier e2e test: a
@@ -42,13 +42,13 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
     tenantId = tenant.id;
     const admin = await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN });
     adminToken = admin.accessToken;
-    const operator = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR });
+    const operator = await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR });
     operatorToken = operator.accessToken;
 
     const equipmentRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ name: "ViewerJoin-Test-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "ViewerJoin-Test-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     equipmentId = equipmentRes.body.id;
     await prisma.equipment.update({ where: { id: equipmentId }, data: { status: "ONLINE" } });
@@ -78,7 +78,7 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
 
   it("lets a supervisor who never took over join the room, and delivers SESSION_ENDED to them once the operator ends it", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId, role: UserRole.SUPERVISOR, emailPrefix: "viewer-happy" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "viewer-happy" });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -116,7 +116,7 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
 
   it("still never lets a mere viewer actually send input, even though their socket is now in the room", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId, role: UserRole.SUPERVISOR, emailPrefix: "viewer-noinput" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "viewer-noinput" });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -138,7 +138,7 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
 
   it("still rejects JOIN_SESSION from an unrelated OPERATOR in the same tenant (not this session's own, and not a takeover-eligible role)", async () => {
     const sessionId = await startSession();
-    const otherOperator = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "viewer-other-operator" });
+    const otherOperator = await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "viewer-other-operator" });
 
     const socket = connectSocket(otherOperator.accessToken);
     await connect(socket);

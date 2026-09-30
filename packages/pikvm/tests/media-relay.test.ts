@@ -54,6 +54,22 @@ describe("PiKvmMediaRelay", () => {
     expect(relay.isOpen).toBe(false);
   });
 
+  it("forwards device messages to a handler registered via onDeviceMessage BEFORE connect() -- the exact order MediaStreamServer uses in production", () => {
+    // Regression test: found via a live browser session against real PiKVM hardware, where
+    // the video stayed stuck on "connecting" forever with zero errors anywhere, because
+    // onDeviceMessage's handler was attached to `this.upstream` at call time -- still null
+    // at that point, since MediaStreamServer registers it before calling relay.connect().
+    const relay = new PiKvmMediaRelay({ baseUrl: "https://pikvm", user: "admin", password: "admin" });
+    const received: Array<{ data: unknown; isBinary: boolean }> = [];
+    relay.onDeviceMessage((data, isBinary) => received.push({ data, isBinary }));
+
+    relay.connect();
+    const ws = FakeWebSocket.instances[0];
+    ws.emit("message", Buffer.from([1, 1, 0xaa]), true);
+
+    expect(received).toEqual([{ data: Buffer.from([1, 1, 0xaa]), isBinary: true }]);
+  });
+
   it("never crashes the process on a connection error, even with no external listener attached", () => {
     // Regression test, same reasoning and same finding as PiKvmHidClient's own version of
     // this test (packages/pikvm/tests/hid-client.test.ts) -- this class has the identical

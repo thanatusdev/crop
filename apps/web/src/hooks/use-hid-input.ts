@@ -135,7 +135,15 @@ export function useHidInput(params: {
     };
 
     const onMouseDown = (ev: MouseEvent) => {
+      // `preventDefault()` on mousedown is necessary to stop the browser's own text
+      // selection/drag-start behaviour over the canvas, but Chromium-based browsers (Arc,
+      // Chrome, Edge) also skip their default click-to-focus step whenever mousedown's
+      // default action is prevented -- so without the explicit `focus()` below, this
+      // container never actually receives focus on click, and keydown/keyup (registered on
+      // it, not on window) never fire at all. Confirmed against a real session: mouse input
+      // worked, keyboard silently did nothing, with no error anywhere to point at this.
       ev.preventDefault();
+      container.focus();
       const button = buttonNameFor(ev.button);
       if (!button) return;
       flushPendingMove(); // the click must land where the cursor actually is, not a stale position
@@ -193,5 +201,19 @@ export function useHidInput(params: {
       canvas.removeEventListener("contextmenu", onContextMenu);
       canvas.removeEventListener("mouseleave", onMouseLeave);
     };
-  }, [socket, canvasRef, containerRef]);
+    // Deliberately `canvasRef.current`/`containerRef.current`, not the ref objects
+    // themselves: SessionPage creates the Socket.io connection (fast, synchronous) before
+    // its session/equipment REST fetch resolves (a real network round trip), and renders no
+    // canvas/console-box at all until both are loaded. That means this effect's first run
+    // sees `canvasRef.current`/`containerRef.current` as null, bails out via the early
+    // `return` above, and -- since ref *objects* never change identity -- would otherwise
+    // never run again once the console box actually mounts, permanently no-op-ing every
+    // keyboard/mouse listener with no error anywhere. Depending on the dereferenced values
+    // instead means this effect correctly re-runs on the next render after they're
+    // populated (refs attach during commit, just before dependencies are diffed for the
+    // following render). Confirmed against a live session: video worked throughout (
+    // useMediaStream reads canvasRef.current fresh inside its async frame handler instead
+    // of capturing it once), while zero real input events -- of any kind -- ever reached
+    // the server; only a directly-injected test event did.
+  }, [socket, canvasRef.current, containerRef.current]);
 }

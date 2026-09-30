@@ -1,13 +1,15 @@
 import { Inject, Logger } from "@nestjs/common";
-import { CommandBus, CommandHandler, QueryBus, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, QueryBus, type ICommandHandler } from "@nestjs/cqrs";
 import { ConfigService } from "@nestjs/config";
-import { AuditAction, EquipmentStatus, QueueStatus } from "@crop/shared";
+import { AuditAction, QueueStatus } from "@crop/shared";
 import { ConflictError, ForbiddenError } from "../../../../../shared/domain/errors.js";
 import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
 import { GetEquipmentQuery } from "../../../../equipment/application/queries/get-equipment/get-equipment.query.js";
 import { GetEquipmentConnectionSecretsQuery } from "../../../../equipment/application/queries/get-equipment-credentials/get-equipment-connection-secrets.query.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../../../queue/application/ports/queue-repository.port.js";
+import { QueueUpdatedEvent } from "../../../../queue/application/events/queue-updated.event.js";
+import { UNIT_REPOSITORY, type UnitRepositoryPort } from "../../../../units/application/ports/unit-repository.port.js";
 import { Session } from "../../../domain/session.entity.js";
 import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../../ports/pikvm-gateway.port.js";
 import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../../ports/session-repository.port.js";
@@ -23,16 +25,42 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
+    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus,
     private readonly config: ConfigService,
     private readonly metrics: MetricsService
   ) {}
 
   async execute(command: StartSessionCommand): Promise<Session> {
-    const equipment = await this.queryBus.execute(new GetEquipmentQuery(command.equipmentId, command.tenantId));
-    if (equipment.status !== EquipmentStatus.ONLINE) {
-      throw new ConflictError(`Equipment ${equipment.name} is not online`);
+    const equipment = await this.queryBus.execute(new GetEquipmentQuery(command.equipmentId, command.tenantId, command.actor));
+    // Was `equipment.status !== EquipmentStatus.ONLINE` inline here. Now delegated to the
+    // domain predicate, which additionally rejects equipment an admin has retired
+    // (`deactivatedAt`) -- a case this inline check silently allowed: the health poller skips
+    // deactivated equipment, so a scanner retired while healthy keeps its frozen `ONLINE`
+    // status forever and would have passed a status-only check indefinitely.
+    if (!equipment.isAvailableForSession()) {
+      throw new ConflictError(
+        equipment.isDeactivated() ? `Equipment ${equipment.name} has been deactivated` : `Equipment ${equipment.name} is not online`
+      );
+    }
+
+    // The unit cascade: retiring a *unit* (SetUnitDeactivatedHandler) does not touch its
+    // equipment's own `deactivatedAt` at all -- a device keeps its independent retirement
+    // flag, and reactivating the unit later must not silently un-retire equipment someone
+    // retired for an unrelated reason in between (see that handler's own docstring). So the
+    // unit has to be checked here, separately, rather than folded into
+    // `equipment.isAvailableForSession()`, which has no knowledge of units at all -- unlike
+    // `Equipment`, which owns its own `deactivatedAt`, a unit is a different aggregate this
+    // handler already reaches into (`UNIT_REPOSITORY`), not something the equipment entity
+    // could check about itself. `equipment.unitId` is only ever null for a handful of rows
+    // that predate units entirely (see schema.prisma's own comment); nothing to check then.
+    if (equipment.unitId) {
+      const unit = await this.units.findById(equipment.unitId);
+      if (unit?.isDeactivated()) {
+        throw new ConflictError(`Equipment ${equipment.name}'s unit has been deactivated`);
+      }
     }
 
     // Fast-path, friendly-error check for the common case. This alone has a TOCTOU race
@@ -73,6 +101,10 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     if (command.queueEntryId) {
       try {
         await this.queue.updateStatus(command.queueEntryId, QueueStatus.IN_PROGRESS);
+        // Bug fix: see EndSessionHandler's identical fix -- this write never told any
+        // connected client it happened, so the dashboard's queue table (and now the nursing
+        // lock banner) only ever showed IN_PROGRESS after a manual reload.
+        this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, command.equipmentId));
       } catch (err) {
         this.logger.warn(`Could not mark queue entry ${command.queueEntryId} IN_PROGRESS: ${(err as Error).message}`);
       }

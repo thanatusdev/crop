@@ -28,7 +28,7 @@ describe("Account lockout and admin password reset", () => {
   });
 
   it("blocks login, then restores it, across a lock/unlock cycle", async () => {
-    const target = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "lock-cycle" });
+    const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-cycle" });
 
     await http.get(`/users/${target.userId}`).set("Authorization", `Bearer ${adminToken}`).expect(200).then((res) => {
       expect(res.body.locked).toBe(false);
@@ -59,7 +59,7 @@ describe("Account lockout and admin password reset", () => {
   });
 
   it("rejects completing MFA verification for an account locked mid-flow", async () => {
-    const target = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "lock-mid-mfa" });
+    const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-mid-mfa" });
     const secret = (await prisma.user.findUniqueOrThrow({ where: { id: target.userId } })).mfaSecret!;
 
     const loginRes = await http
@@ -76,16 +76,16 @@ describe("Account lockout and admin password reset", () => {
   });
 
   it("rejects a non-admin trying to lock another user", async () => {
-    const target = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "lock-rbac-target" });
+    const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-rbac-target" });
     const nonAdminToken = (
-      await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "lock-rbac-actor" })
+      await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-rbac-actor" })
     ).accessToken;
 
     await http.post(`/users/${target.userId}/lock`).set("Authorization", `Bearer ${nonAdminToken}`).expect(403);
   });
 
   it("rejects locking, unlocking, or viewing a user from a different tenant", async () => {
-    const target = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "lock-cross-tenant" });
+    const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-cross-tenant" });
     const otherAdminToken = (
       await createLoggedInUser(app, { tenantId: otherTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "other-admin" })
     ).accessToken;
@@ -96,7 +96,7 @@ describe("Account lockout and admin password reset", () => {
   });
 
   it("lets an admin force a password reset that immediately supersedes the old password", async () => {
-    const target = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "reset-pw" });
+    const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "reset-pw" });
 
     await http
       .post(`/users/${target.userId}/reset-password`)
@@ -116,7 +116,7 @@ describe("Account lockout and admin password reset", () => {
   });
 
   it("never leaks passwordHash or mfaSecret through GET /users/:id", async () => {
-    const target = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "no-leak" });
+    const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "no-leak" });
 
     const res = await http.get(`/users/${target.userId}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     expect(res.body).not.toHaveProperty("passwordHash");

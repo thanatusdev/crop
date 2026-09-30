@@ -9,10 +9,13 @@ import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../../ports/sess
 import { SESSION_RUNTIME, type SessionRuntimePort } from "../../ports/session-runtime.port.js";
 import { ExecuteTakeoverCommand } from "./execute-takeover.command.js";
 
+// OPERATOR_ADMIN added alongside the clinic/operator-provider role split (see
+// packages/shared/src/roles.ts) -- same reasoning as SessionsGateway's VIEW_ALLOWED_ROLES.
 const TAKEOVER_ALLOWED_ROLES: readonly UserRole[] = [
-  UserRole.SUPERVISOR,
+  UserRole.OPERATIONAL_SUPERVISOR,
   UserRole.CLINIC_ADMIN,
   UserRole.PLATFORM_ADMIN,
+  UserRole.OPERATOR_ADMIN,
 ];
 
 /**

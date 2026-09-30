@@ -1,4 +1,4 @@
-# CROP — Clinical Remote Operation Platform (MVP)
+# RadLink — Clinical Remote Operation Platform (MVP)
 
 Multi-tenant platform for remote operation of clinical equipment (MRI/CT) via PiKVM, with
 mandatory 2FA, enforced supervisor takeover, and a hash-chained append-only audit trail.
@@ -12,12 +12,33 @@ stuck-key safety mechanism) this integration depends on.
 
 ### Authentication & security
 - **Mandatory 2FA (TOTP)** for every account, no exceptions and no self-service registration
-  — a new account is admin-created with a temp password, and the *new user's own* first
-  login walks them through enrollment (scan the QR/enter the code) via the same flow every
-  seeded account goes through.
-- **Redis-backed rate limiting** on login and MFA verification, keyed by target account.
-- **Account lockout** (admin-triggered) and **admin-forced password reset**, both taking
-  effect on the account's very next refresh/login, not just future ones.
+  — a new account is admin-created and invited (see "Invitation-based onboarding" below),
+  and the *new user's own* first login walks them through enrollment (scan the QR/enter the
+  code) via the same flow every seeded account goes through.
+- **Self-service password reset via email** — "Esqueci a senha" on the login screen sends a
+  single-use, 15-minute link (`POST /auth/password-reset/request` /
+  `.../password-reset/confirm`). The response is identical whether or not the email belongs
+  to a real account, so the endpoint can't be used to enumerate valid users. A successful
+  reset revokes every existing session, but 2FA still gates the next login — the link alone
+  can't take over an account. No real email provider is required to run this: it defaults
+  to writing messages to a local file (`MAILER_DRIVER=file`); set `MAILER_DRIVER=resend` +
+  `RESEND_API_KEY` to actually send mail.
+- **Enforced password policy, history, and expiry-based forced rotation** — every password
+  set anywhere in the app (registration, self-service reset, admin reset, in-band forced
+  change) must be 8+ characters with upper/lower/digit/symbol, must not contain the
+  account's name or email, and must not match any of the last 5 passwords used
+  (`PASSWORD_HISTORY_DEPTH`). Passwords expire after 90 days by default
+  (`PASSWORD_MAX_AGE_DAYS`, 0 disables expiry) or immediately after an admin-triggered reset;
+  either way, the *next successful login* (after 2FA, so a stolen-password-no-MFA-device
+  attacker learns nothing) walks the user through changing it in-band, with a live strength
+  meter and policy checklist, before minting a real session — no separate re-login required.
+- **Admin-forced password reset** now also revokes every existing session and forces that
+  in-band change on the account's next login, taking effect immediately, not just on future
+  logins.
+- **Redis-backed rate limiting** on login, MFA verification, and password-reset request/
+  confirm, each keyed by target account.
+- **Account lockout** (admin-triggered), taking effect on the account's very next
+  refresh/login.
 - **Refresh-token rotation and revocation** — a real logout invalidates the token
   server-side; a leaked-and-reused old refresh token fails outright instead of silently
   working forever.
@@ -28,6 +49,19 @@ stuck-key safety mechanism) this integration depends on.
   session fixation and CSRF don't apply to this API's auth model at all, not just
   "mitigated." Dependencies audited (`pnpm audit --prod`): no findings on the running API's
   actual request path.
+
+### Biomedic workstation selection (`/posto-de-trabalho`)
+The `OPERATOR` ("Operador Biomédico") role's new post-login home: pick the unit and room for
+the shift before reaching any equipment.
+- **Unit and room dropdowns**, the room list scoped to whichever unit is selected (a "room"
+  is a piece of equipment's `roomLabel` — there is no separate `Room` model). Selection lives
+  in the URL, so it survives a reload.
+- **A read-only access-profile panel** (identity + role capabilities) — role comes from the
+  session's own JWT, never a choice made on this screen.
+- **The selected room's real status** (the equipment health-poller's own badge) and **today's
+  real patient-queue count** for it.
+- **Confirm** scopes the dashboard to that one room (`?equipmentId=`), with a "Trocar posto de
+  trabalho" link back to this screen from there.
 
 ### Remote control sessions
 - **Start/end a session** against any of your tenant's `ONLINE` equipment (one active
@@ -74,11 +108,78 @@ stuck-key safety mechanism) this integration depends on.
 - **Live push**: another user's queue change appears on your dashboard immediately, no
   reload needed.
 
-### Equipment management (Clinic Admin / Platform Admin)
-- **Register equipment** — PiKVM host/credentials, target OS, keymap (validated against
-  PiKVM's real supported layouts), screen size, optional room-camera URL.
+### Nursing (`/enfermagem`)
+The `NURSING` role's main screen (also reachable by `LOCAL_SUPERVISOR`/`CLINIC_ADMIN`/
+`PLATFORM_ADMIN`): **the day's patient queue for one room**, with the selected patient's exam
+record below it. Everything is per-room, via a room picker in the header.
+- **The day's queue** — "Fila da Sala · N Pacientes Hoje", a horizontal strip of patient
+  cards in the room's own priority order. Scoped to *today* in the clinic's configured
+  timezone (`CLINIC_TIME_ZONE`, default `America/Sao_Paulo`), not to every entry the room has
+  ever had. An entry with no explicit scheduled time falls back to its creation day rather
+  than disappearing from every view.
+- **Room context** — "Sala RM-01 · RM · Unidade Jardins · Siemens Magnetom Vida 3.0T", plus
+  the signed-in nurse's own name and professional registration ("Fernanda Alves ·
+  COREN-SP 148209"). All real data from `Equipment`/`Unit`/`User`.
+- **Per-card status chips** — "Em espera" / "Em exame" / "Concluído", and **"Alerta Jejum"**
+  for a contrast patient whose fasting hasn't been confirmed yet (a workflow reminder derived
+  from the questionnaire below; it never gates any action).
+- **Patient preparation quick actions** — "Paciente Posicionado" / "Injetado" / "Paciente
+  Liberado", one click each, driving `PreparationStatus` on the queue entry. `INJECTED` is
+  skippable (a plain exam with no contrast goes straight from positioned to released).
+  Release is blocked while a session against that patient is still `ACTIVE` — enforced
+  server-side, not just a disabled button — and the whole room's operational lock banner
+  reflects that same real, database-enforced rule.
+- **Queue reordering** — drag a patient card (or use the "Antecipar"/"Postergar" buttons, the
+  accessible, keyboard-operable path) to change the room's priority order, then "Confirmar
+  Nova Sequência" to commit. Only `WAITING` patients participate; a patient already in the
+  room or already finished keeps their place and can't be dragged. A live "queue changed
+  elsewhere" notice appears, without discarding your own unconfirmed draft, if another
+  device reorders or edits the same room first.
+- **Exam details per patient, read-only by default** — a "Habilitar Edição" toggle unlocks
+  the fields; the preparation quick-actions above stay live regardless (a clinical act, not a
+  record edit). Covers exam description, whether contrast is required and its recorded
+  volume, sex, body weight, the scheduled time, and free-text clinical notes, with a "Salvar
+  Alterações deste Paciente" button. Editable while the patient is `WAITING` or
+  `IN_PROGRESS`; locked once their visit is `DONE`/`CANCELLED`.
+- **Safety questionnaire** ("Questionário de Segurança & Contraste") — fasting confirmed +
+  hours, creatinine (mg/dL), and allergy status + description. Recorded and displayed as
+  entered; nothing here is interpreted into a clinical decision by the platform.
+- **Write attribution** — "Registrado às 08:14 por Fernanda Alves" on every saved record.
+- **"Novo Exame"** — add a patient to today's queue (name + scheduled time).
+- **Per-exam timeline** — the selected patient's own activity (added to the queue, details
+  updated, positioned/injected/released), with times and who did each. Backed by the real
+  audit trail, through a resource-scoped route: `NURSING` reads this one exam's rows without
+  gaining access to `GET /audit` itself.
+- **Live push**: another device's reorder, detail edit, or preparation-status change shows
+  up immediately, the same `QUEUE_UPDATED`/`PATIENT_PREPARATION_UPDATED` events the
+  dashboard's own patient queue already uses.
+
+### Equipment management (Clinic Admin / Local IT / Operator Admin / Platform Admin)
+- **Equipment registry** — register a scanner with its clinical identity: the exam modality it
+  performs (MRI / CT / Ultrasound), brand, model, serial number, the room it physically stands
+  in, and its installation/homologation date, alongside the PiKVM host/credentials, target OS,
+  keymap (validated against PiKVM's real supported layouts), screen size, and optional
+  room-camera URL. Every clinical field is required at registration — the columns are nullable
+  only for rows that predate the feature, and nothing new joins that set.
+- **Listing screen** with per-status and per-modality summary counts, free-text search across
+  name/brand/model/serial, status + modality + unit filters (kept in the URL, so a filtered
+  view is linkable), client-side pagination, and a CSV export of the filtered rows.
+- **Dedicated create / edit / read-only view pages** (`/admin/equipment/new`,
+  `/admin/equipment/:id`, `/admin/equipment/:id/edit`).
 - **Edit equipment settings** after creation, including rotating its PiKVM credentials
-  (leave the password blank to keep the existing one unchanged).
+  (leave the password blank to keep the existing one unchanged). Clinical fields can be
+  corrected but not blanked out.
+- **Optional DICOM node details** (AE Title, host, port) recorded per device. These are
+  **stored metadata only** — this platform has no DICOM/PACS integration, opens no DICOM
+  association, and sends or receives no images; the form says so where the fields are. AE
+  Titles are still validated against DICOM's real 16-character constraint, because storing a
+  value the external PACS would reject is worse than storing nothing.
+- **Retire / return equipment to service** (`deactivatedAt`) — the "delete" action, since
+  there is deliberately no hard delete: `Session`/`QueueEntry` rows carry real foreign keys to
+  equipment and feed the append-only audit trail, so a `DELETE` would either be rejected by
+  those constraints or destroy the history the trail exists to keep. Retiring blocks new
+  sessions and removes the device from health polling; a session already in progress is
+  deliberately **not** aborted (see `docs/architecture.md`).
 - **Automatic health polling** every 10 seconds reflects real device reachability as
   `ONLINE`/`OFFLINE`/`DEGRADED` — this is never a value nobody updates after creation.
 - **Manual maintenance mode**: pull a device out of rotation (blocks new sessions the same
@@ -86,6 +187,36 @@ stuck-key safety mechanism) this integration depends on.
   poll cycle.
 - **Live status push**: an equipment's status changing — automatically or manually — reaches
   every connected dashboard immediately.
+
+### Unit management (Clinic Admin / Local IT / Operator Admin / Platform Admin)
+- **Unit registry** — a clinic's own sub-sites (each with equipment and rooms), registered
+  with an institutional identity: establishment type, declared exam modalities (MRI / CT /
+  Ultrasound / X-Ray), a technical manager (a real, already-registered user of the same
+  clinic holding an eligible role), and a full physical address (CEP, street, number,
+  district, city, state) plus optional CNES code, phone, and technical e-mail. Every field is
+  required at registration except the contact trio — the columns are nullable only for rows
+  that predate the feature (including the migration's own backfilled "Unidade Principal" per
+  clinic), and nothing new joins that set.
+- **A unit is always linked to a real, active clinic** — `ClinicAccessChecker` verifies the
+  target tenant exists, is type `CLINIC`, and is not deactivated, for every actor including
+  `PLATFORM_ADMIN`.
+- **Listing screen** with summary counts (total, active, rooms, linked equipment), free-text
+  search, status/clinic/establishment-type filters (kept in the URL), a **"Todas as
+  Clínicas"** cross-clinic view for a caller with access to more than one, client-side
+  pagination, and a CSV export of the filtered rows.
+- **Dedicated create / edit / read-only view pages** (`/admin/units/new`, `/admin/units/:id`,
+  `/admin/units/:id/edit`).
+- **Rooms are derived, not a separate table** — a unit's room count is the number of distinct
+  `roomLabel` values among its *non-retired* equipment; equipment counts include retired
+  devices (still real inventory), rooms don't (a decommissioned scanner shouldn't keep a
+  "room" occupied in the count).
+- **Retire / return a unit to service** (`deactivatedAt`) — the "delete" action, since there
+  is deliberately no hard delete (the same reasoning as equipment retirement). Retiring a
+  unit blocks new teleoperation sessions on **all of its equipment**, without touching any
+  device's own independent retirement flag — reactivating the unit later never silently
+  un-retires equipment someone retired for an unrelated reason in between.
+- **Edit a unit's settings** after creation, including reassigning or unassigning its
+  technical manager. A unit's clinic is fixed at creation and cannot be changed by an edit.
 
 ### Audit trail
 - **Hash-chained, append-only** — enforced by a database trigger that blocks `UPDATE`/
@@ -103,17 +234,116 @@ stuck-key safety mechanism) this integration depends on.
   the exact sequence number where the chain breaks.
 - **Full audit log viewer** with deep links straight into a session's replay.
 
-### User management (Clinic Admin)
-- **List and create users** within your own tenant; new accounts self-enroll MFA on their
-  own first login — no mailer exists or is needed for this.
-- **Lock/unlock** an account and **force a password reset**, both effective immediately.
+### User management (Clinic Admin) and clinic registration rules
+- **The System Administrator (Platform Admin) registers Clinic Manager, Supervisor, and
+  Nursing accounts; a Clinic Manager registers Nursing accounts.** Enforced server-side by
+  `canGrantRole`/`ROLE_GRANTS` (`packages/shared/src/roles.ts`), not just hidden client-side
+  — the role dropdown only ever offers what the caller may actually grant.
+- **A Manager (Clinic Admin) is linked to one or more clinics; a Supervisor is linked to the
+  clinic(s) of a responsible Manager** — a real many-to-many `UserClinicMembership`, not a
+  single tenant. Linking a Supervisor to a clinic requires that clinic to already have a
+  Clinic Manager; a non-Platform-Admin caller may only link clinics they themselves belong
+  to. A multi-clinic account's JWT carries one *active* clinic at a time (its "home" tenant,
+  defaulting to the first one selected at registration) — see the clinic switcher below.
+- **Invitation-based onboarding, not an admin-typed temp password.** `POST /users` no longer
+  accepts a password at all: it creates the account and emails a secure, single-use,
+  24-hour activation link (`SendInvitationHandler`); the new person chooses their own first
+  password at `/ativar-conta` and self-enrolls MFA on their own first login afterward. An
+  account that hasn't redeemed its invitation cannot log in (`isActivated()`), and a
+  password-reset request against it is a silent no-op, same as a locked account. Admins can
+  resend a lost/expired invitation from the user list.
+- **List users**, in pt-BR, with each account's name, role, professional registration
+  (free-text, e.g. "CRBM 14.820"), MFA-enrollment status, invitation status (pending vs.
+  activated), and whether it's awaiting a forced password change.
+- **Lock/unlock** an account and **force a password reset**, both effective immediately — a
+  forced reset also revokes every existing session and requires the next login to change the
+  password in-band (see "Enforced password policy..." above).
+- **Switch active clinic** (`POST /auth/active-clinic`) — a multi-clinic account re-mints its
+  token pair against a different clinic it's linked to, without a full re-login;
+  `GET /auth/me/clinics` lists every clinic it can switch into. Revoking a clinic membership
+  takes effect on that account's very next token refresh, not just its next login.
+- **A read-only "what this role can do" summary** appears under the role picker while
+  creating a user (`RolePermissionSummary`, driven by `ROLE_CAPABILITIES` in
+  `packages/shared`) — every capability listed maps to a real, already-enforced `@Roles`
+  decorator elsewhere in the app; there is no separate grant model behind it, and nothing
+  invented (a couple of the roles the original design mock showed as checkboxes —
+  "productivity reports," "incident supervision" — don't correspond to any real feature in
+  this app, so they aren't listed).
 
-### Tenant management (Platform Admin / superadmin)
-- **Create and list tenants** (clinics) — the first capability in this codebase gated to
-  Platform Admin alone, not shared with Clinic Admin like every other admin action.
-- **Deactivate/reactivate a tenant**, immediately locking out (or restoring) every one of its
-  users' ability to log in — implemented as a reversible flag, deliberately never a real
-  delete, since that would cascade into erasing that tenant's own append-only audit history.
+### The console shell
+Dashboard, **Manage users**, **Manage units**, **Manage equipment**, and **Manage clinics**
+all share one light-themed sidebar+topbar layout (`ConsoleShell`) — a nav list
+gated by role (`lib/nav-permissions.ts`, the one place those role sets are computed now,
+instead of three independent copies), an identity block, and a real equipment-health
+aggregate in the topbar ("Equipamentos: 6/8 online," scoped to the caller's active clinic —
+not a fabricated status pill). `SessionPage`, `AuditPage`, `ClinicHomePage`, and
+`LatencyClockPage` deliberately keep their own separate layouts; different concerns, not
+part of this shell.
+
+### Clinics, units, and the operator relationship
+- **A clinic and an operator company are both `Tenant`s** (`CLINIC` vs. `OPERATOR_PROVIDER`).
+  A clinic has patients and equipment; an operator company's staff remotely run that
+  equipment. **One clinic has at most one operator tenant; one operator tenant can serve
+  many clinics** — a nullable `Tenant.operatorTenantId` link, settable via
+  `POST /tenants/:id/operator` (Platform Admin only). Creating or listing a clinic's units
+  through the same operator link is real too: `ClinicAccessChecker` lets an Operator Admin
+  act on a clinic their own operator tenant serves, the same way a Clinic Manager can act on
+  a clinic they're a direct member of.
+- **A clinic can have more than one Unit** ("like a hospital — a clinic/company can run more
+  than one"), managed on its own **Manage units** page (`/admin/units`, same roles as
+  equipment). Equipment belongs to a Unit (`Equipment.unitId`) — the create/edit equipment
+  forms offer a picker sourced from the tenant's own units — so an operator's navigation is
+  clinic → unit → equipment. Creating equipment without picking a unit auto-resolves to the
+  clinic's oldest one, creating a default "Unidade Principal" on the fly if it has none yet;
+  an equipment row is never left without one. Clinic-side user membership stays
+  clinic-level, not unit-level: a Manager/Supervisor/Nursing account linked to a clinic can
+  reach every one of its units.
+
+### Clinic management (Platform Admin / superadmin)
+- **Clinic registry** — register a clinic with its legal/institutional identity: CNPJ
+  (validated against the real mod-11 check-digit algorithm, not just the 14-digit format,
+  and rejected outright if it's a degenerate all-same-digit string), institutional e-mail,
+  phone, and a full registered address (CEP, street, number, complement, district, city,
+  state) — its own address block, deliberately separate from any of its Units' own (a clinic
+  is the legal entity with one CNPJ and one registered address; a Unit is a physical site
+  beneath it, and a clinic can have several). Every field above is required at registration;
+  `type` and `cnpj` are **immutable after creation** — there is no `cnpj`/`type` field on the
+  edit request at all, since correcting either would either re-parent a clinic's whole
+  matriz/filial group or violate an invariant every role check assumes holds for a tenant's
+  whole lifetime. Correcting a wrong CNPJ means registering a new clinic.
+- **Matriz/filial, derived from the CNPJ itself, not a new relationship column** — a CNPJ's
+  root (first 8 digits) identifies the group; branch order `0001` is the matriz, anything
+  else a filial (`packages/shared/src/cnpj.ts`). No separate "parent clinic" field exists or
+  is needed.
+- **Equipamentos/unidades/modalidades are always derived, never re-entered** — a clinic's
+  equipment count, unit count, and the distinct exam modalities across its (non-retired)
+  equipment are computed server-side (`PrismaTenantRepository.summarizeClinics`) from the
+  same `Equipment`/`Unit` rows those features already own. The clinic form has no equipment
+  or modality section at all — that data already lives, and is edited, exactly one place
+  each.
+- **Listing screen** with summary counts (total, active, matrizes/filiais, equipment linked,
+  managers allocated), free-text search across name/CNPJ/manager, status + modality filters
+  (kept in the URL), client-side pagination, and a CSV export of the filtered rows.
+- **Dedicated create / edit / read-only view pages** (`/superadmin/clinics/new`,
+  `/superadmin/clinics/:id`, `/superadmin/clinics/:id/edit`) — reshaped from an earlier,
+  single-name-field "create tenant" form into the same three-section pattern the
+  equipment/unit registries use.
+- **Responsible manager is optional at creation, assignable only on edit** — a brand-new
+  clinic has no users yet to pick from (`CreateTenantRequestSchema` doesn't even accept
+  `responsibleManagerId`), so the create form shows a note pointing at Gestores & Usuários
+  instead of an empty picker. Eligibility is narrower than a Unit's technical manager: only
+  an already-registered **`CLINIC_ADMIN`** of that same clinic, activated and not locked
+  (`ResponsibleManagerValidator`) — a Unit accepts three roles, a clinic's overall manager
+  only one.
+- **Deactivate/reactivate a clinic** (`deactivatedAt`) — unchanged from the original tenant
+  lifecycle: immediately locks out (or restores) every one of its users' ability to log in,
+  deliberately never a real delete (a clinic's own append-only audit history would otherwise
+  have to go with it). No deactivation cascade to its equipment/units was needed here —
+  `LoginHandler`/`RefreshTokensHandler` already reject a deactivated tenant's users outright.
+- **`GET /tenants` still returns every tenant type unchanged** (CLINIC, OPERATOR_PROVIDER,
+  and the one PLATFORM tenant) — only this feature's own listing page narrows to CLINIC;
+  the Units and Users pages' own clinic pickers, and `AdminUsersPage`'s tenant picker, all
+  still depend on the unfiltered list.
 - **Bootstrap a new tenant's first admin from outside it** via a tenant picker only a
   Platform Admin sees; every other role stays confined to its own tenant no matter what it
   sends.
@@ -369,9 +599,9 @@ why the initial symptom pointed entirely the wrong way, in `docs/architecture.md
 ## Tests
 
 ```bash
-pnpm --filter @crop/shared test   # coordinate math, modifier remap, hash chain (incl. the tamper-detection case)
+pnpm --filter @crop/shared test   # coordinate math, modifier remap, hash chain, clinic-day/timezone math, queue contracts (incl. the tamper-detection case)
 pnpm --filter @crop/pikvm test    # auth/TOTP building, stuck-key release tracking, no-crash-on-connection-error
-pnpm --filter @crop/api test:e2e  # tenant isolation, RBAC, session/WS-gateway lifecycle, auth hardening + takeover against real Postgres/Redis
+pnpm --filter @crop/api test:e2e  # tenant isolation, RBAC, session/WS-gateway lifecycle, auth hardening + takeover + the full nursing queue surface, against real Postgres/Redis
 ```
 
 `.github/workflows/ci.yml` runs all of the above (typecheck, build, unit tests, e2e) on every
@@ -456,13 +686,24 @@ same technique that found the room-join bug in the row above.
    deliberately outside the authenticated app — see `LatencyClockPage`'s own docstring. A
    single screenshot showing this clock's true time next to the same moment visible in the
    operator's console feed is a measurement nobody has to take on trust.
-1. **Login + mandatory 2FA** — log in as `operator@alpha.crop.health`, enter the TOTP code.
+1. **Login + mandatory 2FA** — log in as `operator@central.crop.health`, enter the TOTP code.
+   This account belongs to **Operadora Central**, the operating company — not to a clinic. It
+   reaches a clinic's equipment only by switching into that clinic's context, which an
+   accepted operator link authorizes; `GET /equipment` returns nothing until it does, because
+   the operating company owns no equipment of its own.
+1a. **Password reset** — from the login screen, click "Esqueci a senha", enter
+    `operator@central.crop.health`, submit. With no real mail provider configured, the "email"
+    is appended to `apps/api/storage/mail-outbox.jsonl` as JSON — open it and copy the
+    `token=` value out of the link, or just visit the printed link directly if you set
+    `APP_PUBLIC_URL` to match your dev server. Confirm the new password on the same page's
+    "Nova Senha" tab, then log in with it — same 2FA step as always, since the reset link
+    alone never bypasses it.
 2. **Dashboard** — equipment list scoped to the operator's tenant, patient queue per machine.
 3. **Start a session** — console view opens; the latency HUD shows measured input RTT, and
    the room camera PiP appears if `cameraUrl` is configured (step 7 above).
 4. **Type a patient ID** — via the print-text field, not per-keystroke, so accented
    characters (`pt-br` keymap) render correctly.
-5. **Takeover** — open a second browser as `supervisor@alpha.crop.health`, join the same
+5. **Takeover** — open a second browser as `supervisor@central.crop.health`, join the same
    session, click "Take over". The operator's window shows the takeover banner and its input
    stops working immediately.
 5a. **Return control** — in the supervisor's window, click "Return control to operator".
@@ -479,24 +720,40 @@ same technique that found the room-join bug in the row above.
 9. **Idle timeout** — start a session and walk away; after `SESSION_IDLE_TIMEOUT_MS` (10
    minutes by default — lower it via env var for a live demo) it's automatically aborted and
    the equipment freed, visible as a `SESSION_ABORT` audit entry with `reason: idle_timeout`.
-10. **Tenant isolation** — log in as `operator@beta.crop.health`: Clinica Alpha's equipment,
-    sessions, and audit log are completely invisible.
+10. **Tenant isolation** — two halves now, since operators and clinics live in different
+    tenants. Clinic side: log in as `enfermagem@alpha.crop.health` (Alpha's nurse) — Clinica
+    Beta is not even offered as a clinic she can switch into, and Beta's equipment, sessions
+    and audit log are invisible. Operator side: as `operator@central.crop.health`, switch into
+    Alpha and then Beta, and note that each context shows only that clinic's equipment and
+    queue — one account, two clinics, no leakage between them.
 11. **Admin: manage users and equipment** — log in as `admin@alpha.crop.health`. "Manage
     users" and "Manage equipment" buttons appear (operators and supervisors never see
-    these). Create a new OPERATOR account — you're shown the temp password once, exactly
-    like the seed script prints to console, since there's no mailer here or anywhere else in
-    this app. Log in as that new user in a second browser: their *own* first login walks
-    them through 2FA enrollment via the same flow every seeded account went through,
-    automatically, with nothing admin-specific required from that side at all.
+    these). Create a new NURSING account (the only role a Clinic Manager may grant --
+    `CLINIC_ADMIN` here can't offer itself, a Supervisor, or an Operator in the dropdown at
+    all) linked to Clinica Alpha: no password to relay -- a secure, 24-hour activation link
+    is emailed instead (check `apps/api/storage/mail-outbox.jsonl` since there's no real
+    mail provider by default). Open the link, choose a password, and log in as that new user
+    in a second browser: their *own* first login walks them through 2FA enrollment via the
+    same flow every seeded account went through, automatically, with nothing admin-specific
+    required from that side at all.
+11a. **Forced password change** — still logged in as `admin@alpha.crop.health`, click "Redefinir
+     senha" next to any user and set a temporary password (the live strength meter and policy
+     checklist reject anything too weak or containing that user's own name/email before you
+     can even submit). Log in as that user in a second browser with the temp password: after
+     entering their TOTP code, instead of landing on the dashboard they're routed straight
+     into "Definir nova senha" — the same rich screen (stepper, whose-account identity card,
+     countdown) the emailed reset link uses — and must set a password that isn't the one an
+     admin just set for them before a real session is minted. Try reusing the temp password:
+     rejected as a reuse, not just a weak-password error.
 12. **Superadmin: manage tenants** — bootstrap one first (`make bootstrap-superadmin`, or
     `pnpm bootstrap:superadmin` — safe to re-run, no-ops if one already exists), then log in
     as it. A "Manage tenants" button appears that CLINIC_ADMIN never sees — create a new
-    clinic, then head to "Manage users": a tenant picker now shows up in the create-user
-    form (invisible to everyone but PLATFORM_ADMIN) to bootstrap that new clinic's first
-    CLINIC_ADMIN from outside it. Deactivate the tenant — that CLINIC_ADMIN immediately loses
-    the ability to log in; reactivate it and they're back. Notice "Manage tenants" itself
-    never shows another tenant's equipment/sessions/audit log — tenant lifecycle only, no
-    cross-tenant browsing.
+    clinic, then head to "Manage users": choosing "Gestor de Clínica" (CLINIC_ADMIN) now
+    shows a clinic checklist (invisible to everyone but PLATFORM_ADMIN for this role) to
+    bootstrap that new clinic's first Manager from outside it. Deactivate the tenant — that
+    Manager immediately loses the ability to log in; reactivate it and they're back. Notice
+    "Manage tenants" itself never shows another tenant's equipment/sessions/audit log —
+    tenant lifecycle only, no cross-tenant browsing.
 13. **Equipment lifecycle** — on "Manage equipment," edit MRI-01 (rename it, tweak its
     screen size) and click "Enter maintenance." The dashboard's badge flips to a new
     MAINTENANCE color and "Start session" disables, same as OFFLINE/DEGRADED — walk away for
@@ -514,3 +771,11 @@ and virtual USB mass storage are not implemented at all (clinical-safety and PHI
 not a permission toggle), and several PiKVM web-UI conveniences (mouse sensitivity sliders,
 CapsLock LED sync, the modifier-hold shortcut composer) were left out as polish that doesn't
 affect correctness or safety within a 30-day timeline.
+
+Also out of scope: a real per-permission *grant* model -- the create-user screen's role is
+real and enforced, and now shows a read-only "what this role can do" summary
+(`RolePermissionSummary`, derived from `ROLE_CAPABILITIES`), but there's still no separate
+"revoke this one capability from this one person" grant beneath the role itself; and
+unit-level (as opposed to clinic-level) membership scoping -- a Manager/Supervisor/Nursing
+account linked to a clinic can reach every one of its units, there's no way to restrict one
+to a subset.

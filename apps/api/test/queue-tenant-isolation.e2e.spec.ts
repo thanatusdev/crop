@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * The queue module had ZERO tenant checks anywhere -- not in the controller, not in any
@@ -31,12 +31,12 @@ describe("Queue: multi-tenant isolation", () => {
     const beta = await createTenant(prisma, `Queue-Beta-${crypto.randomUUID()}`);
 
     alphaAdminToken = (await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.CLINIC_ADMIN })).accessToken;
-    betaOperatorToken = (await createLoggedInUser(app, { tenantId: beta.id, role: UserRole.OPERATOR })).accessToken;
+    betaOperatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: beta.id, role: UserRole.OPERATOR })).accessToken;
 
     const equipmentRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .send({ name: "Queue-Test-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Queue-Test-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     alphaEquipmentId = equipmentRes.body.id;
   });

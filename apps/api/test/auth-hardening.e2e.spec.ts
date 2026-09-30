@@ -35,9 +35,10 @@ describe("Auth hardening: rate limiting and logout revocation", () => {
         tenantId,
         email,
         passwordHash: await argon2.hash("TestPassword123!", { type: argon2.argon2id }),
-        role: UserRole.OPERATOR,
+        role: UserRole.LOCAL_IT,
         mfaSecret: new OTPAuth.Secret({ size: 20 }).base32,
         mfaEnabledAt: new Date(),
+        activatedAt: new Date(),
       },
     });
 
@@ -65,9 +66,10 @@ describe("Auth hardening: rate limiting and logout revocation", () => {
         tenantId,
         email,
         passwordHash: await argon2.hash("TestPassword123!", { type: argon2.argon2id }),
-        role: UserRole.OPERATOR,
+        role: UserRole.LOCAL_IT,
         mfaSecret: secret,
         mfaEnabledAt: new Date(),
+        activatedAt: new Date(),
       },
     });
 
@@ -91,7 +93,7 @@ describe("Auth hardening: rate limiting and logout revocation", () => {
   });
 
   it("rejects a refresh with a revoked (logged-out) refresh token", async () => {
-    const user = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "logout" });
+    const user = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "logout" });
 
     await http.post("/auth/logout").send({ refreshToken: user.refreshToken }).expect(204);
 
@@ -100,7 +102,7 @@ describe("Auth hardening: rate limiting and logout revocation", () => {
   });
 
   it("rotates the refresh token on use: the old one is rejected after a refresh", async () => {
-    const user = await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "rotate" });
+    const user = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "rotate" });
 
     const refreshRes = await http.post("/auth/refresh").send({ refreshToken: user.refreshToken }).expect(200);
     expect(refreshRes.body.refreshToken).not.toBe(user.refreshToken);

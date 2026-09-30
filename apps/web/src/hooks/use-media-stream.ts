@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api-client.js";
 import { WS_URL } from "../lib/config.js";
 
-export type StreamStatus = "connecting" | "active" | "error";
+export type StreamStatus = "idle" | "connecting" | "active" | "error";
 
 interface MediaStreamState {
   status: StreamStatus;
@@ -19,12 +19,24 @@ const RECONNECT_DELAY_MS = 1000;
  * identical because MediaStreamServer is a pure relay -- this hook is deliberately not
  * "inspired by" PiKVM's client, it *is* the same protocol, so the two can never drift apart
  * by accident.
+ *
+ * `sessionId: null` means there is no session to mirror yet -- `ExamPage` renders this before
+ * any exam has started, and before this hook accepted null it had no way to express "not
+ * connecting, nothing failed, simply nothing to show" at all; every render had to either fake
+ * a status or start a connection against an id that didn't exist. `"idle"` is that fourth,
+ * honest state, distinct from `"error"` (a real failure) and `"connecting"` (a request in
+ * flight) -- `ExamPage`'s mirror renders "SEM SINAL" only for the latter two, never for idle.
  */
-export function useMediaStream(sessionId: string, canvasRef: React.RefObject<HTMLCanvasElement | null>) {
-  const [state, setState] = useState<MediaStreamState>({ status: "connecting", info: "" });
+export function useMediaStream(sessionId: string | null, canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+  const [state, setState] = useState<MediaStreamState>({ status: "idle", info: "" });
   const stoppedRef = useRef(false);
 
   useEffect(() => {
+    if (!sessionId) {
+      setState({ status: "idle", info: "" });
+      return;
+    }
+
     stoppedRef.current = false;
     let ws: WebSocket | null = null;
     let decoder: VideoDecoder | null = null;
@@ -104,7 +116,24 @@ export function useMediaStream(sessionId: string, canvasRef: React.RefObject<HTM
     };
 
     const connect = async () => {
-      const { ticket } = await api.post<{ ticket: string }>(`/sessions/${sessionId}/stream-ticket`);
+      setState((s) => (s.status === "active" ? s : { status: "connecting", info: "" }));
+
+      // The real bug this fixes: a failing ticket request (no active session yet, this
+      // caller isn't a participant, the session already ended) used to be an unhandled
+      // promise rejection -- `void connect()` below never awaited or caught it -- leaving
+      // the hook stuck reporting "connecting" forever, with no error anywhere to explain why.
+      // `ExamPage` hits this constantly (rendered before any session exists), which is what
+      // surfaced it: distinguishing *idle* / *connecting* / *SEM SINAL* requires this path to
+      // actually reach "error" instead of hanging.
+      let ticket: string;
+      try {
+        ticket = (await api.post<{ ticket: string }>(`/sessions/${sessionId}/stream-ticket`)).ticket;
+      } catch (err) {
+        if (stoppedRef.current) return;
+        setState({ status: "error", info: err instanceof Error ? err.message : "Could not obtain a stream ticket" });
+        reconnectTimer = setTimeout(() => void connect(), RECONNECT_DELAY_MS);
+        return;
+      }
 
       const socket = new WebSocket(`${WS_URL}/stream?ticket=${encodeURIComponent(ticket)}`);
       socket.binaryType = "arraybuffer";

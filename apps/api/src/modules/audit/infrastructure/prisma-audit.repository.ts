@@ -71,7 +71,13 @@ export class PrismaAuditRepository implements AuditRepositoryPort {
 
   async list(filter: ListAuditLogsFilter): Promise<AuditLogEntryDto[]> {
     const rows = await this.prisma.auditLog.findMany({
-      where: { tenantId: filter.tenantId, sessionId: filter.sessionId, userId: filter.userId },
+      where: {
+        tenantId: filter.tenantId,
+        sessionId: filter.sessionId,
+        userId: filter.userId,
+        resourceType: filter.resourceType,
+        resourceId: filter.resourceId,
+      },
       orderBy: { seq: "desc" },
       take: filter.limit,
       skip: filter.offset,

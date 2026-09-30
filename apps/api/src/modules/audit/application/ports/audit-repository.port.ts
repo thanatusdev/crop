@@ -8,6 +8,11 @@ export interface ListAuditLogsFilter {
   tenantId: string;
   sessionId?: string;
   userId?: string;
+  /** Added for `GetQueueEntryTimelineQuery` -- narrows to one resource's own rows (e.g.
+   * `resourceType: "QueueEntry"` + a specific entry's id). Both undefined preserves the
+   * pre-existing unscoped-by-resource behaviour every `AuditController` caller still uses. */
+  resourceType?: string;
+  resourceId?: string;
   limit: number;
   offset: number;
 }

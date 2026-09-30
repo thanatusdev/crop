@@ -4,6 +4,8 @@ import type { Response } from "express";
 import { StartSessionRequestSchema, UserRole, type AccessTokenClaims, type StartSessionRequest } from "@crop/shared";
 import { ZodValidationPipe } from "../../../shared/infrastructure/http/zod-validation.pipe.js";
 import { JwtAuthGuard } from "../../iam/presentation/guards/jwt-auth.guard.js";
+import { RolesGuard } from "../../iam/presentation/guards/roles.guard.js";
+import { Roles } from "../../iam/presentation/decorators/roles.decorator.js";
 import { CurrentUser } from "../../iam/presentation/decorators/current-user.decorator.js";
 import { ForbiddenError, NotFoundError } from "../../../shared/domain/errors.js";
 import { StartSessionCommand } from "../application/commands/start-session/start-session.command.js";
@@ -14,11 +16,21 @@ import { GetSessionQuery } from "../application/queries/get-session/get-session.
 import { ListSessionSnapshotsQuery } from "../application/queries/list-session-snapshots/list-session-snapshots.query.js";
 import { SNAPSHOT_STORAGE, type SnapshotStoragePort } from "../application/ports/snapshot-storage.port.js";
 import { Session } from "../domain/session.entity.js";
+import { SessionParticipantNameService } from "../application/session-participant-name.service.js";
 import { MediaStreamTicketService } from "../infrastructure/media-stream-ticket.service.js";
 import { SessionsGateway } from "./sessions.gateway.js";
 import { toSessionDto } from "./session.dto.js";
 
-const REPLAY_ALLOWED_ROLES: readonly UserRole[] = [UserRole.AUDITOR, UserRole.SUPERVISOR, UserRole.CLINIC_ADMIN, UserRole.PLATFORM_ADMIN];
+// LOCAL_SUPERVISOR and OPERATOR_ADMIN added alongside the clinic/operator-provider role
+// split (see packages/shared/src/roles.ts) -- same reasoning as AuditController.
+const REPLAY_ALLOWED_ROLES: readonly UserRole[] = [
+  UserRole.AUDITOR,
+  UserRole.OPERATIONAL_SUPERVISOR,
+  UserRole.CLINIC_ADMIN,
+  UserRole.PLATFORM_ADMIN,
+  UserRole.LOCAL_SUPERVISOR,
+  UserRole.OPERATOR_ADMIN,
+];
 
 /**
  * Takeover and print-text are deliberately WebSocket-only (see SessionsGateway), not
@@ -28,31 +40,42 @@ const REPLAY_ALLOWED_ROLES: readonly UserRole[] = [UserRole.AUDITOR, UserRole.SU
  * curl" bugs. Session lifecycle (start/end) and reads stay REST since they don't need that.
  */
 @Controller("sessions")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class SessionsController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
     private readonly ticketService: MediaStreamTicketService,
     private readonly gateway: SessionsGateway,
+    private readonly participantNames: SessionParticipantNameService,
     @Inject(SNAPSHOT_STORAGE) private readonly snapshotStorage: SnapshotStoragePort
   ) {}
 
+  // Starting a remote-control session against clinical equipment is the operator company's
+  // job, not the clinic's (see packages/shared/src/roles.ts) -- without this, the new
+  // NURSING/LOCAL_SUPERVISOR/LOCAL_IT roles would have inherited it by default the moment
+  // they could authenticate at all, simply because this route had no @Roles at all before.
+  // Deliberately method-level, not class-level: /end, /release-all and the read routes below
+  // keep relying on their existing domain-level checks (e.g. EndSessionHandler's
+  // `isParticipant`) rather than a role allowlist -- CLINIC_ADMIN/PLATFORM_ADMIN can become a
+  // session's controller via takeover (see TAKEOVER_ALLOWED_ROLES) and must still be able to
+  // end or release-all on a session they took over.
   @Post()
+  @Roles(UserRole.OPERATOR, UserRole.OPERATIONAL_SUPERVISOR, UserRole.OPERATOR_ADMIN, UserRole.PLATFORM_ADMIN)
   async start(
     @CurrentUser() user: AccessTokenClaims,
     @Body(new ZodValidationPipe(StartSessionRequestSchema)) body: StartSessionRequest
   ) {
     const session = await this.commandBus.execute(
-      new StartSessionCommand(user.tenantId, user.sub, body.equipmentId, body.queueEntryId ?? null)
+      new StartSessionCommand(user.tenantId, user.sub, body.equipmentId, body.queueEntryId ?? null, user)
     );
-    return toSessionDto(session);
+    return toSessionDto(session, await this.participantNames.resolveOperatorProfile(session));
   }
 
   @Post(":id/end")
   async end(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string) {
     await this.commandBus.execute(new EndSessionCommand(id, user.tenantId, user.sub));
-    this.gateway.broadcastSessionEnded(id);
+    await this.gateway.broadcastSessionEnded(id);
   }
 
   /** Emergency escape hatch: releases stuck input without ending the session. See ReleaseAllInputHandler. */
@@ -64,13 +87,14 @@ export class SessionsController {
   @Get("active")
   async listActive(@CurrentUser() user: AccessTokenClaims) {
     const sessions: Session[] = await this.queryBus.execute(new GetActiveSessionsQuery(user.tenantId));
-    return sessions.map(toSessionDto);
+    const operatorProfiles = await this.participantNames.resolveOperatorProfiles(sessions);
+    return sessions.map((session) => toSessionDto(session, operatorProfiles.get(session.operatorId) ?? { name: null, registration: null }));
   }
 
   @Get(":id")
   async getOne(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string) {
     const session = await this.queryBus.execute(new GetSessionQuery(id, user.tenantId));
-    return toSessionDto(session);
+    return toSessionDto(session, await this.participantNames.resolveOperatorProfile(session));
   }
 
   /** Issued only to a session's own operator/supervisor -- see MediaStreamTicketService. */

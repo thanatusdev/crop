@@ -64,7 +64,7 @@ railway domain --service crop-api   # generates the public *.up.railway.app URL
 ```
 
 `railway logs --service crop-api --lines 40` should show `Connected to PostgreSQL`,
-`Connected to Redis`, and `CROP API listening on :<port>` (Railway assigns its own `PORT`;
+`Connected to Redis`, and `RadLink API listening on :<port>` (Railway assigns its own `PORT`;
 the app already honors whatever it's given, see `env.validation.ts`). Confirm from outside:
 
 ```bash
@@ -135,11 +135,29 @@ npx netlify api updateSite --data '{"site_id":"<id>", "body": {"sso_login": fals
 
 ```bash
 railway variables --service crop-api --set "CORS_ORIGIN=https://<your-site>.netlify.app"
+railway variables --service crop-api --set "APP_PUBLIC_URL=https://<your-site>.netlify.app"
 ```
 
 Setting a variable triggers an automatic redeploy -- `railway status` shows `Deploying` for
-a few seconds, then back to `Online`. Without this step, the browser console shows CORS
+a few seconds, then back to `Online`. Without `CORS_ORIGIN`, the browser console shows CORS
 errors and the Socket.io connection (HID/video) fails even though plain REST calls work.
+`APP_PUBLIC_URL` is a separate variable from `CORS_ORIGIN`, even though they're the same
+value here -- it's what password-reset links point at, not a CORS allowlist; see
+`env.validation.ts`'s own comment on why they aren't the same setting.
+
+## 5a. (Optional) Real password-reset emails via Resend
+
+`MAILER_DRIVER` defaults to `file` -- the API still runs and the reset flow still works
+without this step, it just writes emails to a file on the container's (ephemeral) disk
+instead of actually sending them, same tradeoff as `SNAPSHOT_STORAGE_DIR` in "Known
+limitations" below. To send real mail: create a [Resend](https://resend.com) account, verify
+a sending domain, then:
+
+```bash
+railway variables --service crop-api --set "MAILER_DRIVER=resend"
+railway variables --service crop-api --set "RESEND_API_KEY=<your Resend API key>"
+railway variables --service crop-api --set "MAIL_FROM=RadLink <no-reply@your-verified-domain.com>"
+```
 
 ## 6. Getting login codes for the demo
 
@@ -174,6 +192,15 @@ matching the pattern used for `SEED_PIKVM_HOST` in step 3.
 - **Session snapshots don't survive a redeploy.** `SNAPSHOT_STORAGE_DIR` writes to local
   container disk; Railway wipes that on every redeploy/restart unless you attach a volume.
   Fine for a demo, not for anything meant to persist.
+- **Chat attachments don't survive a redeploy either, for the identical reason.**
+  `CHAT_ATTACHMENT_STORAGE_DIR` (default `./storage/chat-attachments`) is the exam-support
+  chat's own local-disk store (see `ChatAttachmentStorageService`'s own docstring) -- same
+  MVP tradeoff as `SNAPSHOT_STORAGE_DIR` above, same fix if it ever matters (attach a volume,
+  or swap the storage port's implementation for object storage).
+- **Password-reset emails, if `MAILER_DRIVER` is left at its `file` default, go to the same
+  ephemeral container disk** (`MAIL_OUTBOX_PATH`) as session snapshots above, for the same
+  reason -- fine for a demo (`railway ssh -s crop-api -- cat <MAIL_OUTBOX_PATH>` to read the
+  latest link), but set up Resend (step 5a) for anything real.
 - **One API instance, no horizontal scaling.** Socket.io's in-memory adapter (the default)
   only works correctly with exactly one instance -- scaling to multiple would need the
   Redis adapter wired in, which isn't done here (out of scope for a demo deploy).

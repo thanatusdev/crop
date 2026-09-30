@@ -19,7 +19,7 @@ async function bootstrap(): Promise<void> {
 
   const port = config.get<number>("PORT", 3000);
   await app.listen(port);
-  logger.log(`CROP API listening on :${port}`, "Bootstrap");
+  logger.log(`RadLink API listening on :${port}`, "Bootstrap");
 }
 
 bootstrap();

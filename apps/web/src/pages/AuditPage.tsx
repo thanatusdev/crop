@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AuditLogEntryDto, VerifyChainResultDto } from "@crop/shared";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { cn } from "cn";
 import { api } from "../lib/api-client.js";
+import { Button } from "../components/ui/button.js";
+import { Card, CardContent } from "../components/ui/card.js";
+import { Alert, AlertDescription } from "../components/ui/alert.js";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 
 export default function AuditPage() {
   const navigate = useNavigate();
@@ -43,86 +49,93 @@ export default function AuditPage() {
   }
 
   return (
-    <div>
-      <header className="topbar">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="flex items-center justify-between gap-4 border-b bg-card px-6 py-4">
         <strong>Audit log</strong>
-        <button className="btn secondary" onClick={() => navigate("/")}>
+        <Button variant="secondary" onClick={() => navigate("/")}>
           Back to dashboard
-        </button>
+        </Button>
       </header>
 
-      <main className="page">
-        <h1>Audit log</h1>
-        <div className="card">
-          <button className="btn" onClick={verify} disabled={verifying}>
-            {verifying ? "Verifying chain..." : "Verify hash chain"}
-          </button>
-          {verifyError && (
-            <p className="error" role="alert" style={{ marginTop: 10 }}>
-              {verifyError}
-            </p>
-          )}
-          {verifyResult && (
-            <p role="status" style={{ marginTop: 10, fontWeight: 600, color: verifyResult.valid ? "#5fdc8a" : "#ff6b6b" }}>
-              {verifyResult.valid
-                ? `PASS — ${verifyResult.checkedRows} rows verified, chain intact.`
-                : `FAIL — tampering detected at sequence #${verifyResult.brokenAtSeq}.`}
-            </p>
-          )}
-        </div>
+      <main className="mx-auto max-w-[960px] px-5 py-8">
+        <h1 className="mt-0 mb-4 text-xl font-semibold">Audit log</h1>
+        <Card className="mb-4">
+          <CardContent>
+            <Button onClick={verify} disabled={verifying}>
+              {verifying && <Loader2 className="animate-spin" />}
+              {verifying ? "Verifying chain..." : "Verify hash chain"}
+            </Button>
+            {verifyError && (
+              <Alert variant="destructive" className="mt-2.5">
+                <AlertDescription>{verifyError}</AlertDescription>
+              </Alert>
+            )}
+            {verifyResult && (
+              <p role="status" className={cn("mt-2.5 flex items-center gap-1.5 font-semibold", verifyResult.valid ? "text-[#166534]" : "text-destructive")}>
+                {verifyResult.valid ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
+                {verifyResult.valid
+                  ? `PASS — ${verifyResult.checkedRows} rows verified, chain intact.`
+                  : `FAIL — tampering detected at sequence #${verifyResult.brokenAtSeq}.`}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-        <div className="card">
-          {loadError ? (
-            <p className="error" role="alert">
-              {loadError}{" "}
-              <button className="link-button" onClick={() => void load()}>
-                Retry
-              </button>
-            </p>
-          ) : loading ? (
-            <p aria-live="polite">Loading...</p>
-          ) : (
-            <div className="table-scroll">
-              <table>
-                <caption className="visually-hidden">Audit log entries, most recent first</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Seq</th>
-                    <th scope="col">Timestamp</th>
-                    <th scope="col">Action</th>
-                    <th scope="col">Resource</th>
-                    <th scope="col">Session</th>
-                    <th scope="col">Hash</th>
-                  </tr>
-                </thead>
-                <tbody>
+        <Card>
+          <CardContent>
+            {loadError ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {loadError}{" "}
+                  <button className="underline" onClick={() => void load()}>
+                    Retry
+                  </button>
+                </AlertDescription>
+              </Alert>
+            ) : loading ? (
+              <p aria-live="polite">Loading...</p>
+            ) : (
+              <Table>
+                <TableCaption className="sr-only">Audit log entries, most recent first</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Seq</TableHead>
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Resource</TableHead>
+                    <TableHead>Session</TableHead>
+                    <TableHead>Hash</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {logs.map((log) => (
-                    <tr key={log.id}>
-                      <td>{log.seq}</td>
-                      <td>{new Date(log.timestamp).toLocaleString()}</td>
-                      <td>{log.action}</td>
-                      <td>
+                    <TableRow key={log.id}>
+                      <TableCell>{log.seq}</TableCell>
+                      <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                      <TableCell>{log.action}</TableCell>
+                      <TableCell>
                         {log.resourceType}
                         {log.resourceId ? ` #${log.resourceId.slice(0, 8)}` : ""}
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         {log.sessionId ? (
-                          <button className="link-button" onClick={() => navigate(`/sessions/${log.sessionId}/replay`)}>
+                          <button className="text-primary underline" onClick={() => navigate(`/sessions/${log.sessionId}/replay`)}>
                             {log.sessionId.slice(0, 8)}
                           </button>
                         ) : (
                           "—"
                         )}
-                      </td>
-                      <td style={{ fontFamily: "monospace", fontSize: 11 }}>{log.hash.slice(0, 12)}...</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{log.hash.slice(0, 12)}...</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
 }
+

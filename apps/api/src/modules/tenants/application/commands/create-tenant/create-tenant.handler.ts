@@ -1,20 +1,47 @@
 import { Inject } from "@nestjs/common";
-import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
+import { ConflictError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
-import { Tenant } from "../../../domain/tenant.entity.js";
+import { TenantEnrichmentService, type EnrichedTenant } from "../../tenant-enrichment.service.js";
 import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../ports/tenant-repository.port.js";
+import { TenantCreatedEvent } from "../../events/tenant-created.event.js";
 import { CreateTenantCommand } from "./create-tenant.command.js";
 
 @CommandHandler(CreateTenantCommand)
-export class CreateTenantHandler implements ICommandHandler<CreateTenantCommand, Tenant> {
+export class CreateTenantHandler implements ICommandHandler<CreateTenantCommand, EnrichedTenant> {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly enrichment: TenantEnrichmentService,
+    private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus
   ) {}
 
-  async execute(command: CreateTenantCommand): Promise<Tenant> {
-    const tenant = await this.tenants.create({ name: command.name, type: command.type });
+  async execute(command: CreateTenantCommand): Promise<EnrichedTenant> {
+    // Friendly pre-check before the insert -- see TenantRepositoryPort.findByCnpj's own
+    // docstring for why (the same precedent RegisterUserHandler.findByEmail sets). Only
+    // meaningful when a CNPJ was actually supplied; every non-CLINIC tenant has none.
+    if (command.clinicDetails?.cnpj) {
+      const existing = await this.tenants.findByCnpj(command.clinicDetails.cnpj);
+      if (existing) {
+        throw new ConflictError(`A clinic with CNPJ ${command.clinicDetails.cnpj} already exists`);
+      }
+    }
+
+    const tenant = await this.tenants.create({
+      name: command.name,
+      type: command.type,
+      cnpj: command.clinicDetails?.cnpj ?? null,
+      institutionalEmail: command.clinicDetails?.institutionalEmail ?? null,
+      phone: command.clinicDetails?.phone ?? null,
+      zipCode: command.clinicDetails?.zipCode ?? null,
+      street: command.clinicDetails?.street ?? null,
+      number: command.clinicDetails?.number ?? null,
+      complement: command.clinicDetails?.complement ?? null,
+      district: command.clinicDetails?.district ?? null,
+      city: command.clinicDetails?.city ?? null,
+      state: command.clinicDetails?.state ?? null,
+    });
 
     // Attributed to the *new* tenant, not the acting PLATFORM_ADMIN's own (platform) tenant
     // -- so this shows up in that tenant's own audit history from the moment it exists, the
@@ -29,10 +56,12 @@ export class CreateTenantHandler implements ICommandHandler<CreateTenantCommand,
         action: AuditAction.TENANT_CREATED,
         resourceType: "Tenant",
         resourceId: tenant.id,
-        details: { name: tenant.name, type: tenant.type },
+        details: { name: tenant.name, type: tenant.type, cnpj: tenant.cnpj },
       })
     );
 
-    return tenant;
+    this.eventBus.publish(new TenantCreatedEvent(tenant.id, tenant.type));
+
+    return this.enrichment.enrichOne(tenant);
   }
 }

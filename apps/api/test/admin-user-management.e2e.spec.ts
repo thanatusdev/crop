@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import * as OTPAuth from "otpauth";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, readLatestMailTo, extractResetToken } from "./helpers.js";
 
 /**
  * Covers the gap found live-demoing the app: CLINIC_ADMIN saw the exact same dashboard as
@@ -36,11 +36,11 @@ describe("Admin user management: listing and creation", () => {
   });
 
   it("lists only the calling admin's own tenant's users, never leaking passwordHash/mfaSecret", async () => {
-    await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "list-mine" });
+    await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "list-mine" });
     const otherAdminToken = (
       await createLoggedInUser(app, { tenantId: otherTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "list-other-admin" })
     ).accessToken;
-    await createLoggedInUser(app, { tenantId: otherTenantId, role: UserRole.OPERATOR, emailPrefix: "list-not-mine" });
+    await createContractedOperator(app, prisma, { clinicTenantId: otherTenantId, role: UserRole.OPERATOR, emailPrefix: "list-not-mine" });
 
     const res = await http.get("/users").set("Authorization", `Bearer ${adminToken}`).expect(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -59,32 +59,36 @@ describe("Admin user management: listing and creation", () => {
   });
 
   it("rejects a non-admin trying to list users", async () => {
-    const operatorToken = (await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "list-rbac" })).accessToken;
+    const operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "list-rbac" })).accessToken;
     await http.get("/users").set("Authorization", `Bearer ${operatorToken}`).expect(403);
   });
 
   it("creates a user in the admin's own tenant, and only returns the new userId -- no password/secret echoed back", async () => {
     const email = `created-${crypto.randomUUID()}@test.crop.health`;
+    // NURSING, not OPERATOR: "The Clinic Manager registers users with the Nursing
+    // profile" -- see canGrantRole/ROLE_GRANTS (roles.ts). CLINIC_ADMIN may not grant
+    // OPERATOR at all anymore.
     const res = await http
       .post("/users")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ email, password: "BrandNewUser123!", role: "OPERATOR" })
+      .send({ email, role: "NURSING", firstName: "Novo", lastName: "Usuario", clinicTenantIds: [tenantId] })
       .expect(201);
 
     expect(Object.keys(res.body)).toEqual(["userId"]);
 
     const created = await prisma.user.findUniqueOrThrow({ where: { id: res.body.userId } });
     expect(created.tenantId).toBe(tenantId);
-    expect(created.role).toBe("OPERATOR");
+    expect(created.role).toBe("NURSING");
     expect(created.mfaEnabledAt).toBeNull(); // not enrolled yet -- that's on the new user's own first login
+    expect(created.activatedAt).toBeNull(); // not activated yet -- that's on invitation redemption
   });
 
   it("rejects a non-admin trying to create a user", async () => {
-    const operatorToken = (await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "create-rbac" })).accessToken;
+    const operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "create-rbac" })).accessToken;
     await http
       .post("/users")
       .set("Authorization", `Bearer ${operatorToken}`)
-      .send({ email: `blocked-${crypto.randomUUID()}@test.crop.health`, password: "Whatever123!", role: "OPERATOR" })
+      .send({ email: `blocked-${crypto.randomUUID()}@test.crop.health`, password: "Whatever123!", role: "OPERATOR", firstName: "Blocked", lastName: "Attempt" })
       .expect(403);
   });
 
@@ -92,7 +96,7 @@ describe("Admin user management: listing and creation", () => {
     const res = await http
       .post("/users")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ email: `escalation-${crypto.randomUUID()}@test.crop.health`, password: "Whatever123!", role: "PLATFORM_ADMIN" })
+      .send({ email: `escalation-${crypto.randomUUID()}@test.crop.health`, password: "Whatever123!", role: "PLATFORM_ADMIN", firstName: "Escalation", lastName: "Attempt" })
       .expect(400);
     // Nest's BadRequestException wraps ZodValidationPipe's rejection as { message: [...Zod
     // issues], error, statusCode } -- confirming the one issue is specifically about `role`
@@ -100,14 +104,22 @@ describe("Admin user management: listing and creation", () => {
     expect(res.body.message).toEqual(expect.arrayContaining([expect.objectContaining({ path: ["role"] })]));
   });
 
-  it("lets a freshly admin-created user log in with the temp password and complete their own MFA enrollment -- no mailer involved anywhere", async () => {
+  it("lets a freshly admin-created user redeem their invitation link, choose a password, and complete their own MFA enrollment", async () => {
     const email = `self-enroll-${crypto.randomUUID()}@test.crop.health`;
-    const password = "TempPassword789!";
     const createRes = await http
       .post("/users")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ email, password, role: "OPERATOR" })
+      .send({ email, role: "NURSING", firstName: "Self", lastName: "Enroll", clinicTenantIds: [tenantId] })
       .expect(201);
+
+    // No password/temp-credential is ever set by the admin now -- POST /users sends a
+    // secure invitation link instead (see SendInvitationHandler). The new user redeems it
+    // themselves, choosing their own first password.
+    const mail = await readLatestMailTo(email);
+    expect(mail).not.toBeNull();
+    const token = extractResetToken(mail!);
+    const password = "MyOwnChoice456#";
+    await http.post("/auth/activate").send({ token, newPassword: password }).expect(204);
 
     // The new user's own first login -- the admin never sees a provisioningUri or secret at
     // any point in this test, matching what the real UsersController route returns.

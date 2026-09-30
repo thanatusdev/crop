@@ -5,6 +5,8 @@ import {
   DomainError,
   ForbiddenError,
   NotFoundError,
+  PasswordPolicyError,
+  PasswordReuseError,
   TooManyRequestsError,
   UnauthorizedError,
   ValidationError,
@@ -15,6 +17,8 @@ const STATUS_BY_ERROR = new WeakMap<Function, HttpStatus>([
   [ConflictError, HttpStatus.CONFLICT],
   [ForbiddenError, HttpStatus.FORBIDDEN],
   [ValidationError, HttpStatus.BAD_REQUEST],
+  [PasswordPolicyError, HttpStatus.BAD_REQUEST],
+  [PasswordReuseError, HttpStatus.BAD_REQUEST],
   [UnauthorizedError, HttpStatus.UNAUTHORIZED],
   [TooManyRequestsError, HttpStatus.TOO_MANY_REQUESTS],
 ]);

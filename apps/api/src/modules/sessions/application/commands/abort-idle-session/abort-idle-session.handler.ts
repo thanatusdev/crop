@@ -1,9 +1,10 @@
 import { Inject, Logger } from "@nestjs/common";
-import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction, QueueStatus, SessionStatus } from "@crop/shared";
 import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../../../queue/application/ports/queue-repository.port.js";
+import { QueueUpdatedEvent } from "../../../../queue/application/events/queue-updated.event.js";
 import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../../ports/pikvm-gateway.port.js";
 import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../../ports/session-repository.port.js";
 import { SESSION_RUNTIME, type SessionRuntimePort } from "../../ports/session-runtime.port.js";
@@ -29,6 +30,7 @@ export class AbortIdleSessionHandler implements ICommandHandler<AbortIdleSession
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus,
     private readonly metrics: MetricsService
   ) {}
 
@@ -57,6 +59,9 @@ export class AbortIdleSessionHandler implements ICommandHandler<AbortIdleSession
     if (session.queueEntryId) {
       try {
         await this.queue.updateStatus(session.queueEntryId, QueueStatus.CANCELLED);
+        // Bug fix: see EndSessionHandler's identical fix -- this write never told any
+        // connected client it happened.
+        this.eventBus.publish(new QueueUpdatedEvent(session.tenantId, session.equipmentId));
       } catch (err) {
         this.logger.warn(`Could not mark queue entry ${session.queueEntryId} CANCELLED: ${(err as Error).message}`);
       }

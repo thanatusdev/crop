@@ -5,8 +5,11 @@ import { randomUUID } from "node:crypto";
 import type { AccessTokenClaims, TargetOs } from "@crop/shared";
 import { UnauthorizedError } from "../../../shared/domain/errors.js";
 import type {
+  InvitationClaims,
   MfaChallengeClaims,
   MfaEnrollmentClaims,
+  PasswordChangeClaims,
+  PasswordResetClaims,
   RefreshTokenClaims,
   TokenServicePort,
   VerifiedRefreshTokenClaims,
@@ -27,6 +30,9 @@ export class JwtTokenService implements TokenServicePort {
   private readonly refreshSecret: string;
   private readonly accessTtlSeconds: number;
   private readonly refreshTtlSeconds: number;
+  private readonly passwordResetTtlSeconds: number;
+  private readonly passwordChangeTtlSeconds: number;
+  private readonly invitationTtlSeconds: number;
 
   constructor(
     private readonly jwt: JwtService,
@@ -36,6 +42,9 @@ export class JwtTokenService implements TokenServicePort {
     this.refreshSecret = config.getOrThrow<string>("JWT_REFRESH_SECRET");
     this.accessTtlSeconds = config.get<number>("JWT_ACCESS_TTL_SECONDS", 900);
     this.refreshTtlSeconds = config.get<number>("JWT_REFRESH_TTL_SECONDS", 604800);
+    this.passwordResetTtlSeconds = config.get<number>("PASSWORD_RESET_TTL_SECONDS", 900);
+    this.passwordChangeTtlSeconds = config.get<number>("PASSWORD_CHANGE_TTL_SECONDS", 600);
+    this.invitationTtlSeconds = config.get<number>("INVITE_TTL_SECONDS", 86400);
   }
 
   signAccessToken(claims: AccessTokenClaims): string {
@@ -54,7 +63,7 @@ export class JwtTokenService implements TokenServicePort {
   }
 
   verifyRefreshToken(token: string): VerifiedRefreshTokenClaims {
-    return this.verify<RefreshTokenClaims & { jti: string; exp: number }>(token, this.refreshSecret);
+    return this.verify<RefreshTokenClaims & { jti: string; iat: number; exp: number }>(token, this.refreshSecret);
   }
 
   signMfaChallenge(userId: string, clientOs: TargetOs): string {
@@ -76,6 +85,48 @@ export class JwtTokenService implements TokenServicePort {
   verifyMfaEnrollment(token: string): MfaEnrollmentClaims {
     const claims = this.verify<MfaEnrollmentClaims>(token, this.accessSecret);
     if (claims.purpose !== "mfa_enrollment") throw new UnauthorizedError("Invalid MFA enrollment token");
+    return claims;
+  }
+
+  signPasswordReset(userId: string): string {
+    const claims: PasswordResetClaims = { sub: userId, purpose: "password_reset" };
+    // `jwtid`: unlike the MFA tokens, this one has to be denylistable after a single
+    // redemption (see TokenRevocationPort's `"password_reset"` kind) -- a link sitting in an
+    // inbox is a much longer-lived secret than an MFA challenge token, so "already used"
+    // has to be a real, checkable fact, not just "not yet expired".
+    return this.jwt.sign({ ...claims }, { secret: this.accessSecret, expiresIn: this.passwordResetTtlSeconds, jwtid: randomUUID() });
+  }
+
+  verifyPasswordReset(token: string): PasswordResetClaims & { jti: string; exp: number } {
+    const claims = this.verify<PasswordResetClaims & { jti: string; exp: number }>(token, this.accessSecret);
+    if (claims.purpose !== "password_reset") throw new UnauthorizedError("Invalid password reset token");
+    return claims;
+  }
+
+  signInvitation(userId: string): string {
+    const claims: InvitationClaims = { sub: userId, purpose: "account_invitation" };
+    // `jwtid`: same single-use reasoning as signPasswordReset -- an invitation link sitting
+    // unredeemed in an inbox is a long-lived secret, so "already used" has to be a real,
+    // checkable fact once ActivateAccountHandler redeems it.
+    return this.jwt.sign({ ...claims }, { secret: this.accessSecret, expiresIn: this.invitationTtlSeconds, jwtid: randomUUID() });
+  }
+
+  verifyInvitation(token: string): InvitationClaims & { jti: string; exp: number } {
+    const claims = this.verify<InvitationClaims & { jti: string; exp: number }>(token, this.accessSecret);
+    if (claims.purpose !== "account_invitation") throw new UnauthorizedError("Invalid invitation token");
+    return claims;
+  }
+
+  signPasswordChange(userId: string, clientOs: TargetOs): string {
+    const claims: PasswordChangeClaims = { sub: userId, purpose: "password_change", clientOs };
+    // `jwtid`: same single-use reasoning as signPasswordReset -- see TokenServicePort's own
+    // docstring on this method for why, even though this token never leaves the browser.
+    return this.jwt.sign({ ...claims }, { secret: this.accessSecret, expiresIn: this.passwordChangeTtlSeconds, jwtid: randomUUID() });
+  }
+
+  verifyPasswordChange(token: string): PasswordChangeClaims & { jti: string; exp: number } {
+    const claims = this.verify<PasswordChangeClaims & { jti: string; exp: number }>(token, this.accessSecret);
+    if (claims.purpose !== "password_change") throw new UnauthorizedError("Invalid password change token");
     return claims;
   }
 

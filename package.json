@@ -14,6 +14,7 @@
     "db:seed": "pnpm --filter @crop/api build && pnpm --filter @crop/api exec tsx ../../infra/seeds/seed.ts",
     "bootstrap:superadmin": "pnpm --filter @crop/api build && pnpm --filter @crop/api exec tsx ../../infra/seeds/bootstrap-superadmin.ts",
     "totp": "pnpm --filter @crop/api exec tsx ../../infra/scripts/totp-codes.ts",
+    "backfill-shortcuts": "pnpm --filter @crop/api exec tsx ../../infra/scripts/backfill-default-shortcuts.ts",
     "spike:mock": "pnpm --filter @crop/api exec tsx ../../infra/spike/mock-pikvm-server.ts",
     "spike:run": "pnpm --filter @crop/api exec tsx ../../infra/spike/pikvm-spike.ts",
     "loadtest:input": "pnpm --filter @crop/api exec tsx ../../infra/loadtest/input-pipeline.ts"

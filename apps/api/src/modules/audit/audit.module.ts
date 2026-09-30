@@ -31,6 +31,11 @@ const COMMAND_AND_QUERY_HANDLERS = [
     AuditFlushScheduler,
     ...COMMAND_AND_QUERY_HANDLERS,
   ],
-  exports: [CqrsModule],
+  // AUDIT_REPOSITORY is exported alongside CqrsModule so another module can read the audit
+  // trail directly (read-only capability, no write access implied) -- added for QueueModule's
+  // own GetQueueEntryTimelineQuery (the nursing screen's per-exam activity panel), which
+  // needs a resource-scoped slice of this same table without going through AuditController
+  // (whose own @Roles deliberately excludes NURSING -- see that query's own docstring).
+  exports: [CqrsModule, AUDIT_REPOSITORY],
 })
 export class AuditModule {}

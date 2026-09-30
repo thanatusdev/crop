@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { io, type Socket } from "socket.io-client";
 import { RT_EVENTS, UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * Split into its own file, not a second `describe` block in takeover.e2e.spec.ts: each e2e
@@ -43,14 +43,14 @@ describe("Return control to operator", () => {
 
     const admin = await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.CLINIC_ADMIN });
     alphaAdminToken = admin.accessToken;
-    const operator = await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.OPERATOR, emailPrefix: "rc-operator" });
+    const operator = await createContractedOperator(app, prisma, { clinicTenantId: alpha.id, role: UserRole.OPERATOR, emailPrefix: "rc-operator" });
     alphaOperatorToken = operator.accessToken;
     alphaOperatorId = operator.userId;
 
     const equipmentRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .send({ name: "ReturnControl-Test-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "ReturnControl-Test-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     alphaEquipmentId = equipmentRes.body.id;
     await prisma.equipment.update({ where: { id: alphaEquipmentId }, data: { status: "ONLINE" } });
@@ -97,7 +97,7 @@ describe("Return control to operator", () => {
 
   it("lets a supervisor hand control back to the operator after taking over", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "rc-happy" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "rc-happy" });
 
     await takeOver(sessionId, supervisor.accessToken);
     let sessionRes = await http.get(`/sessions/${sessionId}`).set("Authorization", `Bearer ${alphaAdminToken}`).expect(200);
@@ -124,9 +124,9 @@ describe("Return control to operator", () => {
 
   it("lets a different eligible supervisor/admin return control, not only the one who took it", async () => {
     const sessionId = await startSession();
-    const takingSupervisor = await createLoggedInUser(app, {
-      tenantId: alphaTenantId,
-      role: UserRole.SUPERVISOR,
+    const takingSupervisor = await createContractedOperator(app, prisma, {
+      clinicTenantId: alphaTenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
       emailPrefix: "rc-other-taker",
     });
 
@@ -147,7 +147,7 @@ describe("Return control to operator", () => {
 
   it("rejects returning control when the operator already has it", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "rc-noop" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "rc-noop" });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -167,12 +167,12 @@ describe("Return control to operator", () => {
 
   it("rejects a cross-tenant return-control attempt, audited under the victim's own tenant", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "rc-tenant-taker" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "rc-tenant-taker" });
     await takeOver(sessionId, supervisor.accessToken);
 
-    const betaSupervisor = await createLoggedInUser(app, {
-      tenantId: betaTenantId,
-      role: UserRole.SUPERVISOR,
+    const betaSupervisor = await createContractedOperator(app, prisma, {
+      clinicTenantId: betaTenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
       emailPrefix: "rc-cross-tenant",
     });
 
@@ -196,7 +196,7 @@ describe("Return control to operator", () => {
 
   it("rejects an OPERATOR trying to reclaim their own session unilaterally", async () => {
     const sessionId = await startSession();
-    const supervisor = await createLoggedInUser(app, { tenantId: alphaTenantId, role: UserRole.SUPERVISOR, emailPrefix: "rc-role-taker" });
+    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "rc-role-taker" });
     await takeOver(sessionId, supervisor.accessToken);
 
     const socket = connectSocket(alphaOperatorToken);

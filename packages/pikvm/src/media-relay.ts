@@ -29,6 +29,15 @@ function toWsUrl(baseUrl: string, path: string): string {
  */
 export class PiKvmMediaRelay extends EventEmitter<PiKvmMediaRelayEvents> {
   private upstream: WebSocket | null = null;
+  // `onDeviceMessage` is the platform's own registration API (called once by
+  // MediaStreamServer per browser connection), not a raw `ws` listener -- stored here and
+  // (re)attached whenever `connect()` creates a socket, rather than attached directly to
+  // `this.upstream` at call time, because MediaStreamServer registers it *before* calling
+  // `connect()`. Confirmed against a live browser session against real PiKVM hardware: with
+  // the previous `this.upstream?.on(...)` implementation, `upstream` was still null at that
+  // point, so the handler silently attached to nothing and the browser saw zero frames --
+  // no error anywhere, just a video element stuck on "connecting" forever.
+  private deviceMessageHandler: ((data: RawData, isBinary: boolean) => void) | null = null;
 
   constructor(private readonly credentials: PiKvmCredentials) {
     super();
@@ -50,6 +59,10 @@ export class PiKvmMediaRelay extends EventEmitter<PiKvmMediaRelayEvents> {
     ws.on("open", () => this.emit("open"));
     ws.on("close", () => this.emit("close"));
     ws.on("error", (err: Error) => this.emit("error", err));
+    if (this.deviceMessageHandler) {
+      const handler = this.deviceMessageHandler;
+      ws.on("message", (data: RawData, isBinary: boolean) => handler(data, isBinary));
+    }
   }
 
   disconnect(): void {
@@ -70,6 +83,7 @@ export class PiKvmMediaRelay extends EventEmitter<PiKvmMediaRelayEvents> {
 
   /** Registers the callback that forwards PiKVM's frames back to the browser client. */
   onDeviceMessage(handler: (data: RawData, isBinary: boolean) => void): void {
+    this.deviceMessageHandler = handler;
     this.upstream?.on("message", (data: RawData, isBinary: boolean) => handler(data, isBinary));
   }
 }

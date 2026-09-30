@@ -4,6 +4,7 @@ import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../ports/queue-repository.port.js";
+import { OperatorAccessService } from "../../../../access/application/operator-access.service.js";
 import { QueueUpdatedEvent } from "../../events/queue-updated.event.js";
 import { UpdateQueueStatusCommand } from "./update-queue-status.command.js";
 
@@ -12,7 +13,8 @@ export class UpdateQueueStatusHandler implements ICommandHandler<UpdateQueueStat
   constructor(
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
+    private readonly operatorAccess: OperatorAccessService
   ) {}
 
   async execute(command: UpdateQueueStatusCommand): Promise<void> {
@@ -22,6 +24,7 @@ export class UpdateQueueStatusHandler implements ICommandHandler<UpdateQueueStat
     if (!entry.belongsToTenant(command.tenantId)) {
       throw new ForbiddenError("Queue entry does not belong to your tenant");
     }
+    if (command.actor) await this.operatorAccess.assertCanReachEquipmentId(command.actor, entry.equipmentId);
 
     const previousStatus = entry.status;
     entry.assertCanTransitionTo(command.status);

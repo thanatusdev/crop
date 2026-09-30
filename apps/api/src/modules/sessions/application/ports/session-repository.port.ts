@@ -14,6 +14,13 @@ export interface SessionRepositoryPort {
   /** The equipment's current active/pending session, if any -- see StartSessionHandler,
    * which uses this to refuse a second concurrent session on equipment already in use. */
   findActiveByEquipment(equipmentId: string): Promise<Session | null>;
+  /** At most one session ever exists per queue entry (`queueEntryId` is `@unique` on
+   * `sessions`) -- used by GetSessionByQueueEntryHandler, the cross-module lookup
+   * UpdatePreparationStatusHandler dispatches over the QueryBus (not a direct
+   * QueueModule -> SessionsModule import; SessionsModule already imports QueueModule, so
+   * that direction would be a real cycle) to gate releasing a patient on the session no
+   * longer being active. */
+  findByQueueEntryId(queueEntryId: string): Promise<Session | null>;
   /** Active + pending sessions for a tenant, joined through equipment. Powers the dashboard. */
   listActiveByTenant(tenantId: string): Promise<Session[]>;
   /** Every active session regardless of tenant -- used only by cross-tenant system crons

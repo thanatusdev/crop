@@ -87,6 +87,23 @@ describe("PiKvmHidClient", () => {
     expect(FakeWebSocket.instances.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("emits a 'state' event on the device's real event_type (\"hid\", confirmed against a PiKVM Mini running kvmd 4.61 -- NOT \"hid_state\", which is what the docs assumed before this was checked against real hardware)", () => {
+    const client = new PiKvmHidClient({ baseUrl: "https://pikvm", user: "admin", password: "admin" });
+    client.connect();
+    const ws = FakeWebSocket.instances[0];
+
+    const statePromise = new Promise((resolve) => client.once("state", resolve));
+    const hidEvent = {
+      enabled: true,
+      online: true,
+      keyboard: { online: true, leds: { caps: false, num: false, scroll: false } },
+      mouse: { online: true, absolute: true },
+    };
+    ws.emit("message", Buffer.from(JSON.stringify({ event_type: "hid", event: hidEvent })));
+
+    return expect(statePromise).resolves.toEqual(hidEvent);
+  });
+
   it("never crashes the process on a connection error, even with no external listener attached", () => {
     // Regression test: Node's EventEmitter throws (crashing the whole process) if an
     // 'error' event has zero listeners. A single unreachable PiKVM must never take down

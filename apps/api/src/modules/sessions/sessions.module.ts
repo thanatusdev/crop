@@ -32,14 +32,19 @@ import { AbortIdleSessionHandler } from "./application/commands/abort-idle-sessi
 import { ReleaseAllInputHandler } from "./application/commands/release-all-input/release-all-input.handler.js";
 import { GetActiveSessionsHandler } from "./application/queries/get-active-sessions/get-active-sessions.handler.js";
 import { GetSessionHandler } from "./application/queries/get-session/get-session.handler.js";
+import { GetSessionByQueueEntryHandler } from "./application/queries/get-session-by-queue-entry/get-session-by-queue-entry.handler.js";
 import { ListSessionSnapshotsHandler } from "./application/queries/list-session-snapshots/list-session-snapshots.handler.js";
 import { BroadcastQueueUpdatedHandler } from "./application/events/broadcast-queue-updated.handler.js";
+import { BroadcastPatientPreparationUpdatedHandler } from "./application/events/broadcast-patient-preparation-updated.handler.js";
 import { BroadcastEquipmentStatusChangedHandler } from "./application/events/broadcast-equipment-status-changed.handler.js";
+import { BroadcastExamMessageHandler } from "./application/events/broadcast-exam-message.handler.js";
+import { SessionParticipantNameService } from "./application/session-participant-name.service.js";
 
 import { IamModule } from "../iam/iam.module.js";
 import { EquipmentModule } from "../equipment/equipment.module.js";
 import { AuditModule } from "../audit/audit.module.js";
 import { QueueModule } from "../queue/queue.module.js";
+import { UnitsModule } from "../units/units.module.js";
 
 const COMMAND_AND_QUERY_HANDLERS = [
   StartSessionHandler,
@@ -53,13 +58,19 @@ const COMMAND_AND_QUERY_HANDLERS = [
   ReleaseAllInputHandler,
   GetActiveSessionsHandler,
   GetSessionHandler,
+  GetSessionByQueueEntryHandler,
   ListSessionSnapshotsHandler,
   BroadcastQueueUpdatedHandler,
+  BroadcastPatientPreparationUpdatedHandler,
   BroadcastEquipmentStatusChangedHandler,
+  BroadcastExamMessageHandler,
 ];
 
 @Module({
-  imports: [CqrsModule, JwtModule.register({}), IamModule, EquipmentModule, AuditModule, QueueModule],
+  // UnitsModule: UNIT_REPOSITORY, so StartSessionHandler can check whether the equipment's
+  // own unit has been deactivated -- no cycle (UnitsModule has no dependency on
+  // SessionsModule; EquipmentModule already imports UnitsModule the same way).
+  imports: [CqrsModule, JwtModule.register({}), IamModule, EquipmentModule, AuditModule, QueueModule, UnitsModule],
   controllers: [SessionsController],
   providers: [
     { provide: SESSION_REPOSITORY, useClass: PrismaSessionRepository },
@@ -70,6 +81,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
     MediaStreamTicketService,
     MediaStreamServer,
     SessionsGateway,
+    SessionParticipantNameService,
     SnapshotCaptureScheduler,
     SessionIdleScheduler,
     ...COMMAND_AND_QUERY_HANDLERS,

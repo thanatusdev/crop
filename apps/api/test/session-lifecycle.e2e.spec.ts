@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /** Equipment only becomes ONLINE via the health poller reaching a real device; there is
  * none in this test environment, so fixture setup flips it directly -- exactly the kind of
@@ -16,7 +16,7 @@ async function createOnlineEquipment(
   const res = await http
     .post("/equipment")
     .set("Authorization", `Bearer ${adminToken}`)
-    .send({ name, pikvmHost: "https://192.0.2.1", pikvmUser: "admin", pikvmPassword: "admin", targetOs: "WINDOWS" })
+    .send(equipmentPayload({ name, pikvmHost: "https://192.0.2.1" }))
     .expect(201);
   await prisma.equipment.update({ where: { id: res.body.id }, data: { status: "ONLINE" } });
   return res.body.id;
@@ -46,9 +46,9 @@ describe("Session lifecycle", () => {
     otherTenantId = otherTenant.id;
 
     adminToken = (await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN })).accessToken;
-    operatorToken = (await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR })).accessToken;
-    otherOperatorInSameTenantToken = (await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR })).accessToken;
-    otherTenantOperatorToken = (await createLoggedInUser(app, { tenantId: otherTenantId, role: UserRole.OPERATOR })).accessToken;
+    operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR })).accessToken;
+    otherOperatorInSameTenantToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR })).accessToken;
+    otherTenantOperatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: otherTenantId, role: UserRole.OPERATOR })).accessToken;
 
     equipmentId = await createOnlineEquipment(http, adminToken, prisma, "Lifecycle-MRI");
   });
@@ -62,7 +62,7 @@ describe("Session lifecycle", () => {
     const offlineRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ name: "Offline-MRI", pikvmHost: "https://192.0.2.9", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Offline-MRI", pikvmHost: "https://192.0.2.9" }))
       .expect(201);
 
     const res = await http

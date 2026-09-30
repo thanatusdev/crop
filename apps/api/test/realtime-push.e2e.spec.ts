@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { io, type Socket } from "socket.io-client";
 import { RT_EVENTS, UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * RT_EVENTS.QUEUE_UPDATED and RT_EVENTS.EQUIPMENT_STATUS_CHANGED existed as constants from
@@ -43,7 +43,7 @@ describe("Real-time push: queue and equipment status", () => {
     const eqRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${tenantAAdminToken}`)
-      .send({ name: "Realtime-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Realtime-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     equipmentId = eqRes.body.id;
   });
@@ -104,6 +104,72 @@ describe("Real-time push: queue and equipment status", () => {
     await http.post(`/equipment/${equipmentId}/maintenance/clear`).set("Authorization", `Bearer ${tenantAAdminToken}`).expect(204);
     const clearedPayload = await clearedMaintenance;
     expect(clearedPayload.status).toBe("OFFLINE");
+
+    socket.disconnect();
+  });
+
+  it("pushes PATIENT_PREPARATION_UPDATED when the nurse positions a patient", async () => {
+    const nurseToken = (
+      await createLoggedInUser(app, { tenantId: tenantAId, role: UserRole.NURSING, emailPrefix: "realtime-nurse" })
+    ).accessToken;
+    const queueRes = await http
+      .post("/queue")
+      .set("Authorization", `Bearer ${tenantAAdminToken}`)
+      .send({ equipmentId, patientFirstName: "Realtime-Prep-Patient" })
+      .expect(201);
+
+    const socket = await connect(tenantAAdminToken);
+    const received = new Promise<{ queueEntryId: string; preparationStatus: string }>((resolve) => {
+      socket.on(RT_EVENTS.PATIENT_PREPARATION_UPDATED, resolve);
+    });
+
+    await http
+      .post(`/queue/${queueRes.body.id}/preparation`)
+      .set("Authorization", `Bearer ${nurseToken}`)
+      .send({ status: "POSITIONED" })
+      .expect(204);
+
+    const payload = await received;
+    expect(payload.queueEntryId).toBe(queueRes.body.id);
+    expect(payload.preparationStatus).toBe("POSITIONED");
+
+    socket.disconnect();
+  });
+
+  // Bug fix: StartSessionHandler/EndSessionHandler/AbortIdleSessionHandler each wrote the
+  // queue entry's status directly via the repository, bypassing UpdateQueueStatusHandler --
+  // the only place QueueUpdatedEvent was ever published from -- so a session's lifecycle
+  // never told any connected dashboard its queue entry had moved to IN_PROGRESS/DONE/
+  // CANCELLED. Fixed by publishing the same event from all three handlers too.
+  it("pushes QUEUE_UPDATED when a session starts against a queue entry, and again when it ends", async () => {
+    const operatorToken = (
+      await createContractedOperator(app, prisma, { clinicTenantId: tenantAId, role: UserRole.OPERATOR, emailPrefix: "realtime-operator" })
+    ).accessToken;
+    await prisma.equipment.update({ where: { id: equipmentId }, data: { status: "ONLINE" } });
+    const queueRes = await http
+      .post("/queue")
+      .set("Authorization", `Bearer ${tenantAAdminToken}`)
+      .send({ equipmentId, patientFirstName: "Realtime-Lifecycle-Patient" })
+      .expect(201);
+
+    const socket = await connect(tenantAAdminToken);
+    const receivedOnStart = new Promise<{ equipmentId: string }>((resolve) => {
+      socket.once(RT_EVENTS.QUEUE_UPDATED, resolve);
+    });
+
+    const sessionRes = await http
+      .post("/sessions")
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .send({ equipmentId, queueEntryId: queueRes.body.id })
+      .expect(201);
+    await receivedOnStart;
+
+    const receivedOnEnd = new Promise<{ equipmentId: string }>((resolve) => {
+      socket.once(RT_EVENTS.QUEUE_UPDATED, resolve);
+    });
+    await http.post(`/sessions/${sessionRes.body.id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
+    const payload = await receivedOnEnd;
+    expect(payload.equipmentId).toBe(equipmentId);
 
     socket.disconnect();
   });

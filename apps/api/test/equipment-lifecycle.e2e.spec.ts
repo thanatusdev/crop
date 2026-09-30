@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * Equipment lifecycle parity: found via a full backend<->frontend coverage audit that
@@ -30,12 +30,12 @@ describe("Equipment lifecycle: edit and maintenance mode", () => {
 
     tenantId = (await createTenant(prisma, `EqLifecycle-${crypto.randomUUID()}`)).id;
     adminToken = (await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN })).accessToken;
-    operatorToken = (await createLoggedInUser(app, { tenantId, role: UserRole.OPERATOR, emailPrefix: "eq-lifecycle-op" })).accessToken;
+    operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "eq-lifecycle-op" })).accessToken;
 
     const res = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ name: "Lifecycle-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "admin", pikvmPassword: "OldPassword123!", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Lifecycle-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     equipmentId = res.body.id;
   });

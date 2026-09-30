@@ -3,7 +3,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { io, type Socket } from "socket.io-client";
 import { RT_EVENTS, UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, equipmentPayload } from "./helpers.js";
 
 /**
  * The audit trail is documented (docs/architecture.md) as two-tier: critical events
@@ -25,7 +25,7 @@ describe("Audit trail: two-tier timing (critical events instant, HID input buffe
   let baseUrl: string;
   let adminToken: string;
   let operatorToken: string;
-  let operatorEmail: string;
+  let clinicUserEmail: string;
   let sessionId: string;
 
   beforeAll(async () => {
@@ -38,15 +38,28 @@ describe("Audit trail: two-tier timing (critical events instant, HID input buffe
     const tenant = await createTenant(prisma, `AuditTiming-${crypto.randomUUID()}`);
     const admin = await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.CLINIC_ADMIN });
     adminToken = admin.accessToken;
-    const operator = await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.OPERATOR });
+    const operator = await createContractedOperator(app, prisma, { clinicTenantId: tenant.id, role: UserRole.OPERATOR });
     operatorToken = operator.accessToken;
-    operatorEmail = operator.email;
+    // A clinic-side account, used solely as the subject of the failed-login test below.
+    //
+    // It cannot be the operator: identity events like LOGIN_FAILURE are audited against the
+    // acting user's *home* tenant, which for a contracted operator is the operating company,
+    // not the clinic. `adminToken` reads `GET /audit` scoped to the clinic, so an operator's
+    // failed login lands in a tenant this query cannot see and the test would fail for a
+    // reason having nothing to do with the flush timing it exists to measure.
+    //
+    // That split is real and deliberate (see packages/shared/src/roles.ts): a company's
+    // login history belongs to that company, while what its staff *do* to a clinic's
+    // equipment is audited against the clinic. Giving an operator admin a consolidated view
+    // across both is a separate, known piece of work -- it is not silently broken here, it is
+    // simply out of this test's scope.
+    clinicUserEmail = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "audit-timing-clinic" })).email;
 
     const http = request(baseUrl);
     const equipmentRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ name: "Timing-Test-MRI", pikvmHost: "https://192.0.2.1", pikvmUser: "a", pikvmPassword: "b", targetOs: "WINDOWS" })
+      .send(equipmentPayload({ name: "Timing-Test-MRI", pikvmHost: "https://192.0.2.1" }))
       .expect(201);
     await prisma.equipment.update({ where: { id: equipmentRes.body.id }, data: { status: "ONLINE" } });
 
@@ -69,7 +82,7 @@ describe("Audit trail: two-tier timing (critical events instant, HID input buffe
 
     // No PiKVM involved (unlike PRINT_TEXT/HID input), so nothing here can be confounded with
     // an unrelated network timeout -- a clean measurement of the audit write path alone.
-    await http.post("/auth/login").send({ email: operatorEmail, password: "WrongPassword123!", clientOs: "MACOS" }).expect(401);
+    await http.post("/auth/login").send({ email: clinicUserEmail, password: "WrongPassword123!", clientOs: "MACOS" }).expect(401);
 
     // Deliberately no wait at all between the triggering request and the query: that is
     // exactly the claim under test.

@@ -6,6 +6,7 @@ import { RecordAuditEventCommand } from "../../../../audit/application/commands/
 import { EQUIPMENT_REPOSITORY, type EquipmentRepositoryPort } from "../../../../equipment/application/ports/equipment-repository.port.js";
 import { QueueEntry } from "../../../domain/queue-entry.entity.js";
 import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../ports/queue-repository.port.js";
+import { OperatorAccessService } from "../../../../access/application/operator-access.service.js";
 import { QueueUpdatedEvent } from "../../events/queue-updated.event.js";
 import { CreateQueueEntryCommand } from "./create-queue-entry.command.js";
 
@@ -15,7 +16,8 @@ export class CreateQueueEntryHandler implements ICommandHandler<CreateQueueEntry
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
+    private readonly operatorAccess: OperatorAccessService
   ) {}
 
   async execute(command: CreateQueueEntryCommand): Promise<QueueEntry> {
@@ -28,6 +30,13 @@ export class CreateQueueEntryHandler implements ICommandHandler<CreateQueueEntry
     // alone. See docs/architecture.md.
     if (!equipment.belongsToTenant(command.tenantId)) {
       throw new ForbiddenError("Equipment does not belong to your tenant");
+    }
+    if (command.actor) {
+      await this.operatorAccess.assertCanReachEquipment(command.actor, {
+        id: equipment.id,
+        tenantId: equipment.tenantId,
+        unitId: equipment.unitId,
+      });
     }
 
     const entry = await this.queue.create({

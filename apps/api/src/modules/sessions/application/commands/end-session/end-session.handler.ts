@@ -1,10 +1,11 @@
 import { Inject, Logger } from "@nestjs/common";
-import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction, QueueStatus } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../../../queue/application/ports/queue-repository.port.js";
+import { QueueUpdatedEvent } from "../../../../queue/application/events/queue-updated.event.js";
 import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../../ports/pikvm-gateway.port.js";
 import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../../ports/session-repository.port.js";
 import { SESSION_RUNTIME, type SessionRuntimePort } from "../../ports/session-runtime.port.js";
@@ -20,6 +21,7 @@ export class EndSessionHandler implements ICommandHandler<EndSessionCommand, voi
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus,
     private readonly metrics: MetricsService
   ) {}
 
@@ -51,6 +53,10 @@ export class EndSessionHandler implements ICommandHandler<EndSessionCommand, voi
     if (session.queueEntryId) {
       try {
         await this.queue.updateStatus(session.queueEntryId, QueueStatus.DONE);
+        // Bug fix: this write used to never tell any connected client it happened -- the
+        // nursing lock banner and DashboardPage's queue table only ever showed DONE after a
+        // manual reload. See StartSessionHandler/AbortIdleSessionHandler for the same fix.
+        this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, session.equipmentId));
       } catch (err) {
         this.logger.warn(`Could not mark queue entry ${session.queueEntryId} DONE: ${(err as Error).message}`);
       }
