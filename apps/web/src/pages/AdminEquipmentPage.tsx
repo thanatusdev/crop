@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { EquipmentStatus, ExamModality, type EquipmentDto, type UnitDto } from "@crop/shared";
-import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, Eye, Pencil, Ban, RotateCcw, Wrench, CircleCheck } from "lucide-react";
 import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
+import { useAuth } from "../lib/auth-context.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
 import { Modal } from "../components/Modal.js";
 import { Button } from "../components/ui/button.js";
@@ -13,6 +14,7 @@ import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
 import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import {
@@ -51,6 +53,7 @@ const ALL = "__all__";
  */
 export default function AdminEquipmentPage() {
   const { t } = useTranslation(["adminEquipment", "equipmentForm"]);
+  const { user } = useAuth();
 
   const [equipment, setEquipment] = useState<EquipmentDto[]>([]);
   const [units, setUnits] = useState<UnitDto[]>([]);
@@ -86,7 +89,12 @@ export default function AdminEquipmentPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+    // `/equipment` and `/units` are both scoped to the caller's *active* tenant server-side --
+    // see ConsoleShell's own fix for the bug this guards against: a multi-clinic Manager
+    // switching clinics elsewhere and this page (if ever kept mounted across that, e.g. inside
+    // a future persistent shell) going stale until a full reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.tenantId]);
 
   async function load() {
     setLoading(true);
@@ -419,33 +427,81 @@ export default function AdminEquipmentPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1.5">
-                            <Button variant="secondary" size="sm" asChild>
-                              <Link to={`/admin/equipment/${item.id}`}>{t("adminEquipment:actionView")}</Link>
-                            </Button>
-                            <Button variant="secondary" size="sm" asChild>
-                              <Link to={`/admin/equipment/${item.id}/edit`}>{t("adminEquipment:actionEdit")}</Link>
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="secondary" size="icon-sm" aria-label={t("adminEquipment:actionView")} asChild>
+                                  <Link to={`/admin/equipment/${item.id}`}>
+                                    <Eye />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminEquipment:actionView")}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="secondary" size="icon-sm" aria-label={t("adminEquipment:actionEdit")} asChild>
+                                  <Link to={`/admin/equipment/${item.id}/edit`}>
+                                    <Pencil />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminEquipment:actionEdit")}</TooltipContent>
+                            </Tooltip>
                             {item.deactivated ? (
-                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => void runAction(item, "reactivate")}>
-                                {t("adminEquipment:actionReactivate")}
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="secondary"
+                                    size="icon-sm"
+                                    aria-label={t("adminEquipment:actionReactivate")}
+                                    disabled={busy}
+                                    onClick={() => void runAction(item, "reactivate")}
+                                  >
+                                    <RotateCcw />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("adminEquipment:actionReactivate")}</TooltipContent>
+                              </Tooltip>
                             ) : (
                               <>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    void runAction(item, item.status === EquipmentStatus.MAINTENANCE ? "maintenance/clear" : "maintenance")
-                                  }
-                                >
-                                  {item.status === EquipmentStatus.MAINTENANCE
-                                    ? t("adminEquipment:actionClearMaintenance")
-                                    : t("adminEquipment:actionEnterMaintenance")}
-                                </Button>
-                                <Button variant="destructive" size="sm" disabled={busy} onClick={() => setConfirmingDeactivation(item)}>
-                                  {t("adminEquipment:actionDeactivate")}
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="secondary"
+                                      size="icon-sm"
+                                      aria-label={
+                                        item.status === EquipmentStatus.MAINTENANCE
+                                          ? t("adminEquipment:actionClearMaintenance")
+                                          : t("adminEquipment:actionEnterMaintenance")
+                                      }
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void runAction(item, item.status === EquipmentStatus.MAINTENANCE ? "maintenance/clear" : "maintenance")
+                                      }
+                                    >
+                                      {item.status === EquipmentStatus.MAINTENANCE ? <CircleCheck /> : <Wrench />}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {item.status === EquipmentStatus.MAINTENANCE
+                                      ? t("adminEquipment:actionClearMaintenance")
+                                      : t("adminEquipment:actionEnterMaintenance")}
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="destructive"
+                                      size="icon-sm"
+                                      aria-label={t("adminEquipment:actionDeactivate")}
+                                      disabled={busy}
+                                      onClick={() => setConfirmingDeactivation(item)}
+                                    >
+                                      <Ban />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{t("adminEquipment:actionDeactivate")}</TooltipContent>
+                                </Tooltip>
                               </>
                             )}
                           </div>

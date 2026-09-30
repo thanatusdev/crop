@@ -67,6 +67,19 @@ export function ConsoleShell({
 
   useEffect(() => {
     let cancelled = false;
+    // Every one of these three reads its scope from the caller's *active* tenant server-side
+    // (the JWT's `tenantId`, not `homeTenantId` -- see `switchActiveClinic`'s own docstring),
+    // so this has to re-run whenever that changes, not only on mount. It didn't used to: this
+    // effect ran once with an empty dependency array, which is why the header's equipment-health
+    // pill and the sidebar's unit count kept showing the *previous* clinic's numbers after a
+    // multi-clinic Manager switched -- until a full page reload re-ran everything from scratch.
+    // Cleared up front, not left holding the old tenant's numbers, for the same reason: a stale
+    // "12/14 online" surviving the switch and just sitting there until the new fetch resolves
+    // would read as current, not stale, to whoever is looking at it.
+    setEquipmentHealth(null);
+    setUnitCount(null);
+    setClinicCount(null);
+
     api
       .get<EquipmentDto[]>("/equipment")
       .then((list) => {
@@ -97,8 +110,7 @@ export function ConsoleShell({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.tenantId, nav.canManagePlatform]);
 
   async function handleSignOut() {
     await logout();

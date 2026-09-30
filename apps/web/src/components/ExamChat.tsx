@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatClinicTime, todayClinicDayString, type ExamMessageDto, type MessageShortcutDto } from "@crop/shared";
 import { cn } from "cn";
-import { Download, FileText, Paperclip, X } from "lucide-react";
+import { Download, FileText, Paperclip, Send, X } from "lucide-react";
 import { ShortcutChips } from "./ShortcutChips.js";
 import { Button } from "./ui/button.js";
 import { Input } from "./ui/input.js";
 import { Textarea } from "./ui/textarea.js";
 import { Alert, AlertDescription } from "./ui/alert.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js";
 import { useAuthenticatedImage } from "../hooks/use-authenticated-image.js";
 import { api } from "../lib/api-client.js";
 
@@ -292,20 +293,30 @@ export function ExamChat({
             h-9 send button + the gap between them = 80px) so the field stays flush with it
             instead of leaving one side stranded short. */}
         <div className="flex flex-none flex-col gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="self-end"
-            disabled={sending}
-            onClick={() => fileInputRef.current?.click()}
-            aria-label={t("exam:attachFile")}
-          >
-            <Paperclip />
-          </Button>
-          <Button type="submit" disabled={sending || (!draft.trim() && !file)}>
-            {sending ? t("exam:sending") : t("exam:send")}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="self-end"
+                disabled={sending}
+                onClick={() => fileInputRef.current?.click()}
+                aria-label={t("exam:attachFile")}
+              >
+                <Paperclip />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("exam:attachFile")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button type="submit" size="icon" aria-label={sending ? t("exam:sending") : t("exam:send")} disabled={sending || (!draft.trim() && !file)}>
+                <Send />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{sending ? t("exam:sending") : t("exam:send")}</TooltipContent>
+          </Tooltip>
         </div>
       </form>
     </div>

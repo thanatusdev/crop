@@ -2,10 +2,8 @@ import { AllergyStatus, PatientSex, PreparationStatus, QueueStatus, type QueueEn
 
 /**
  * Display helpers for `QueueEntryDto`, shared by `NursingPage` (the nurse's quick-action
- * screen) -- mirrors `equipment-display.ts`'s role for `EquipmentDto`. Deliberately not
- * wired into `DashboardPage`'s own queue table: that page is still English/untranslated
- * (see docs/architecture.md), and mixing pt-BR labels into an otherwise-English table would
- * be its own inconsistency, not a fix.
+ * screen) and `DashboardPage`'s own per-room queue table -- mirrors `equipment-display.ts`'s
+ * role for `EquipmentDto`.
  */
 
 export type QueueStatusLabelKey =

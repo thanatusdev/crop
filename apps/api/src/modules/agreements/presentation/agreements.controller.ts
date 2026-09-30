@@ -6,6 +6,7 @@ import {
   SetAgreementScopeRequestSchema,
   UserRole,
   type AccessTokenClaims,
+  type ClinicAgreementOption,
   type OperatorAgreementDto,
   type ProposeAgreementRequest,
   type SetAgreementScopeRequest,
@@ -24,6 +25,7 @@ import { RevokeAgreementCommand } from "../application/commands/revoke-agreement
 import { SetAgreementScopeCommand } from "../application/commands/set-agreement-scope/set-agreement-scope.command.js";
 import { GetAgreementQuery } from "../application/queries/get-agreement/get-agreement.query.js";
 import { ListAgreementsQuery } from "../application/queries/list-agreements/list-agreements.query.js";
+import { ListClinicOptionsQuery } from "../application/queries/list-clinic-options/list-clinic-options.query.js";
 import { toAgreementDto, toAgreementDtos } from "./agreement.dto.js";
 
 /**
@@ -70,6 +72,17 @@ export class AgreementsController {
       new ListAgreementsQuery(this.homeTenantOf(user), status as AgreementStatus | undefined)
     );
     return toAgreementDtos(agreements, this.agreements);
+  }
+
+  /** Declared before `:id` -- a static route after a param route of the same shape would never be
+   * reached, since Nest matches in declaration order and "clinic-options" would just bind to `:id`.
+   * `OPERATOR_ADMIN`-only, narrower than the class-level `@Roles`: this is the operator-side
+   * "Propor Contrato" picker's own data source -- see `ClinicAgreementOptionSchema`'s own docstring
+   * in packages/shared for why it exists instead of pointing that picker at `GET /tenants`. */
+  @Get("clinic-options")
+  @Roles(UserRole.OPERATOR_ADMIN)
+  async listClinicOptions(@CurrentUser() user: AccessTokenClaims): Promise<ClinicAgreementOption[]> {
+    return this.queryBus.execute(new ListClinicOptionsQuery(this.homeTenantOf(user)));
   }
 
   @Get(":id")

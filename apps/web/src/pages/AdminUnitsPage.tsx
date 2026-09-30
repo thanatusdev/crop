@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { type MyClinic, type TenantDto, type UnitDto } from "@crop/shared";
-import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, Eye, Pencil, Ban, RotateCcw } from "lucide-react";
 import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
@@ -16,6 +16,7 @@ import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip.js";
 import { MODALITY_ABBREVIATION } from "../lib/equipment-display.js";
 import { ESTABLISHMENT_TYPE_LABEL_KEY, ESTABLISHMENT_TYPE_ORDER, formatUnitCityState, summarizeUnits } from "../lib/unit-display.js";
 
@@ -391,20 +392,56 @@ export default function AdminUnitsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1.5">
-                            <Button variant="secondary" size="sm" asChild>
-                              <Link to={`/admin/units/${unit.id}`}>{t("adminUnits:actionView")}</Link>
-                            </Button>
-                            <Button variant="secondary" size="sm" asChild>
-                              <Link to={`/admin/units/${unit.id}/edit`}>{t("adminUnits:actionEdit")}</Link>
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="secondary" size="icon-sm" aria-label={t("adminUnits:actionView")} asChild>
+                                  <Link to={`/admin/units/${unit.id}`}>
+                                    <Eye />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminUnits:actionView")}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="secondary" size="icon-sm" aria-label={t("adminUnits:actionEdit")} asChild>
+                                  <Link to={`/admin/units/${unit.id}/edit`}>
+                                    <Pencil />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("adminUnits:actionEdit")}</TooltipContent>
+                            </Tooltip>
                             {unit.deactivated ? (
-                              <Button variant="secondary" size="sm" disabled={busy} onClick={() => void runAction(unit, "reactivate")}>
-                                {t("adminUnits:actionReactivate")}
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="secondary"
+                                    size="icon-sm"
+                                    aria-label={t("adminUnits:actionReactivate")}
+                                    disabled={busy}
+                                    onClick={() => void runAction(unit, "reactivate")}
+                                  >
+                                    <RotateCcw />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("adminUnits:actionReactivate")}</TooltipContent>
+                              </Tooltip>
                             ) : (
-                              <Button variant="destructive" size="sm" disabled={busy} onClick={() => setConfirmingDeactivation(unit)}>
-                                {t("adminUnits:actionDeactivate")}
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="destructive"
+                                    size="icon-sm"
+                                    aria-label={t("adminUnits:actionDeactivate")}
+                                    disabled={busy}
+                                    onClick={() => setConfirmingDeactivation(unit)}
+                                  >
+                                    <Ban />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("adminUnits:actionDeactivate")}</TooltipContent>
+                              </Tooltip>
                             )}
                           </div>
                         </TableCell>

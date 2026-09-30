@@ -9,7 +9,8 @@ import { useAuth } from "../lib/auth-context.js";
 import { createSessionSocket } from "../lib/socket-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
 import { computeNavPermissions } from "../lib/nav-permissions.js";
-import { tailwindBadgeClassOf, type DisplayStatus } from "../lib/equipment-display.js";
+import { displayStatusOf, statusLabelKeyOf, tailwindBadgeClassOf } from "../lib/equipment-display.js";
+import { queueStatusBadgeClass, queueStatusLabelKeyOf } from "../lib/queue-display.js";
 import { Button } from "../components/ui/button.js";
 import { Card, CardContent } from "../components/ui/card.js";
 import { Input } from "../components/ui/input.js";
@@ -58,14 +59,17 @@ interface EquipmentWithQueue extends EquipmentDto {
  *
  * Rebuilt on shadcn/ui in a later pass -- `Table` for the per-room patient queue,
  * `Select` for the clinic picker, `Badge` for equipment status (same hex pairs as the old
- * `.badge.online`/etc., not re-picked). The scoped mode's own context strip and clinic
- * picker keep their pt-BR strings (the `workstation` namespace, same seam
- * `docs/architecture.md` already documents for `ConsoleShell`'s own English/pt-BR mix);
- * everything else on this still-largely-English page stays English, unchanged.
+ * `.badge.online`/etc., not re-picked). Fully translated in a later pass too -- the `dashboard`
+ * namespace (this page's own strings) plus reuse of `equipment-display.ts`'s
+ * `statusLabelKeyOf`/`adminEquipment:status*` for the equipment badge and
+ * `queue-display.ts`'s `queueStatusLabelKeyOf`/`nursing:queueStatus*` for the per-entry queue
+ * status -- rather than a third copy of either vocabulary. `queue-display.ts`'s own docstring
+ * used to call this page out as the one deliberately-unmigrated exception to that reuse; it
+ * no longer is.
  */
 export default function DashboardPage() {
   const { user, switchActiveClinic } = useAuth();
-  const { t } = useTranslation(["workstation"]);
+  const { t } = useTranslation(["workstation", "dashboard", "adminEquipment", "nursing"]);
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const scopedEquipmentId = params.get("equipmentId") ?? "";
@@ -166,7 +170,7 @@ export default function DashboardPage() {
     } catch (err) {
       // Distinct from "no equipment registered" below -- an empty array here on a failed
       // fetch would otherwise be indistinguishable from a tenant that genuinely has none.
-      setError(err instanceof Error ? err.message : "Could not load equipment. Check your connection and retry.");
+      setError(err instanceof Error ? err.message : t("dashboard:loadError"));
     } finally {
       setLoading(false);
     }
@@ -183,7 +187,7 @@ export default function DashboardPage() {
       const session = await api.post<SessionState>("/sessions", { equipmentId, queueEntryId });
       navigate(`/sessions/${session.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start session");
+      setError(err instanceof Error ? err.message : t("dashboard:startSessionError"));
     } finally {
       setStartingId(null);
     }
@@ -200,7 +204,7 @@ export default function DashboardPage() {
       setNewPatientName((prev) => ({ ...prev, [equipmentId]: "" }));
       await load();
     } catch (err) {
-      setQueueError(err instanceof ApiError ? err.message : "Could not add this patient to the queue.");
+      setQueueError(err instanceof ApiError ? err.message : t("dashboard:addPatientError"));
     } finally {
       setQueueActionId(null);
     }
@@ -213,7 +217,7 @@ export default function DashboardPage() {
       await api.post(`/queue/${queueEntryId}/status`, { status: "CANCELLED" });
       await load();
     } catch (err) {
-      setQueueError(err instanceof ApiError ? err.message : "Could not cancel this queue entry.");
+      setQueueError(err instanceof ApiError ? err.message : t("dashboard:cancelQueueEntryError"));
     } finally {
       setQueueActionId(null);
     }
@@ -241,14 +245,14 @@ export default function DashboardPage() {
   const clinicNotYetSelected = !scopedEquipmentId && myClinics.length > 0 && !isOnAContractedClinic;
 
   return (
-    <ConsoleShell activeNav="dashboard" pageTitle="Equipment">
+    <ConsoleShell activeNav="dashboard" pageTitle={t("dashboard:heading")}>
       {/* `ConsoleShell`'s own topbar renders `pageTitle` as a plain `<strong>`, not a
           heading -- every other page built on this shell (NursingPage, WorkstationPage,
           AdminUsersPage...) supplies its own level-one heading; this one never did, which
           is a real WCAG 2.4.6/axe `page-has-heading-one` failure the a11y test tier's own
           fresh run against a reset demo stack is what actually caught it. Visually hidden,
           same convention as every one of those. */}
-      <h1 className="sr-only">Equipment</h1>
+      <h1 className="sr-only">{t("dashboard:heading")}</h1>
       {needsClinicPicker && (
         <Card className="mb-4">
           <CardContent>
@@ -306,7 +310,7 @@ export default function DashboardPage() {
       {canViewAudit && (
         <p className="-mt-2 mb-4">
           <button className="cursor-pointer text-primary underline" onClick={() => navigate("/audit")}>
-            Audit log
+            {t("dashboard:auditLog")}
           </button>
         </p>
       )}
@@ -315,67 +319,66 @@ export default function DashboardPage() {
           <AlertDescription>
             {error}{" "}
             <button className="underline" onClick={() => void load()}>
-              Retry
+              {t("dashboard:retry")}
             </button>
           </AlertDescription>
         </Alert>
       )}
       {loading ? (
-        <p aria-live="polite">Loading...</p>
+        <p aria-live="polite">{t("dashboard:loading")}</p>
       ) : equipment.length === 0 ? (
         error || scopedRoomNotFound ? null : clinicNotYetSelected ? (
           <p className="text-muted-foreground">{t("workstation:dashboardNoClinicSelected")}</p>
         ) : (
-          <p className="text-muted-foreground">No equipment registered for your tenant yet.</p>
+          <p className="text-muted-foreground">{t("dashboard:noEquipment")}</p>
         )
       ) : (
         <div className="flex flex-col gap-4">
           {equipment.map((item) => {
             const activeSession = activeSessionFor(item.id);
             const nextPatient = item.queue.find((q) => q.status === "WAITING");
+            const status = displayStatusOf(item);
             return (
               <Card key={item.id}>
                 <CardContent>
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h2 className="inline text-base font-semibold">{item.name}</h2>{" "}
-                      <Badge className={cn("border-transparent", tailwindBadgeClassOf(item.status.toLowerCase() as DisplayStatus))}>
-                        {item.status}
-                      </Badge>
+                      <Badge className={cn("border-transparent", tailwindBadgeClassOf(status))}>{t(statusLabelKeyOf(status))}</Badge>
                       <div className="text-sm text-muted-foreground">
-                        {item.targetOs} · keymap {item.keymap} · {item.screenWidth}x{item.screenHeight}
+                        {item.targetOs} · {t("dashboard:keymapWord")} {item.keymap} · {item.screenWidth}x{item.screenHeight}
                       </div>
                     </div>
                     {activeSession ? (
-                      <Button onClick={() => navigate(`/sessions/${activeSession.id}`)}>Rejoin session</Button>
+                      <Button onClick={() => navigate(`/sessions/${activeSession.id}`)}>{t("dashboard:rejoinSession")}</Button>
                     ) : (
                       <Button
                         disabled={item.status !== "ONLINE" || startingId === item.id}
-                        title={item.status !== "ONLINE" ? `Equipment is ${item.status.toLowerCase()}, not reachable` : undefined}
+                        title={item.status !== "ONLINE" ? t("dashboard:equipmentOfflineTitle", { status: t(statusLabelKeyOf(status)) }) : undefined}
                         onClick={() => startSession(item.id, nextPatient?.id)}
                       >
                         {startingId === item.id && <Loader2 className="animate-spin" />}
-                        {startingId === item.id ? "Starting..." : "Start session"}
+                        {startingId === item.id ? t("dashboard:starting") : t("dashboard:startSession")}
                       </Button>
                     )}
                   </div>
 
-                  <h3 className="mt-3 mb-1.5 text-sm font-semibold">Patient queue</h3>
+                  <h3 className="mt-3 mb-1.5 text-sm font-semibold">{t("dashboard:patientQueueHeading")}</h3>
                   {queueError && (
                     <Alert variant="destructive" className="mb-2">
                       <AlertDescription>{queueError}</AlertDescription>
                     </Alert>
                   )}
                   {item.queue.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Empty.</p>
+                    <p className="text-sm text-muted-foreground">{t("dashboard:queueEmpty")}</p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>#</TableHead>
-                          <TableHead>Patient</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Actions</TableHead>
+                          <TableHead>{t("dashboard:colNumber")}</TableHead>
+                          <TableHead>{t("dashboard:colPatient")}</TableHead>
+                          <TableHead>{t("dashboard:colStatus")}</TableHead>
+                          <TableHead>{t("dashboard:colActions")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -383,7 +386,11 @@ export default function DashboardPage() {
                           <TableRow key={q.id}>
                             <TableCell>{q.position}</TableCell>
                             <TableCell>{q.patientFirstName}</TableCell>
-                            <TableCell>{q.status}</TableCell>
+                            <TableCell>
+                              <Badge className={cn("border-transparent", queueStatusBadgeClass(q.status))}>
+                                {t(queueStatusLabelKeyOf(q.status))}
+                              </Badge>
+                            </TableCell>
                             <TableCell>
                               {q.status === "WAITING" && (
                                 <button
@@ -391,7 +398,7 @@ export default function DashboardPage() {
                                   disabled={queueActionId === q.id}
                                   onClick={() => cancelQueueEntry(q.id)}
                                 >
-                                  Cancel
+                                  {t("dashboard:cancel")}
                                 </button>
                               )}
                             </TableCell>
@@ -402,16 +409,16 @@ export default function DashboardPage() {
                   )}
                   <form onSubmit={(ev) => addPatient(item.id, ev)} className="mt-2.5 flex gap-2">
                     <Label className="sr-only" htmlFor={`add-patient-${item.id}`}>
-                      Add a patient to {item.name}'s queue
+                      {t("dashboard:addPatientLabel", { name: item.name })}
                     </Label>
                     <Input
                       id={`add-patient-${item.id}`}
-                      placeholder="Patient name"
+                      placeholder={t("dashboard:patientNamePlaceholder")}
                       value={newPatientName[item.id] ?? ""}
                       onChange={(e) => setNewPatientName((prev) => ({ ...prev, [item.id]: e.target.value }))}
                     />
                     <Button variant="secondary" type="submit" disabled={queueActionId === item.id}>
-                      Add to queue
+                      {t("dashboard:addToQueue")}
                     </Button>
                   </form>
                 </CardContent>

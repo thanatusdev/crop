@@ -144,7 +144,9 @@ export default function ExamPage() {
 
   // Whether this room already has an exam running -- if so, join it rather than showing the
   // "start the next exam" prompt. Re-checked whenever the room's own queue is reloaded (e.g.
-  // after SESSION_ENDED below reverts this page to the prompt for the *next* patient).
+  // after SESSION_ENDED below reverts this page to the prompt for the *next* patient), and
+  // whenever the caller's active tenant changes -- `/sessions/active` is scoped by it
+  // server-side, same reasoning as ConsoleShell's own staleness fix.
   useEffect(() => {
     if (!equipmentId) return;
     let cancelled = false;
@@ -159,7 +161,7 @@ export default function ExamPage() {
     return () => {
       cancelled = true;
     };
-  }, [equipmentId]);
+  }, [equipmentId, user?.tenantId]);
 
   async function startExam() {
     if (!equipmentId) return;

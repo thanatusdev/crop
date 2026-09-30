@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { AuditLogEntryDto, VerifyChainResultDto } from "@crop/shared";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { cn } from "cn";
 import { api } from "../lib/api-client.js";
+import { useAuth } from "../lib/auth-context.js";
 import { Button } from "../components/ui/button.js";
 import { Card, CardContent } from "../components/ui/card.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
@@ -11,6 +13,8 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 
 export default function AuditPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation(["audit"]);
+  const { user } = useAuth();
   const [logs, setLogs] = useState<AuditLogEntryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -19,8 +23,11 @@ export default function AuditPage() {
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
   useEffect(() => {
+    // `/audit` is scoped to the caller's *active* tenant server-side -- same reasoning as
+    // ConsoleShell's own fix for the multi-clinic-Manager staleness bug.
     void load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.tenantId]);
 
   async function load() {
     setLoading(true);
@@ -28,7 +35,7 @@ export default function AuditPage() {
     try {
       setLogs(await api.get<AuditLogEntryDto[]>("/audit?limit=200"));
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Could not load the audit log.");
+      setLoadError(err instanceof Error ? err.message : t("audit:loadError"));
     } finally {
       setLoading(false);
     }
@@ -42,7 +49,7 @@ export default function AuditPage() {
       const result = await api.get<VerifyChainResultDto>("/audit/verify");
       setVerifyResult(result);
     } catch (err) {
-      setVerifyError(err instanceof Error ? err.message : "Could not verify the hash chain.");
+      setVerifyError(err instanceof Error ? err.message : t("audit:verifyError"));
     } finally {
       setVerifying(false);
     }
@@ -51,19 +58,19 @@ export default function AuditPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between gap-4 border-b bg-card px-6 py-4">
-        <strong>Audit log</strong>
+        <strong>{t("audit:heading")}</strong>
         <Button variant="secondary" onClick={() => navigate("/")}>
-          Back to dashboard
+          {t("audit:backToDashboard")}
         </Button>
       </header>
 
       <main className="mx-auto max-w-[960px] px-5 py-8">
-        <h1 className="mt-0 mb-4 text-xl font-semibold">Audit log</h1>
+        <h1 className="mt-0 mb-4 text-xl font-semibold">{t("audit:heading")}</h1>
         <Card className="mb-4">
           <CardContent>
             <Button onClick={verify} disabled={verifying}>
               {verifying && <Loader2 className="animate-spin" />}
-              {verifying ? "Verifying chain..." : "Verify hash chain"}
+              {verifying ? t("audit:verifying") : t("audit:verifyChain")}
             </Button>
             {verifyError && (
               <Alert variant="destructive" className="mt-2.5">
@@ -74,8 +81,8 @@ export default function AuditPage() {
               <p role="status" className={cn("mt-2.5 flex items-center gap-1.5 font-semibold", verifyResult.valid ? "text-[#166534]" : "text-destructive")}>
                 {verifyResult.valid ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
                 {verifyResult.valid
-                  ? `PASS — ${verifyResult.checkedRows} rows verified, chain intact.`
-                  : `FAIL — tampering detected at sequence #${verifyResult.brokenAtSeq}.`}
+                  ? t("audit:verifyPass", { count: verifyResult.checkedRows })
+                  : t("audit:verifyFail", { seq: verifyResult.brokenAtSeq ?? "?" })}
               </p>
             )}
           </CardContent>
@@ -88,23 +95,23 @@ export default function AuditPage() {
                 <AlertDescription>
                   {loadError}{" "}
                   <button className="underline" onClick={() => void load()}>
-                    Retry
+                    {t("audit:retry")}
                   </button>
                 </AlertDescription>
               </Alert>
             ) : loading ? (
-              <p aria-live="polite">Loading...</p>
+              <p aria-live="polite">{t("audit:loading")}</p>
             ) : (
               <Table>
-                <TableCaption className="sr-only">Audit log entries, most recent first</TableCaption>
+                <TableCaption className="sr-only">{t("audit:tableCaption")}</TableCaption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Seq</TableHead>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>Session</TableHead>
-                    <TableHead>Hash</TableHead>
+                    <TableHead>{t("audit:colSeq")}</TableHead>
+                    <TableHead>{t("audit:colTimestamp")}</TableHead>
+                    <TableHead>{t("audit:colAction")}</TableHead>
+                    <TableHead>{t("audit:colResource")}</TableHead>
+                    <TableHead>{t("audit:colSession")}</TableHead>
+                    <TableHead>{t("audit:colHash")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
