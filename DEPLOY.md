@@ -189,14 +189,17 @@ matching the pattern used for `SEED_PIKVM_HOST` in step 3.
   `docs/architecture.md`. Everything else (HID input, takeover, print-text, the audit
   trail, the patient queue) works end to end -- verified with a real headless-browser login
   against the actual deployed URLs above, zero console errors.
-- **Session snapshots don't survive a redeploy.** `SNAPSHOT_STORAGE_DIR` writes to local
-  container disk; Railway wipes that on every redeploy/restart unless you attach a volume.
-  Fine for a demo, not for anything meant to persist.
-- **Chat attachments don't survive a redeploy either, for the identical reason.**
-  `CHAT_ATTACHMENT_STORAGE_DIR` (default `./storage/chat-attachments`) is the exam-support
-  chat's own local-disk store (see `ChatAttachmentStorageService`'s own docstring) -- same
-  MVP tradeoff as `SNAPSHOT_STORAGE_DIR` above, same fix if it ever matters (attach a volume,
-  or swap the storage port's implementation for object storage).
+- **Session snapshots, chat attachments, queue-entry documents (physician's orders), and
+  the mail outbox all persist across redeploys via one Railway volume.** `crop-api` has a
+  volume (`api-storage`) mounted at `/app/apps/api/storage` -- exactly the directory
+  `SNAPSHOT_STORAGE_DIR`/`CHAT_ATTACHMENT_STORAGE_DIR`/`QUEUE_DOCUMENT_STORAGE_DIR`/
+  `MAIL_OUTBOX_PATH` all default to (as `./storage/*`, resolved relative to that `WORKDIR`),
+  so no env var had to change to make all four land on it. Before this volume existed, every
+  one of those wrote to local container disk that Railway wipes on every redeploy/restart --
+  fine for a brief demo, not for anything meant to persist, which a physician's order
+  especially is not. If this service is ever redeployed *without* the volume reattached
+  first (e.g. recreated from scratch), that gap returns; re-mount at the same path before the
+  next deploy if so.
 - **Password-reset emails, if `MAILER_DRIVER` is left at its `file` default, go to the same
   ephemeral container disk** (`MAIL_OUTBOX_PATH`) as session snapshots above, for the same
   reason -- fine for a demo (`railway ssh -s crop-api -- cat <MAIL_OUTBOX_PATH>` to read the

@@ -24,6 +24,8 @@ export interface QueueEntryProps {
   allergyStatus: AllergyStatus | null;
   allergyNotes: string | null;
   contrastVolumeMl: number | null;
+  metforminUse: boolean | null;
+  anticoagulantUse: boolean | null;
   detailsUpdatedAt: Date | null;
   detailsUpdatedByUserId: string | null;
   teleoperationNotes: string | null;
@@ -147,6 +149,14 @@ export class QueueEntry {
 
   get contrastVolumeMl(): number | null {
     return this.props.contrastVolumeMl;
+  }
+
+  get metforminUse(): boolean | null {
+    return this.props.metforminUse;
+  }
+
+  get anticoagulantUse(): boolean | null {
+    return this.props.anticoagulantUse;
   }
 
   get detailsUpdatedAt(): Date | null {

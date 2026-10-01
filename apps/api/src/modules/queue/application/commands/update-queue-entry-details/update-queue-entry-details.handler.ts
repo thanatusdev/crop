@@ -79,6 +79,14 @@ export class UpdateQueueEntryDetailsHandler implements ICommandHandler<UpdateQue
       patch.contrastVolumeMl = command.contrastVolumeMl;
       changedFields.push("contrastVolumeMl");
     }
+    if (command.metforminUse !== undefined) {
+      patch.metforminUse = command.metforminUse;
+      changedFields.push("metforminUse");
+    }
+    if (command.anticoagulantUse !== undefined) {
+      patch.anticoagulantUse = command.anticoagulantUse;
+      changedFields.push("anticoagulantUse");
+    }
 
     // Attribution -- written on every successful call regardless of which fields above
     // changed (UpdateQueueEntryDetailsRequestSchema's own superRefine already guarantees

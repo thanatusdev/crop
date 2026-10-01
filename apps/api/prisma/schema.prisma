@@ -142,6 +142,16 @@ enum AllergyStatus {
   PRESENT
 }
 
+/// What an uploaded QueueEntryDocument actually is -- the nurse picks this at upload time
+/// (defaulting to PEDIDO_MEDICO, the common case). Exists so "the physician's order" and "a
+/// prior report brought in by the patient" are distinguishable in the list, not because
+/// anything server-side branches on it today.
+enum QueueDocumentKind {
+  PEDIDO_MEDICO
+  LAUDO_ANTERIOR
+  OUTRO
+}
+
 model Tenant {
   id                   String              @id @default(uuid())
   name                 String
@@ -608,6 +618,13 @@ model QueueEntry {
   allergyStatus          AllergyStatus?
   allergyNotes           String?
   contrastVolumeMl       Int?
+  /// Two more pre-procedure safety facts, same "recorded and displayed as-is, nullable
+  /// because 'not asked yet' is distinct from 'answered no'" posture as allergyStatus above
+  /// -- deliberately plain booleans, not their own enum: unlike allergyStatus (which the
+  /// shared package's own docstring explains needs a closed *two*-value enum for a reason
+  /// specific to that field), there is no third state either of these needs to express.
+  metforminUse           Boolean?
+  anticoagulantUse       Boolean?
   /// Attribution for the exam-detail form's own fields -- "Registrado às HH:mm por <nome>".
   /// A plain nullable id, not a relation: resolved through the same
   /// SessionParticipantNameService/summarizeDisplayNames path SessionState.operatorName
@@ -625,6 +642,7 @@ model QueueEntry {
 
   session      Session?
   examMessages ExamMessage[]
+  documents    QueueEntryDocument[]
 
   @@index([equipmentId, status])
   /// listByEquipment orders by position asc -- this is the WAITING-queue read path
@@ -672,6 +690,41 @@ model ExamMessage {
   @@index([equipmentId, createdAt])
   @@index([queueEntryId])
   @@map("exam_messages")
+}
+
+/// A physician's order (or a prior report brought in by the patient) the nurse has uploaded
+/// against this queue entry -- a child table, not a nullable column group on QueueEntry like
+/// ExamMessage's own single attachment: unlike one chat message carrying at most one file,
+/// one exam genuinely can arrive with both a pedido médico and an earlier laudo, and nothing
+/// about an "editable form field" shape fits "a growing list of files" well.
+///
+/// `path` is the storage key QueueDocumentStorageService returned, never exposed to a client
+/// directly -- `GET /queue/:id/documents/:docId/content` resolves it through this row after
+/// its own tenancy/scope check, the same "never take a path from the URL" rule
+/// SessionSnapshot.imagePath and ExamMessage.attachmentPath already follow.
+///
+/// `uploadedByUserId` is a plain nullable-free id, not a relation -- same resolve-the-name-
+/// at-the-presentation-boundary pattern QueueEntry.detailsUpdatedByUserId already uses.
+///
+/// No `deletedAt`: removal (QueueController's `/documents/:docId/remove`) hard-deletes both
+/// this row and the underlying bytes. A soft-deleted document would still be sitting on disk
+/// and still joinable by id -- a mis-uploaded file is PHI, and "removed" has to mean gone, not
+/// hidden. What persists instead is the append-only, DB-trigger-enforced audit_logs row
+/// (QUEUE_DOCUMENT_REMOVED) recording that it existed and who removed it.
+model QueueEntryDocument {
+  id               String            @id @default(uuid())
+  queueEntryId     String
+  queueEntry       QueueEntry        @relation(fields: [queueEntryId], references: [id])
+  kind             QueueDocumentKind @default(PEDIDO_MEDICO)
+  path             String
+  filename         String
+  mimeType         String
+  sizeBytes        Int
+  uploadedByUserId String
+  uploadedAt       DateTime          @default(now())
+
+  @@index([queueEntryId])
+  @@map("queue_entry_documents")
 }
 
 /// A canned quick-reply for the exam-support chat, scoped to one clinic tenant -- see

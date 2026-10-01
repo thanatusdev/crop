@@ -4,6 +4,10 @@ import { CqrsModule } from "@nestjs/cqrs";
 import { QueueController } from "./presentation/queue.controller.js";
 import { QUEUE_REPOSITORY } from "./application/ports/queue-repository.port.js";
 import { PrismaQueueRepository } from "./infrastructure/prisma-queue.repository.js";
+import { QUEUE_DOCUMENT_REPOSITORY } from "./application/ports/queue-document-repository.port.js";
+import { PrismaQueueDocumentRepository } from "./infrastructure/prisma-queue-document.repository.js";
+import { QUEUE_DOCUMENT_STORAGE } from "./application/ports/queue-document-storage.port.js";
+import { QueueDocumentStorageService } from "./infrastructure/queue-document-storage.service.js";
 
 import { CreateQueueEntryHandler } from "./application/commands/create-queue-entry/create-queue-entry.handler.js";
 import { UpdateQueueStatusHandler } from "./application/commands/update-queue-status/update-queue-status.handler.js";
@@ -11,9 +15,12 @@ import { UpdatePreparationStatusHandler } from "./application/commands/update-pr
 import { ReorderQueueHandler } from "./application/commands/reorder-queue/reorder-queue.handler.js";
 import { UpdateQueueEntryDetailsHandler } from "./application/commands/update-queue-entry-details/update-queue-entry-details.handler.js";
 import { UpdateTeleoperationNotesHandler } from "./application/commands/update-teleoperation-notes/update-teleoperation-notes.handler.js";
+import { UploadQueueDocumentHandler } from "./application/commands/upload-queue-document/upload-queue-document.handler.js";
+import { RemoveQueueDocumentHandler } from "./application/commands/remove-queue-document/remove-queue-document.handler.js";
 import { ListQueueByEquipmentHandler } from "./application/queries/list-queue-by-equipment/list-queue-by-equipment.handler.js";
 import { GetQueueEntryHandler } from "./application/queries/get-queue-entry/get-queue-entry.handler.js";
 import { GetQueueEntryTimelineHandler } from "./application/queries/get-queue-entry-timeline/get-queue-entry-timeline.handler.js";
+import { GetQueueDocumentHandler } from "./application/queries/get-queue-document/get-queue-document.handler.js";
 
 import { EquipmentModule } from "../equipment/equipment.module.js";
 import { AuditModule } from "../audit/audit.module.js";
@@ -35,9 +42,12 @@ const COMMAND_AND_QUERY_HANDLERS = [
   ReorderQueueHandler,
   UpdateQueueEntryDetailsHandler,
   UpdateTeleoperationNotesHandler,
+  UploadQueueDocumentHandler,
+  RemoveQueueDocumentHandler,
   ListQueueByEquipmentHandler,
   GetQueueEntryHandler,
   GetQueueEntryTimelineHandler,
+  GetQueueDocumentHandler,
 ];
 
 @Module({
@@ -45,10 +55,17 @@ const COMMAND_AND_QUERY_HANDLERS = [
   // directly (resolving detailsUpdatedByName / a timeline row's actorName), the same
   // cross-module DI SessionsModule already uses for the identical need
   // (SessionParticipantNameService). No cycle: IamModule imports neither this module nor
-  // SessionsModule.
+  // SessionsModule. AccessModule -- GetQueueEntryHandler/GetQueueDocumentHandler both need
+  // OperatorAccessService, the same cross-tenant agreement-scope check `ChatModule` already
+  // needs for its own equivalent read paths.
   imports: [CqrsModule, EquipmentModule, AuditModule, IamModule, AccessModule],
   controllers: [QueueController],
-  providers: [{ provide: QUEUE_REPOSITORY, useClass: PrismaQueueRepository }, ...COMMAND_AND_QUERY_HANDLERS],
+  providers: [
+    { provide: QUEUE_REPOSITORY, useClass: PrismaQueueRepository },
+    { provide: QUEUE_DOCUMENT_REPOSITORY, useClass: PrismaQueueDocumentRepository },
+    { provide: QUEUE_DOCUMENT_STORAGE, useClass: QueueDocumentStorageService },
+    ...COMMAND_AND_QUERY_HANDLERS,
+  ],
   // SessionsModule needs this to keep a queue entry's status in sync with the lifecycle of
   // the session started against it (see StartSessionHandler/EndSessionHandler/
   // AbortIdleSessionHandler) -- without this export, that's exactly the kind of thing that
@@ -56,4 +73,5 @@ const COMMAND_AND_QUERY_HANDLERS = [
   exports: [QUEUE_REPOSITORY],
 })
 export class QueueModule {}
+
 

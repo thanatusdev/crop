@@ -37,6 +37,8 @@ export interface UpdateQueueEntryDetailsData {
   allergyStatus?: AllergyStatus | null;
   allergyNotes?: string | null;
   contrastVolumeMl?: number | null;
+  metforminUse?: boolean | null;
+  anticoagulantUse?: boolean | null;
   detailsUpdatedAt?: Date;
   detailsUpdatedByUserId?: string;
 }

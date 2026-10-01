@@ -1,10 +1,16 @@
-import type { QueueEntryDto } from "@crop/shared";
+import type { QueueEntryDto, QueueEntryDocumentDto } from "@crop/shared";
 import { QueueEntry } from "../domain/queue-entry.entity.js";
 
 /** `detailsUpdatedByName` is resolved by the caller (`QueueController`, via
  * `USER_REPOSITORY.summarizeDisplayNames`) rather than looked up in here -- same "stay a
- * pure, synchronous mapper" reasoning `toSessionDto` already follows for `operatorName`. */
-export function toQueueEntryDto(entry: QueueEntry, detailsUpdatedByName: string | null = null): QueueEntryDto {
+ * pure, synchronous mapper" reasoning `toSessionDto` already follows for `operatorName`.
+ * `documents` likewise arrives pre-mapped (via `toQueueEntryDocumentDto`, batched per page
+ * load) rather than being fetched in here, for the same reason. */
+export function toQueueEntryDto(
+  entry: QueueEntry,
+  detailsUpdatedByName: string | null = null,
+  documents: QueueEntryDocumentDto[] = []
+): QueueEntryDto {
   return {
     id: entry.id,
     equipmentId: entry.equipmentId,
@@ -27,8 +33,12 @@ export function toQueueEntryDto(entry: QueueEntry, detailsUpdatedByName: string 
     allergyStatus: entry.allergyStatus,
     allergyNotes: entry.allergyNotes,
     contrastVolumeMl: entry.contrastVolumeMl,
+    metforminUse: entry.metforminUse,
+    anticoagulantUse: entry.anticoagulantUse,
     detailsUpdatedAt: entry.detailsUpdatedAt?.toISOString() ?? null,
     detailsUpdatedByName,
     teleoperationNotes: entry.teleoperationNotes,
+    documents,
   };
 }
+

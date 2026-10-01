@@ -185,6 +185,18 @@ export enum AllergyStatus {
 }
 
 /**
+ * What an uploaded `QueueEntryDocument` actually is -- the nurse picks this at upload time
+ * (defaulting to `PEDIDO_MEDICO`, the common case). Exists so "the physician's order" and "a
+ * prior report the patient brought in" are distinguishable in the document list; nothing
+ * server-side branches on the value today.
+ */
+export enum QueueDocumentKind {
+  PEDIDO_MEDICO = "PEDIDO_MEDICO",
+  LAUDO_ANTERIOR = "LAUDO_ANTERIOR",
+  OUTRO = "OUTRO",
+}
+
+/**
  * Every action that can produce an AuditLog row. Kept as a flat string enum (not free text)
  * so audit queries and compliance reports can rely on a closed set of values.
  *
@@ -303,6 +315,15 @@ export enum AuditAction {
   EXAM_MESSAGE_SENT = "EXAM_MESSAGE_SENT",
   // Creating a canned quick-reply (`MessageShortcut`) for the active clinic's chat.
   MESSAGE_SHORTCUT_CREATED = "MESSAGE_SHORTCUT_CREATED",
+  // Uploading/removing a `QueueEntryDocument` (the nurse's "Pedido Médico"/"Laudo Anterior"
+  // upload) -- same "ids and metadata only" rule as EXAM_MESSAGE_SENT above: `details` carries
+  // `kind`/`mimeType`, never `filename`, since a clinician-chosen filename can itself carry a
+  // patient's name. Two actions, not one generic QUEUE_DOCUMENT_CHANGED, for the same
+  // reviewer-legibility reason PATIENT_POSITIONED/INJECTED/RELEASED are three rows instead of
+  // one: "was a document removed, and when" should not require re-deriving it from a
+  // before/after diff.
+  QUEUE_DOCUMENT_ATTACHED = "QUEUE_DOCUMENT_ATTACHED",
+  QUEUE_DOCUMENT_REMOVED = "QUEUE_DOCUMENT_REMOVED",
   // Retired: the push-to-talk intercom feature (`IntercomChannel`, presence-only, no audio
   // ever rode on it) was removed wholesale -- the gateway handlers, the in-memory presence
   // registry, and the contracts are all gone. Kept here only because `audit_logs` is
