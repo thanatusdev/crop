@@ -848,6 +848,27 @@ test("Nursing page", async ({ page }) => {
     await page.getByRole("button", { name: "Habilitar Edição" }).click();
     await page.getByText("Em Edição").waitFor();
     await expectNoViolations(page);
+
+    // "Documentação do Exame" -- the uploaded-documents list + dropzone, inside this same
+    // card but shown regardless of "Em Edição" (see NursingPage's own comment on why).
+    // Unlike the chat message below (left in the persistent demo stack forever, since chat
+    // has no remove capability at all), this *is* cleaned up immediately after scanning --
+    // removal is a real, available action here, so there is no reason to leave a file
+    // sitting in this stack's storage/audit log run after run.
+    const docInput = page.getByLabel("Arraste e solte o documento aqui");
+    if (await docInput.isVisible().catch(() => false)) {
+      await docInput.setInputFiles({
+        name: "a11y-fixture.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4\na11y fixture\n%%EOF"),
+      });
+      const documentRow = page.locator("li").filter({ hasText: "a11y-fixture.pdf" });
+      await documentRow.waitFor();
+      await expectNoViolations(page);
+
+      await documentRow.getByLabel("Remover documento").click();
+      await expect(documentRow).toHaveCount(0);
+    }
   }
 
   // The "Novo Exame" modal -- the second dialog anywhere in this app (see Modal.tsx), so

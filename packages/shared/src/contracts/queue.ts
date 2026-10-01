@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AllergyStatus, PatientSex, PreparationStatus, QueueStatus } from "../enums.js";
+import { AllergyStatus, PatientSex, PreparationStatus, QueueDocumentKind, QueueStatus } from "../enums.js";
 
 /** `YYYY-MM-DD`, always interpreted as a calendar day in the clinic's configured timezone
  * (see `clinic-day.ts`) -- the shape of `GET /queue`'s optional `date` query param. */
@@ -28,6 +28,26 @@ export const UpdatePreparationStatusRequestSchema = z.object({
   status: z.enum([PreparationStatus.POSITIONED, PreparationStatus.INJECTED, PreparationStatus.RELEASED]),
 });
 export type UpdatePreparationStatusRequest = z.infer<typeof UpdatePreparationStatusRequestSchema>;
+
+/**
+ * One row of `QueueEntrySchema.documents` -- a physician's order or prior report the nurse
+ * uploaded against this entry. No `path`: that's the storage key `QueueEntryDocumentDto`'s
+ * server-side counterpart holds, and `GET /queue/:id/documents/:docId/content` resolves it
+ * through the owning row's own tenancy/scope check, never from a client-supplied path (the
+ * same rule `ExamMessageAttachmentSchema` and `SessionSnapshot.imagePath` already follow).
+ * `uploadedByName` is resolved server-side the same way `detailsUpdatedByName` below is --
+ * never a raw user id.
+ */
+export const QueueEntryDocumentSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.nativeEnum(QueueDocumentKind),
+  filename: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  uploadedAt: z.string(),
+  uploadedByName: z.string().nullable(),
+});
+export type QueueEntryDocumentDto = z.infer<typeof QueueEntryDocumentSchema>;
 
 export const QueueEntrySchema = z.object({
   id: z.string().uuid(),
@@ -61,6 +81,11 @@ export const QueueEntrySchema = z.object({
   allergyStatus: z.nativeEnum(AllergyStatus).nullable(),
   allergyNotes: z.string().nullable(),
   contrastVolumeMl: z.number().int().nullable(),
+  // Two more pre-procedure safety facts, same "recorded and displayed as-is" posture as the
+  // block above -- nullable, not defaulted, because "not asked yet" and "asked, answered no"
+  // are different states a plain boolean-with-a-default can't tell apart.
+  metforminUse: z.boolean().nullable(),
+  anticoagulantUse: z.boolean().nullable(),
   // Attribution for the exam-detail form's own fields (the block above plus
   // examDescription/contrastRequired/patientSex/patientWeightKg/preparationNotes) --
   // "Registrado às HH:mm por <nome>". Both null until the first PATCH /queue/:id ever
@@ -78,6 +103,11 @@ export const QueueEntrySchema = z.object({
   // either let an operator write the nurse's fields too or need a second, field-level
   // permission check bolted onto an endpoint whose simplicity is that it doesn't have one.
   teleoperationNotes: z.string().nullable(),
+  // Uploaded via `POST /queue/:id/documents`, removed via `/documents/:docId/remove` --
+  // never written through this entry's own PATCH, so it's read-only here deliberately: a
+  // caller cannot smuggle a document list change into the same request that edits
+  // examDescription/allergyStatus/etc.
+  documents: z.array(QueueEntryDocumentSchema),
 });
 export type QueueEntryDto = z.infer<typeof QueueEntrySchema>;
 
@@ -131,6 +161,8 @@ export const UpdateQueueEntryDetailsRequestSchema = z
     allergyStatus: z.nativeEnum(AllergyStatus).nullish(),
     allergyNotes: z.string().trim().max(500).nullish(),
     contrastVolumeMl: z.number().int().min(0).max(500).nullish(),
+    metforminUse: z.boolean().nullish(),
+    anticoagulantUse: z.boolean().nullish(),
   })
   .superRefine((value, ctx) => {
     if (Object.keys(value).length === 0) {
@@ -182,3 +214,18 @@ export const UpdateTeleoperationNotesRequestSchema = z.object({
   teleoperationNotes: z.string().trim().max(2000),
 });
 export type UpdateTeleoperationNotesRequest = z.infer<typeof UpdateTeleoperationNotesRequestSchema>;
+
+/**
+ * `POST /queue/:id/documents` -- the one field this multipart upload validates through Zod.
+ * The file itself rides as a separate multipart part (`"file"`), never through this schema,
+ * the same split `SendExamMessageRequestSchema` already established for chat attachments.
+ * `kind` is optional and defaults to `PEDIDO_MEDICO` server-side (`QueueController`'s own
+ * default), not here -- a Zod `.default()` would bake the default into the inferred
+ * *request* type, when what actually needs the fallback is the handler reading an absent
+ * multipart field.
+ */
+export const UploadQueueDocumentRequestSchema = z.object({
+  kind: z.nativeEnum(QueueDocumentKind).optional(),
+});
+export type UploadQueueDocumentRequest = z.infer<typeof UploadQueueDocumentRequestSchema>;
+

@@ -4,6 +4,7 @@ import { CommandBus, QueryBus } from "@nestjs/cqrs";
 import { ConfigService } from "@nestjs/config";
 import type { Response } from "express";
 import {
+  ALLOWED_DOCUMENT_MIME_TYPES,
   CHAT_ALLOWED_ROLES,
   ClinicDayStringSchema,
   CreateMessageShortcutRequestSchema,
@@ -33,8 +34,10 @@ import { toExamMessageDto, toMessageShortcutDto } from "./chat.dto.js";
  * an open allow-anything upload: this chat is text-first, and a room's storage directory
  * (see `ChatAttachmentStorageService`) has no virus scanning or content sniffing behind it,
  * so the allow-list is enforced by declared mime type up front rather than trusting whatever
- * a browser happened to send. */
-const ALLOWED_ATTACHMENT_MIME_TYPES: ReadonlySet<string> = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf"]);
+ * a browser happened to send. Sourced from `@crop/shared`'s `ALLOWED_DOCUMENT_MIME_TYPES` --
+ * the one allow-list this app enforces anywhere a human can upload a file, shared with
+ * `QueueController`'s exam-document upload, not a second copy that happens to agree today.*/
+const ALLOWED_ATTACHMENT_MIME_TYPES: ReadonlySet<string> = new Set(ALLOWED_DOCUMENT_MIME_TYPES);
 
 /**
  * The exam-support chat's REST surface. Sending moved here from the socket (see

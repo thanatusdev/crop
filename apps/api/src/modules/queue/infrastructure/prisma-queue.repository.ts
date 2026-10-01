@@ -126,6 +126,8 @@ export class PrismaQueueRepository implements QueueRepositoryPort {
     allergyStatus: string | null;
     allergyNotes: string | null;
     contrastVolumeMl: number | null;
+    metforminUse: boolean | null;
+    anticoagulantUse: boolean | null;
     detailsUpdatedAt: Date | null;
     detailsUpdatedByUserId: string | null;
     teleoperationNotes: string | null;
@@ -153,6 +155,8 @@ export class PrismaQueueRepository implements QueueRepositoryPort {
       allergyStatus: row.allergyStatus as QueueEntry["allergyStatus"],
       allergyNotes: row.allergyNotes,
       contrastVolumeMl: row.contrastVolumeMl,
+      metforminUse: row.metforminUse,
+      anticoagulantUse: row.anticoagulantUse,
       detailsUpdatedAt: row.detailsUpdatedAt,
       detailsUpdatedByUserId: row.detailsUpdatedByUserId,
       teleoperationNotes: row.teleoperationNotes,

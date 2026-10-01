@@ -142,8 +142,16 @@ record below it. Everything is per-room, via a room picker in the header.
   Alterações deste Paciente" button. Editable while the patient is `WAITING` or
   `IN_PROGRESS`; locked once their visit is `DONE`/`CANCELLED`.
 - **Safety questionnaire** ("Questionário de Segurança & Contraste") — fasting confirmed +
-  hours, creatinine (mg/dL), and allergy status + description. Recorded and displayed as
-  entered; nothing here is interpreted into a clinical decision by the platform.
+  hours, creatinine (mg/dL), allergy status + description, and continuous metformin/
+  anticoagulant use. Recorded and displayed as entered; nothing here is interpreted into a
+  clinical decision by the platform.
+- **Exam-order documents** ("Documentação do Exame") — upload the physician's order, a prior
+  report, or another related document (PDF/PNG/JPEG/WEBP, drag-and-drop or "Procurar no
+  Terminal Local"), tagged as Pedido Médico/Laudo Anterior/Outro. Immediate, not part of the
+  "Salvar Alterações" draft; available while the patient is `WAITING`/`IN_PROGRESS`, same as
+  the rest of this card. The remote operator sees the same list read-only in the exam
+  cockpit, with no upload/remove affordance and no status gate — a completed exam's order is
+  still worth retrieving.
 - **Write attribution** — "Registrado às 08:14 por Fernanda Alves" on every saved record.
 - **"Novo Exame"** — add a patient to today's queue (name + scheduled time).
 - **Per-exam timeline** — the selected patient's own activity (added to the queue, details

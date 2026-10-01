@@ -7,6 +7,7 @@ export * from "./br-states.js";
 export * from "./cnpj.js";
 export * from "./clinic-day.js";
 export * from "./default-message-shortcuts.js";
+export * from "./mime-types.js";
 
 export * from "./hid/keymaps.js";
 export * from "./hid/modifier-remap.js";

@@ -55,6 +55,9 @@ const validQueueEntry = {
   detailsUpdatedAt: null,
   detailsUpdatedByName: null,
   teleoperationNotes: null,
+  metforminUse: null,
+  anticoagulantUse: null,
+  documents: [],
 };
 
 describe("QueueEntrySchema -- preparation fields", () => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { formatClinicTime, todayClinicDayString, type ExamMessageDto, type MessageShortcutDto } from "@crop/shared";
+import { ALLOWED_DOCUMENT_MIME_TYPES, formatClinicTime, todayClinicDayString, type ExamMessageDto, type MessageShortcutDto } from "@crop/shared";
 import { cn } from "cn";
 import { Download, FileText, Paperclip, Send, X } from "lucide-react";
 import { ShortcutChips } from "./ShortcutChips.js";
@@ -11,19 +11,10 @@ import { Alert, AlertDescription } from "./ui/alert.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js";
 import { useAuthenticatedImage } from "../hooks/use-authenticated-image.js";
 import { api } from "../lib/api-client.js";
+import { humanFileSize } from "../lib/file-display.js";
 
-/** Images and one document type -- mirrors `ALLOWED_ATTACHMENT_MIME_TYPES` in
- * `apps/api`'s `ChatController` exactly, so a file the browser will reject up front is never
- * even offered a round trip to find that out. Kept in sync by hand (no shared contract module
- * exports a mime allow-list today); if the server's list ever changes, this one must too. */
-const ALLOWED_ATTACHMENT_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
-function humanFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /** One message's attachment, rendered as an inline thumbnail for an image or a
  * click-to-download chip for anything else (a PDF) -- both go through
@@ -141,7 +132,7 @@ export function ExamChat({
     const picked = ev.target.files?.[0] ?? null;
     ev.target.value = "";
     if (!picked) return;
-    if (!ALLOWED_ATTACHMENT_MIME_TYPES.includes(picked.type)) {
+    if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(picked.type)) {
       setFileError(t("exam:attachmentTypeError"));
       return;
     }
@@ -280,7 +271,7 @@ export function ExamChat({
         <input
           ref={fileInputRef}
           type="file"
-          accept={ALLOWED_ATTACHMENT_MIME_TYPES.join(",")}
+          accept={ALLOWED_DOCUMENT_MIME_TYPES.join(",")}
           className="sr-only"
           onChange={pickFile}
           aria-label={t("exam:attachFile")}

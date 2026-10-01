@@ -938,12 +938,14 @@ const ptBR = {
    * built as a separate layered overlay on top of that card; merged into one card, one
    * toggle (read-only summary <-> the existing editable form) a pass later, once a real bug
    * report showed the overlay hiding that same card's own "Habilitar Edição" button -- see
-   * `NursingPage`'s own docstring for that history. That mock's own digital Pedido Médico
-   * (physician name/CRM, ICP-Brasil signature, "Visualizar Pedido"), computed contrast dose
-   * ("1,25 ml/kg"), patient age, and invented protocol code ("TC-TORAX-02") are not
-   * reproduced -- see `NursingPage`'s own docstring for exactly why each one isn't (same
-   * no-file-storage/no-computed-dosing/PHI-minimization reasons as every prior pass on this
-   * screen).
+   * `NursingPage`'s own docstring for that history. That mock's own ICP-Brasil signature
+   * badge, physician name/CRM read off the PDF, computed contrast dose ("1,25 ml/kg"),
+   * computed eGFR filtration-rate card, patient age, and invented protocol code
+   * ("TC-TORAX-02") are not reproduced -- see `NursingPage`'s own docstring for exactly why
+   * each one isn't (no-computed-dosing/no-computed-eGFR/PHI-minimization/no-signature-
+   * verification reasons). Uploading the document itself (Pedido Médico/Laudo Anterior) is
+   * no longer on that list -- see the `documents*`/`metforminUse`/`anticoagulantUse` keys
+   * below, and `NursingPage`'s own docstring for the same correction.
    */
   nursing: {
     heading: "Enfermagem",
@@ -1060,6 +1062,39 @@ const ptBR = {
     allergyStatusPresent: "Registradas",
     allergyNotesLabel: "Descrição da Alergia",
     cardChipFastingAlert: "Alerta Jejum",
+
+    // --- Two more safety-questionnaire facts, tri-state like allergyStatus above (not
+    // two-state like fastingConfirmed/contrastRequired) -- "not asked yet" and "asked,
+    // answered no" are different states a plain Checkbox can't tell apart.
+    metforminUseLabel: "Uso contínuo de Metformina/Glifage",
+    anticoagulantUseLabel: "Uso de Anticoagulante (Varfarina/NOACs)",
+    yes: "Sim",
+    no: "Não",
+    triStatePlaceholder: "Não informado",
+
+    // --- "Documentação do Exame" -- the uploaded pedido médico/laudo anterior list, inside
+    // the same card as the exam-detail form above but shown in both read-only and edit mode
+    // (upload/remove is immediate, its own route -- not staged with the rest of this form).
+    documentsHeading: "Documentação do Exame",
+    documentsSubheading: "Pedido médico, laudo anterior ou outro documento relacionado a este exame.",
+    documentsEmpty: "Nenhum documento enviado.",
+    documentsImmediateNote: "O envio e a remoção de documentos são imediatos -- não fazem parte de \"Salvar Alterações deste Paciente\" e não são desfeitos por \"Descartar Edição\".",
+    documentKindLabel: "Tipo de documento",
+    documentKindPedidoMedico: "Pedido Médico",
+    documentKindLaudoAnterior: "Laudo Anterior",
+    documentKindOutro: "Outro",
+    documentDropzoneLabel: "Arraste e solte o documento aqui",
+    // A plain sentence, not interpolated from ALLOWED_DOCUMENT_MIME_TYPES -- this never has
+    // to render a literal "application/pdf" to a nurse.
+    documentDropzoneHint: "PDF, PNG, JPEG ou WEBP",
+    documentBrowseLabel: "Procurar no Terminal Local",
+    documentTypeError: "Tipo de arquivo não permitido. Envie um PDF ou uma imagem (PNG/JPEG/WEBP).",
+    documentSizeError: "O arquivo excede o limite de 20MB.",
+    documentUploadError: "Não foi possível enviar o documento.",
+    documentRemoveError: "Não foi possível remover o documento.",
+    downloadDocument: "Baixar documento",
+    removeDocument: "Remover documento",
+    documentUploadedBy: "Enviado por {{name}} às {{time}}",
 
     // --- Write attribution ----------------------------------------------------------------
     attributionLine: "Registrado às {{time}} por {{name}}",
@@ -1323,6 +1358,11 @@ const ptBR = {
     fastingYes: "Confirmado",
     allergyLabel: "Alergia",
     creatinineLabel: "Creatinina",
+    // Shown only when true -- see ExamPage's own comment on why false/null surface nothing.
+    metforminUseAlert: "Uso contínuo de Metformina/Glifage",
+    anticoagulantUseAlert: "Uso de Anticoagulante (Varfarina/NOACs)",
+    documentsCardHeading: "Documentação do Exame",
+    downloadDocument: "Baixar documento",
     nursingNotesLabel: "Observações da Enfermagem",
     teleoperationNotesLabel: "Notas do Operador Remoto",
     notesLockedNote: "Este exame já foi concluído ou cancelado -- as notas não podem mais ser editadas.",

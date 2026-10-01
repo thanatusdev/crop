@@ -2190,7 +2190,7 @@ docstrings above for the precedent):
 
 | Prototype element | Why not |
 |---|---|
-| Pedido Médico / Questionário PDF uploads, "Revisar"/"Substituir" | No file storage or PHI-safe upload path anywhere in this repo |
+| Pedido Médico / Questionário PDF uploads, "Revisar"/"Substituir" | No file storage or PHI-safe upload path anywhere in this repo *at the time this table was written* -- both now exist (`ChatAttachmentStorageService`, then `QueueEntryDocument`/`QueueDocumentStorageService` -- see "Uploading the exam-order document itself" below), on a Railway volume so they persist. Kept here as the historical record of this task's own narrower scope, not as a current claim |
 | Full name, prontuário (`#TR-84931`), CNS number | Only `patientFirstName` is stored, on purpose (PHI minimization, see the queue module's own long-standing rule) |
 | Console Remoto, "Falar c/ Operador", "Áudio da Sala TC", the operator chat log | No voice/intercom channel and no chat feature exist anywhere in this codebase — the one real clinic↔operator channel is `SessionPage`'s own audited "Type text" (`PRINT_TEXT`) |
 | Trilha de Auditoria panel on this screen | The audit rows this would show are real, but `NURSING` is deliberately outside `AuditController`'s own `@Roles` — adding read access here would be a permissions change, not a UI reproduction, and isn't part of this task's two business rules |
@@ -2379,7 +2379,7 @@ own i18n docstrings for the precedent):
 | Prototype element | Why not |
 |---|---|
 | Chat Operacional do Exame, Canal de Áudio ("Falar c/ Operador" PTT, "Voz no Gantry"), Segurança da Sala (porta blindada / clima do gantry / parada de emergência) | No messaging, audio, or sensor-telemetry transport exists anywhere in this codebase. Replaced with a real per-exam audit timeline and the actual operator identity — similar information shape, no fabricated transport |
-| Pedido Médico Digital and Questionário PDFs ("Visualizar Pedido", "Revisar Respostas", "Assinado Digitalmente") | No file storage of any kind. The questionnaire's three *facts* are real structured fields; the signed document that would back them is not |
+| Pedido Médico Digital and Questionário PDFs ("Visualizar Pedido", "Revisar Respostas", "Assinado Digitalmente") | No file storage of any kind *at the time this table was written* -- uploading the document itself is now real (`QueueEntryDocument`, see "Uploading the exam-order document itself" below); "Assinado Digitalmente" (ICP-Brasil signature verification) is still refused, for a reason that no longer has anything to do with file storage not existing -- this platform has no basis to perform real PKI chain verification |
 | "Dose Est.: ~102 ml (1,5ml/kg)" | See above — recorded, never computed |
 | "Macros Rápidas de Sala" (CONT / PL / TB / INT / PSM) | Needs the chat channel above to land anywhere honest. Mapping them onto `PRINT_TEXT` would type "PSM Pronto Para Escanear" into the scanner's own clinical application, which is almost certainly not the intent |
 | Free-text "+ Adicionar Tag" observation chips | This repo prefers closed enums over open typed-string taxonomies (see `ExamModality`'s own docstring) |
@@ -2760,8 +2760,9 @@ rather than reproducing the mock with fabricated data:
   including the sender, so no optimistic client-side append is needed); reading the initial
   transcript and managing shortcuts is REST (`ChatController`, `@Roles` mirroring `QueueController`'s
   own broad clinic/operator set). Text only -- no attachments, no audio message type; both explicitly
-  out of scope, the same "no file storage anywhere in this codebase" reasoning nursing's own
-  questionnaire feature already gave for medical-order PDFs.
+  out of scope at the time (see "The room-chat rework" below for attachments arriving later, and
+  "Uploading the exam-order document itself" for the medical-order PDF upload this paragraph's own
+  cross-reference used to point at before either existed).
 - **`IntercomChannel` push-to-talk presence** -- signalling only, never audio: holding
   `INTERCOM_PTT_SET` broadcasts "I am speaking on `PATIENT`/`TECHNICIAN`" to the room and produces
   exactly one audited row (`AuditAction.INTERCOM_PTT`, carrying the held duration) when released,
@@ -2934,9 +2935,13 @@ prototype's own layout.
 
 **Not reproduced, added to `NursingPage`'s own table for the same reasons its neighbors
 weren't:** the prototype's digital Pedido Médico (physician name/CRM, an ICP-Brasil
-signature, "Visualizar Pedido") -- no file storage or physician/order record exists anywhere
-in this schema, the same reason the day-view task's own questionnaire PDFs were refused, and
-a real, separate feature if ever built, not a display change; the computed "Dose: 1,25
+signature, "Visualizar Pedido") -- no file storage or physician/order record existed anywhere
+in this schema *at the time*, the same reason the day-view task's own questionnaire PDFs were
+refused. Uploading the document itself is a real, separate feature that *was* later built --
+see "Uploading the exam-order document itself" below -- but the physician-name/CRM extraction
+and the ICP-Brasil signature verification specifically are refused for a different reason now:
+nothing in this app parses a PDF's contents, and nothing here can perform real PKI chain
+verification. The computed "Dose: 1,25
 ml/kg" / "Volume: 85 ml (350mgI)" -- the same nurse-entered-not-computed `contrastVolumeMl`
 decision every nursing task on this screen has made; "Idade: 54a" -- only `patientFirstName`
 and `patientSex` are ever known, by the same PHI-minimization posture as every other pass;
@@ -3463,8 +3468,15 @@ gives: it is not part of the authenticated app or its theme at all.
   `contrastRequired`, and the nurse-entered `contrastVolumeMl` are recorded; no mL/kg dosing
   figure is ever computed or displayed — see both nursing sections above for why.
 - **PDF/document upload for medical orders or triage questionnaires, on the nursing screen or
-  anywhere else**: no file storage of any kind exists in this codebase -- refused a third time by
-  the exam-data-overlay task's own "Pedido Médico" block, same reasoning.
+  anywhere else**: refused twice (the day-view task's own questionnaire PDFs, then again by the
+  exam-data-overlay task's "Pedido Médico" block) while no file storage of any kind existed in
+  this codebase. No longer true as a blanket statement: `ChatAttachmentStorageService` landed
+  with the room-chat rework, and uploading the medical-order document itself (`QueueEntryDocument`
+  -- "Pedido Médico"/"Laudo Anterior"/"Outro", via `POST /queue/:id/documents`) is now real too --
+  see "Uploading the exam-order document itself" below. What's still refused, and for an entirely
+  different reason now, is extracting structured data *from* an uploaded PDF (a physician's name/
+  CRM) and verifying an ICP-Brasil signature -- nothing here parses PDF contents or performs real
+  PKI chain verification, which has nothing to do with storage.
 - **A consolidated cross-tenant audit view for an operating company**: session and equipment audit
   rows are written against the *clinic* whose data was touched, which is correct -- but it means an
   `OPERATOR_ADMIN` cannot yet read its own staff's activity across all of its client clinics from one
@@ -3693,3 +3705,120 @@ admin resetting an *existing* account's password rather than setting one at crea
 to match: invite the account for real, activate it (the account's own password, no forced
 change), complete first-login MFA enrollment, and only then have the admin reset it — the one
 remaining path that actually produces the screen under test.
+
+## Uploading the exam-order document itself
+
+Closes a gap this document has refused outright, by name, four separate times across four
+different features (the day-view task's questionnaire PDFs, the exam-data overlay's "Pedido
+Médico" block, the "What's intentionally not built" summary, and `NursingPage`'s own
+docstring) — every one of them for the same reason: no file storage existed anywhere in this
+codebase at the time. That stopped being true the moment the room-chat rework shipped
+`ChatAttachmentStorageService`. This feature is what actually closes the gap those four
+entries were about, rather than just making the excuse stale — each has been corrected in
+place above rather than left standing.
+
+**`QueueEntryDocument`, a child table, not a fifth nullable column group on `QueueEntry`.**
+Every prior attachment-shaped feature in this schema (`ExamMessage.attachmentPath`/
+`attachmentFilename`/`attachmentMimeType`/`attachmentSizeBytes`) chose a nullable column
+group because one chat message never needs more than one file. An exam order doesn't share
+that constraint: "pedido médico" and "laudo anterior" (a prior report the patient brought in)
+are genuinely different documents a nurse would plausibly attach to the *same* exam, and a
+column group can only ever say "zero or one," never "a growing list." `kind` is a
+`QueueDocumentKind` enum (`PEDIDO_MEDICO`/`LAUDO_ANTERIOR`/`OUTRO`) the nurse picks at upload
+time, defaulting to `PEDIDO_MEDICO` — real information for the list to carry, not dead schema,
+since the two kinds actually matter to whoever reads the list later.
+
+**Storage is `QueueDocumentStorageService`, a close mirror of `ChatAttachmentStorageService`**
+(local disk, keyed by the owning resource's id, a random on-disk filename so neither a
+path-traversal attempt nor a same-name collision can reach `writeFile` through an uploaded
+filename) — but on a volume this time. Chat attachments and session snapshots shipped onto
+genuinely ephemeral container disk, wiped on every Railway redeploy, a tradeoff DEPLOY.md
+documented rather than solved. A physician's order is a different class of record than a
+chat photo, and attaching a volume for this feature was the point at which fixing the other
+two for free stopped being extra scope and started being "the volume is already here" — see
+DEPLOY.md's own "Known limitations" for where that tradeoff used to be recorded and no longer
+needs to be.
+
+**The authorization split is the most important design decision here, and it's an asymmetry
+on purpose.** Upload and removal (`POST /queue/:id/documents`, `POST .../documents/:docId/
+remove`) are nurse-side only (`NURSING`/`LOCAL_SUPERVISOR`/`CLINIC_ADMIN`/`PLATFORM_ADMIN`,
+the identical role set `UpdateQueueEntryDetailsHandler` already uses) and gated by
+`QueueEntry.assertDetailsEditable()` — the same WAITING/IN_PROGRESS-only rule the rest of the
+exam-detail form already enforces, since adding to a DONE/CANCELLED record would be
+rewriting history rather than recording it. Reading the content
+(`GET .../documents/:docId/content`) is different in both directions at once: it is open to
+the *entire* class-level role set, including a contracted operator who has no write access to
+this list at all, and it has **no status gate whatsoever**. A completed exam's order is still
+a record worth retrieving — the remote operator who needs to see what was ordered has no
+reason to lose read access to it the instant the nurse marks the exam DONE. The content route
+is also the one place this feature checks `OperatorAccessService.assertCanReachEquipmentId`
+(the cross-tenant agreement-scope check `GetQueueEntryHandler` already makes for the same
+reason) — upload/remove never do, because a nurse's own write is always same-tenant,
+same-clinic, and agreement scope has no bearing on it.
+
+**Removal is a real hard delete — row and bytes both — not a `deletedAt` column.** A
+mis-uploaded document is PHI; "removed" has to mean gone, not hidden-but-still-on-disk and
+still joinable by id. The row is deleted *before* the bytes, not after:
+`QueueDocumentRepositoryPort.delete`'s own docstring explains why that ordering, and not the
+reverse, is the one that can't leave a document reachable after the call returns
+successfully — if the byte-deletion step then failed, the result is an orphaned file nothing
+can ever reach again (the content route resolves through a row that's already gone), not a
+dangling row pointing at bytes that no longer exist. The former is a disk-space leak; the
+latter is a 500 on every future read attempt. What persists either way is the append-only,
+DB-trigger-enforced `audit_logs` row (`QUEUE_DOCUMENT_REMOVED`) recording that the document
+existed and who removed it.
+
+**Audit `details` carries `kind`/`mimeType` only, never `filename`** — the same rule
+`SendExamMessageHandler` already follows for chat attachments, for the same reason: a
+clinician-chosen filename can itself carry a patient's name ("Jose-da-Silva-exame.pdf"), and
+the audit table must not become a second, less-protected copy of PHI the rest of this
+codebase goes out of its way to minimize.
+
+**One shared mime allow-list, not three independent copies that happened to agree.**
+`ALLOWED_ATTACHMENT_MIME_TYPES` used to be hand-duplicated between `ChatController` and
+`ExamChat.tsx`, each commenting that the other had to be kept in sync by hand — tenable at
+two copies, not at three. `@crop/shared` now exports one `ALLOWED_DOCUMENT_MIME_TYPES`
+(images + PDF, deliberately excluding DICOM: browsers report no reliable mime type for
+`.dcm`, and nothing in this app can render DICOM once stored anyway), and `ChatController`,
+`ExamChat.tsx`, and `QueueController`/`NursingPage`/`ExamPage` all import the same constant.
+If chat and documents ever need genuinely different allow-lists, split it back into two named
+exports then — nothing requires them to stay equal forever, only that nothing today has a
+reason to diverge.
+
+**Two more safety-questionnaire facts, `metforminUse`/`anticoagulantUse`, landed in the same
+pass** — tri-state (`boolean | null`) like `allergyStatus`, not two-state like
+`fastingConfirmed`/`contrastRequired`: "not asked yet" and "asked, answered no" are different
+states a plain defaulted boolean can't tell apart, the identical reasoning that already
+justified `allergyStatus` being a closed enum instead of a boolean. Rendered as a `Select`
+with the same `UNSET` sentinel `patientSex`/`allergyStatus` already use, not a `Checkbox`.
+
+**A real `nested-interactive` axe violation, caught by the a11y suite's own new coverage, not
+by review.** `FileDropzone`'s first draft wrapped the whole drop target in `role="button"`
+with its own `tabIndex`/`onKeyDown`, containing a hidden `<input type="file">` given
+`tabIndex={-1}` on the theory that a negative tabindex would keep assistive tech from ever
+reaching it. Axe correctly flagged this anyway: a negative `tabIndex` only removes an element
+from *Tab order* — it does not stop a screen reader's own non-linear navigation (rotor,
+form-control list) from reaching a genuinely interactive element nested inside another one
+that itself claims an interactive role, which is exactly what WCAG's "nested interactive
+controls" rule exists to catch. Fixed by removing the role/tabIndex/keydown handling from the
+outer box entirely — it is now a plain `<div>` whose only job is drag-and-drop visual
+feedback (mouse/pointer-only by nature; there is no keyboard equivalent of "drag a file" to
+begin with) — and relying on exactly one real, properly-exposed control: the "Procurar no
+Terminal Local" `<Button>`, the same "visible button `.click()`s a hidden sibling input via a
+ref" shape `ExamChat`'s own Paperclip control already used correctly from the start. The
+outer box keeps a convenience `onClick` for a sighted mouse user (click anywhere in the box,
+not just the button) — harmless now that it is no longer the thing *standing in* for an
+accessible entry point, since the Button alone already covers every keyboard/screen-reader
+path to the same picker.
+
+**One Railway volume (`api-storage`, mounted at `/app/apps/api/storage`) fixes three
+features' redeploy-durability at once, with zero environment-variable changes.** The API's
+runtime `WORKDIR` (`apps/api/Dockerfile`) is `/app/apps/api`, and `SNAPSHOT_STORAGE_DIR`/
+`CHAT_ATTACHMENT_STORAGE_DIR`/`QUEUE_DOCUMENT_STORAGE_DIR`/`MAIL_OUTBOX_PATH` all default to
+`./storage/*`, resolved relative to that same `WORKDIR` — so one volume mounted at
+`/app/apps/api/storage` puts every one of them on persistent disk without touching a single
+default. Before this volume existed, session snapshots and chat attachments were wiped on
+every redeploy/restart, a tradeoff DEPLOY.md documented as deliberate for a demo; a
+physician's order is not something a demo tradeoff should apply to, which is what made adding
+the volume now, rather than deferring it again, the right call.
+

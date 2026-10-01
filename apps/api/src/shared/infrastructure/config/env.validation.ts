@@ -41,6 +41,13 @@ const EnvSchema = z.object({
   // controller's own comment for the same "can't inject ConfigService here" constraint
   // SessionsGateway's CORS_ORIGIN fallback already documents.
   CHAT_ATTACHMENT_MAX_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  // The nurse's uploaded exam-order documents (pedido médico / laudo anterior) -- same
+  // volume-backed-local-disk reasoning as the two directories above, its own subdirectory.
+  QUEUE_DOCUMENT_STORAGE_DIR: z.string().default("./storage/queue-documents"),
+  // 20 MiB: a scanned multi-page order run through a phone's camera-to-PDF app runs bigger
+  // than a chat photo. Same "enforced by FileInterceptor config, not Zod, so a plain number
+  // is needed before ConfigService exists" constraint as CHAT_ATTACHMENT_MAX_BYTES above.
+  QUEUE_DOCUMENT_MAX_BYTES: z.coerce.number().int().positive().default(20 * 1024 * 1024),
   SESSION_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(600000),
   IDLE_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
   // Deliberately not `z.coerce.boolean()`: that coerces ANY non-empty string, including the

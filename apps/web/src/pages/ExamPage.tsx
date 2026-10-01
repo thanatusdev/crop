@@ -32,8 +32,9 @@ import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.js";
 import { cn } from "cn";
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { Download, FileText, ShieldAlert, ShieldCheck } from "lucide-react";
 import { MODALITY_ABBREVIATION } from "../lib/equipment-display.js";
+import { humanFileSize } from "../lib/file-display.js";
 import {
   allergyStatusLabelKeyOf,
   currentPatientOf,
@@ -632,40 +633,74 @@ export default function ExamPage() {
                   </CardContent>
                 </Card>
 
-                {selectedEntry && (selectedEntry.allergyStatus || selectedEntry.fastingConfirmed || selectedEntry.creatinineMgDl != null) && (
+                {selectedEntry &&
+                  (selectedEntry.allergyStatus ||
+                    selectedEntry.fastingConfirmed ||
+                    selectedEntry.creatinineMgDl != null ||
+                    selectedEntry.metforminUse === true ||
+                    selectedEntry.anticoagulantUse === true) && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-[1.1em]">{t("exam:alertsCardHeading")}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="flex flex-col gap-2 text-[13px]">
+                        {selectedEntry.allergyStatus && (
+                          <div className="flex items-center gap-1.5">
+                            {selectedEntry.allergyStatus === AllergyStatus.PRESENT ? (
+                              <ShieldAlert className="size-3.5 text-destructive" />
+                            ) : (
+                              <ShieldCheck className="size-3.5 text-[#5fdc8a]" />
+                            )}
+                            <span>
+                              {t(allergyStatusLabelKeyOf(selectedEntry.allergyStatus))}
+                              {selectedEntry.allergyStatus === AllergyStatus.PRESENT && selectedEntry.allergyNotes
+                                ? ` — ${selectedEntry.allergyNotes}`
+                                : ""}
+                            </span>
+                          </div>
+                        )}
+                        {selectedEntry.fastingConfirmed && (
+                          <div>
+                            {t("exam:fastingLabel")}: {selectedEntry.fastingHours != null ? `${selectedEntry.fastingHours} h` : t("exam:fastingYes")}
+                          </div>
+                        )}
+                        {selectedEntry.creatinineMgDl != null && (
+                          <div>
+                            {t("exam:creatinineLabel")}: {selectedEntry.creatinineMgDl} mg/dL
+                          </div>
+                        )}
+                        {/* Shown only when `true` -- same "noteworthy facts only" posture as
+                            fastingConfirmed above; `false`/`null` have nothing an operator
+                            needs flagged. */}
+                        {selectedEntry.metforminUse === true && (
+                          <div className="flex items-center gap-1.5">
+                            <ShieldAlert className="size-3.5 text-destructive" />
+                            <span>{t("exam:metforminUseAlert")}</span>
+                          </div>
+                        )}
+                        {selectedEntry.anticoagulantUse === true && (
+                          <div className="flex items-center gap-1.5">
+                            <ShieldAlert className="size-3.5 text-destructive" />
+                            <span>{t("exam:anticoagulantUseAlert")}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                {selectedEntry && selectedEntry.documents.length > 0 && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-[1.1em]">{t("exam:alertsCardHeading")}</CardTitle>
+                      <CardTitle className="text-[1.1em]">{t("exam:documentsCardHeading")}</CardTitle>
                     </CardHeader>
-                    <CardContent className="flex flex-col gap-2 text-[13px]">
-                      {selectedEntry.allergyStatus && (
-                        <div className="flex items-center gap-1.5">
-                          {selectedEntry.allergyStatus === AllergyStatus.PRESENT ? (
-                            <ShieldAlert className="size-3.5 text-destructive" />
-                          ) : (
-                            <ShieldCheck className="size-3.5 text-[#5fdc8a]" />
-                          )}
-                          <span>
-                            {t(allergyStatusLabelKeyOf(selectedEntry.allergyStatus))}
-                            {selectedEntry.allergyStatus === AllergyStatus.PRESENT && selectedEntry.allergyNotes
-                              ? ` — ${selectedEntry.allergyNotes}`
-                              : ""}
-                          </span>
-                        </div>
-                      )}
-                      {selectedEntry.fastingConfirmed && (
-                        <div>
-                          {t("exam:fastingLabel")}: {selectedEntry.fastingHours != null ? `${selectedEntry.fastingHours} h` : t("exam:fastingYes")}
-                        </div>
-                      )}
-                      {selectedEntry.creatinineMgDl != null && (
-                        <div>
-                          {t("exam:creatinineLabel")}: {selectedEntry.creatinineMgDl} mg/dL
-                        </div>
-                      )}
+                    <CardContent className="flex flex-col gap-1.5">
+                      {selectedEntry.documents.map((document) => (
+                        <ExamDocumentRow key={document.id} queueEntryId={selectedEntry.id} document={document} />
+                      ))}
                     </CardContent>
                   </Card>
                 )}
+
 
                 {selectedEntry?.preparationNotes && (
                   <Card>
@@ -759,3 +794,47 @@ export default function ExamPage() {
     </div>
   );
 }
+
+/**
+ * One of the nurse's uploaded exam documents, read-only here -- the operator has no upload
+ * or remove affordance for this list at all (see `QueueController`'s own routes: the two
+ * write routes are nurse-side only, this content route is the one the operator's own
+ * `OperatorAccessService.assertCanReachEquipmentId` check actually gates). Same click-to-
+ * download-via-blob shape `ExamChat`'s own `ChatAttachment` and `NursingPage`'s
+ * `QueueDocumentRow` already use, for the identical reason: the content route is
+ * authenticated, so a bare `<a href>` cannot carry the Authorization header.
+ */
+function ExamDocumentRow({ queueEntryId, document }: { queueEntryId: string; document: QueueEntryDto["documents"][number] }) {
+  const { t } = useTranslation(["exam"]);
+  const [downloading, setDownloading] = useState(false);
+
+  async function download() {
+    setDownloading(true);
+    try {
+      const blob = await api.getBlob(`/queue/${queueEntryId}/documents/${document.id}/content`);
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = document.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1.5 rounded-md border bg-background px-2 py-1.5 text-left text-[13px] disabled:opacity-60"
+      onClick={() => void download()}
+      disabled={downloading}
+    >
+      <FileText className="size-3.5 flex-shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{document.filename}</span>
+      <span className="flex-shrink-0 text-xs text-muted-foreground">({humanFileSize(document.sizeBytes)})</span>
+      <Download className="size-3.5 flex-shrink-0 text-muted-foreground" aria-label={t("exam:downloadDocument")} />
+    </button>
+  );
+}
+

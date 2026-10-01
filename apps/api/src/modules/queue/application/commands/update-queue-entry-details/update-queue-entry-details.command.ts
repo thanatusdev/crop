@@ -22,6 +22,8 @@ export class UpdateQueueEntryDetailsCommand {
     public readonly creatinineMgDl: number | null | undefined,
     public readonly allergyStatus: AllergyStatus | null | undefined,
     public readonly allergyNotes: string | null | undefined,
-    public readonly contrastVolumeMl: number | null | undefined
+    public readonly contrastVolumeMl: number | null | undefined,
+    public readonly metforminUse: boolean | null | undefined,
+    public readonly anticoagulantUse: boolean | null | undefined
   ) {}
 }

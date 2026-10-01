@@ -3,9 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
+  ALLOWED_DOCUMENT_MIME_TYPES,
   AllergyStatus,
   PatientSex,
   PreparationStatus,
+  QueueDocumentKind,
   QueueStatus,
   RT_EVENTS,
   clinicTimeToUtcIso,
@@ -16,6 +18,7 @@ import {
   type MeResponse,
   type MessageShortcutDto,
   type PatientPreparationUpdatedEvent,
+  type QueueEntryDocumentDto,
   type QueueEntryDto,
   type QueueTimelineEntry,
   type SessionState,
@@ -27,6 +30,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
+  FileText,
   History,
   ListChecks,
   Loader2,
@@ -40,6 +45,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Syringe,
+  Trash2,
   User,
   UserCheck,
   Wifi,
@@ -50,6 +56,7 @@ import { useAuth } from "../lib/auth-context.js";
 import { createSessionSocket } from "../lib/socket-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
 import { ExamChat } from "../components/ExamChat.js";
+import { FileDropzone } from "../components/FileDropzone.js";
 import { Modal } from "../components/Modal.js";
 import { Button } from "../components/ui/button.js";
 import { Card } from "../components/ui/card.js";
@@ -61,6 +68,7 @@ import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { MODALITY_ABBREVIATION } from "../lib/equipment-display.js";
+import { humanFileSize } from "../lib/file-display.js";
 import {
   allergyStatusLabelKeyOf,
   applyReorderDraft,
@@ -139,13 +147,14 @@ import {
  * | Prototype element | Why not |
  * |---|---|
  * | Chat Operacional do Exame, Canal de Áudio (PTT/"Voz no Gantry"), Segurança da Sala (porta/clima/parada de emergência) | No messaging, audio, or sensor-telemetry transport exists anywhere in this codebase -- replaced with a real per-exam audit timeline + the actual "Operador Remoto" identity, not a fabrication of any of the three |
- * | Pedido Médico Digital / Questionário de Segurança PDFs ("Visualizar Pedido", "Revisar Respostas") | No file storage anywhere in this repo -- the questionnaire's three *facts* are real structured fields; the document that would back them is not |
+ * | Questionário de Segurança as its own generated/uploaded PDF ("Revisar Respostas") | The questionnaire's three *facts* (fastingConfirmed/creatinineMgDl/allergyStatus) are real structured fields, each editable and auditable on its own -- a PDF rendering of them would be a second, less honest copy of data that already has a canonical home |
  * | "Dose Est.: ~102 ml (1,5ml/kg)" / overlay's "Dose: 1,25 ml/kg" | Recording a nurse-entered `contrastVolumeMl` from the exam's own protocol, never a value this platform computes from weight -- rendering a dosing calculation is a clinical claim this project has no basis to make |
  * | Free-text "+ Adicionar Tag" observation chips, "Macros Rápidas de Sala" canned messages | This repo prefers closed enums over open typed-string taxonomies (see `ExamModality`'s own docstring); the macros specifically would need a real chat channel to land anywhere honest |
  * | Age/date-of-birth, full name, prontuário/CNS numbers | Only `patientFirstName` is stored, by deliberate PHI minimization -- unchanged across every nursing task |
  * | Top horizontal nav (Cockpit/Exames/Enfermagem/Supervisão/Equipamentos), "Intercorrência"/"Parada Emergencial" buttons | `ConsoleShell`'s sidebar is this app's real chrome; the one real emergency control (`release-all`) already lives on `SessionPage`, for the Biomédico Operador actually driving the equipment |
  * | A date picker / previous days | Out of scope for this pass -- "the day's queue" is today's; browsing other days is a real, separate follow-up |
- * | Digital Pedido Médico (Dr. name/CRM, ICP-Brasil signature, "Visualizar Pedido") | Same file-storage/signature reason as the row above -- there is still no physician-order or document model anywhere in this schema |
+ * | "Assinatura ICP-Brasil Válida" badge, physician name/CRM read off the uploaded PDF | **Partially superseded** -- uploading the Pedido Médico/Laudo Anterior itself is now real (`QueueEntryDocument`, this card's own "Documentação do Exame" section). What's still refused is verifying an ICP-Brasil signature (real PKI chain verification this platform has no basis to perform) and extracting a physician's name/CRM from the PDF's contents (this app records *who uploaded it and when*, via the same audit-grade attribution every other write here gets -- never who signed the document itself, which nothing here parses) |
+ * | "TAXA FILTRAÇÃO (eGFR CKD-EPI) ... Estágio 1" computed filtration-rate card | A computed clinical value needing the patient's age, which this schema deliberately does not store (PHI minimization) -- same refusal as the contrast-dose calculation two rows up, for the identical reason |
  * | Invented exam protocol code ("TC-TORAX-02") | No protocol/procedure-code taxonomy exists in this schema; `examDescription` is the one free-text field that already carries this information |
  */
 export default function NursingPage() {
@@ -540,6 +549,15 @@ export default function NursingPage() {
   const [detailsStaleNotice, setDetailsStaleNotice] = useState(false);
   const lastLoadedDetailsRef = useRef<QueueEntryDto | null>(null);
 
+  // Document upload -- deliberately its own, separate state from the draft/dirty machinery
+  // above: uploading/removing a document is immediate (its own route, its own audit event),
+  // not part of "Salvar Alterações deste Paciente"/"Descartar Edição". See this card's own
+  // JSX for the explicit note that follows from that.
+  const [documentKind, setDocumentKind] = useState<QueueDocumentKind>(QueueDocumentKind.PEDIDO_MEDICO);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const [removingDocumentId, setRemovingDocumentId] = useState<string | null>(null);
+
   const selectedEntry = queue.find((entry) => entry.id === selectedEntryId) ?? null;
 
   function selectEntryForEditing(entry: QueueEntryDto) {
@@ -550,6 +568,8 @@ export default function NursingPage() {
     setDetailsError(null);
     setDetailsFieldErrors({});
     setDetailsStaleNotice(false);
+    setDocumentKind(QueueDocumentKind.PEDIDO_MEDICO);
+    setDocumentError(null);
     lastLoadedDetailsRef.current = entry;
   }
 
@@ -633,6 +653,49 @@ export default function NursingPage() {
       }
     } finally {
       setDetailsSaving(false);
+    }
+  }
+
+  // Immediate, own route -- not staged with detailsDraft/detailsDirty above, and not undone
+  // by "Descartar Edição" (see the card's own note in the JSX below). Client-side mime/size
+  // checks are a UX nicety only; `UploadQueueDocumentHandler`'s own checks are the real gate,
+  // the same split `ExamChat`'s identical attachment check already establishes.
+  async function uploadDocument(file: File) {
+    if (!selectedEntry) return;
+    if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(file.type)) {
+      setDocumentError(t("nursing:documentTypeError"));
+      return;
+    }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      setDocumentError(t("nursing:documentSizeError"));
+      return;
+    }
+    setDocumentError(null);
+    setDocumentUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("kind", documentKind);
+      await api.postForm(`/queue/${selectedEntry.id}/documents`, form);
+      await loadQueueAndSession(selectedEquipmentId);
+    } catch (err) {
+      setDocumentError(err instanceof ApiError ? err.message : t("nursing:documentUploadError"));
+    } finally {
+      setDocumentUploading(false);
+    }
+  }
+
+  async function removeDocument(documentId: string) {
+    if (!selectedEntry) return;
+    setDocumentError(null);
+    setRemovingDocumentId(documentId);
+    try {
+      await api.post(`/queue/${selectedEntry.id}/documents/${documentId}/remove`);
+      await loadQueueAndSession(selectedEquipmentId);
+    } catch (err) {
+      setDocumentError(err instanceof ApiError ? err.message : t("nursing:documentRemoveError"));
+    } finally {
+      setRemovingDocumentId(null);
     }
   }
 
@@ -1015,6 +1078,20 @@ export default function NursingPage() {
                             <span className="text-sm text-destructive">{selectedEntry.allergyNotes}</span>
                           )}
                         </SummaryField>
+                        <SummaryField label={t("nursing:metforminUseLabel")}>
+                          <span className="font-semibold">
+                            {selectedEntry.metforminUse === null ? notInformed : selectedEntry.metforminUse ? t("nursing:yes") : t("nursing:no")}
+                          </span>
+                        </SummaryField>
+                        <SummaryField label={t("nursing:anticoagulantUseLabel")}>
+                          <span className="font-semibold">
+                            {selectedEntry.anticoagulantUse === null
+                              ? notInformed
+                              : selectedEntry.anticoagulantUse
+                                ? t("nursing:yes")
+                                : t("nursing:no")}
+                          </span>
+                        </SummaryField>
                       </div>
 
                       <h3 className="mt-5 mb-2 text-sm font-semibold">{t("nursing:observationsHeading")}</h3>
@@ -1172,6 +1249,38 @@ export default function NursingPage() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="details-metformin-use">{t("nursing:metforminUseLabel")}</Label>
+                          <Select
+                            value={boolToSelectValue(detailsDraft.metforminUse)}
+                            onValueChange={(value) => updateDraftField("metforminUse", selectValueToBool(value))}
+                          >
+                            <SelectTrigger id="details-metformin-use" className="w-full">
+                              <SelectValue placeholder={t("nursing:triStatePlaceholder")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={UNSET}>{t("nursing:triStatePlaceholder")}</SelectItem>
+                              <SelectItem value="true">{t("nursing:yes")}</SelectItem>
+                              <SelectItem value="false">{t("nursing:no")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="details-anticoagulant-use">{t("nursing:anticoagulantUseLabel")}</Label>
+                          <Select
+                            value={boolToSelectValue(detailsDraft.anticoagulantUse)}
+                            onValueChange={(value) => updateDraftField("anticoagulantUse", selectValueToBool(value))}
+                          >
+                            <SelectTrigger id="details-anticoagulant-use" className="w-full">
+                              <SelectValue placeholder={t("nursing:triStatePlaceholder")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={UNSET}>{t("nursing:triStatePlaceholder")}</SelectItem>
+                              <SelectItem value="true">{t("nursing:yes")}</SelectItem>
+                              <SelectItem value="false">{t("nursing:no")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                       {detailsDraft.allergyStatus === AllergyStatus.PRESENT && (
                         <div className="mt-4 flex flex-col gap-1.5">
@@ -1199,6 +1308,74 @@ export default function NursingPage() {
                       </div>
                     </fieldset>
                   )}
+
+                  {/* Documentação do Exame -- shown in both read-only and edit mode (unlike
+                      every field above, which only edits inside the fieldset): upload/remove
+                      is its own immediate route, not part of this card's own draft/dirty
+                      lifecycle, so it has no reason to be hidden behind "Habilitar Edição". */}
+                  <div className="mt-5 border-t pt-4">
+                    <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+                      <FileText className="size-4" />
+                      {t("nursing:documentsHeading")}
+                    </h3>
+                    <p className="mb-3 text-xs text-muted-foreground">{t("nursing:documentsSubheading")}</p>
+
+                    {documentError && (
+                      <Alert variant="destructive" className="mb-3">
+                        <AlertDescription>{documentError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {selectedEntry.documents.length > 0 && (
+                      <ul className="mb-3 flex flex-col gap-1.5">
+                        {selectedEntry.documents.map((document) => (
+                          <QueueDocumentRow
+                            key={document.id}
+                            queueEntryId={selectedEntry.id}
+                            document={document}
+                            onRemove={() => void removeDocument(document.id)}
+                            removing={removingDocumentId === document.id}
+                            canRemove={isDetailsEditable(selectedEntry)}
+                          />
+                        ))}
+                      </ul>
+                    )}
+
+                    {isDetailsEditable(selectedEntry) ? (
+                      <>
+                        <div className="mb-2 flex flex-col gap-1.5 sm:max-w-64">
+                          <Label htmlFor="document-kind">{t("nursing:documentKindLabel")}</Label>
+                          <Select value={documentKind} onValueChange={(value) => setDocumentKind(value as QueueDocumentKind)}>
+                            <SelectTrigger id="document-kind" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.values(QueueDocumentKind).map((kind) => (
+                                <SelectItem key={kind} value={kind}>
+                                  {t(DOCUMENT_KIND_LABEL_KEY[kind])}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <FileDropzone
+                          accept={ALLOWED_DOCUMENT_MIME_TYPES.join(",")}
+                          busy={documentUploading}
+                          onFileSelected={(file) => void uploadDocument(file)}
+                          label={t("nursing:documentDropzoneLabel")}
+                          hint={t("nursing:documentDropzoneHint")}
+                          browseLabel={t("nursing:documentBrowseLabel")}
+                        />
+                        {/* Immediate, not staged -- see uploadDocument/removeDocument's own
+                            docstrings. Said explicitly rather than left implicit, since every
+                            *other* control on this card right now (metforminUse included)
+                            waits for "Salvar Alterações deste Paciente". */}
+                        <p className="mt-2 text-xs text-muted-foreground">{t("nursing:documentsImmediateNote")}</p>
+                      </>
+                    ) : (
+                      selectedEntry.documents.length === 0 && <p className="text-sm text-muted-foreground">{t("nursing:documentsEmpty")}</p>
+                    )}
+                  </div>
 
                   {editMode && selectedEntry.detailsUpdatedAt && (
                     <p className="mt-3 text-sm text-muted-foreground">
@@ -1401,6 +1578,90 @@ function SummaryField({ label, children }: { label: string; children: React.Reac
   );
 }
 
+/** `kind` i18n keys -- a literal mapping, not an assembled template, same "keep tsc checking
+ * every key against pt-BR.ts's real shape" reasoning `statusLabelKeyOf`/`queueStatusLabelKeyOf`
+ * already establish in equipment-display.ts/queue-display.ts. */
+const DOCUMENT_KIND_LABEL_KEY: Record<QueueDocumentKind, "nursing:documentKindPedidoMedico" | "nursing:documentKindLaudoAnterior" | "nursing:documentKindOutro"> = {
+  [QueueDocumentKind.PEDIDO_MEDICO]: "nursing:documentKindPedidoMedico",
+  [QueueDocumentKind.LAUDO_ANTERIOR]: "nursing:documentKindLaudoAnterior",
+  [QueueDocumentKind.OUTRO]: "nursing:documentKindOutro",
+};
+
+/** One uploaded document, rendered as a click-to-download chip -- same `api.getBlob` + blob
+ * + `<a download>` shape `ExamChat`'s own `ChatAttachment` already uses, for the identical
+ * reason: the content route is authenticated, so a bare `<a href>` cannot carry the
+ * Authorization header this needs. Own per-row `downloading` state, not a shared one keyed
+ * by id, mirroring `ChatAttachment`'s own choice -- there is one of these per document, not
+ * one for the whole list. */
+function QueueDocumentRow({
+  queueEntryId,
+  document,
+  onRemove,
+  removing,
+  canRemove,
+}: {
+  queueEntryId: string;
+  document: QueueEntryDocumentDto;
+  onRemove: () => void;
+  removing: boolean;
+  canRemove: boolean;
+}) {
+  const { t } = useTranslation(["nursing"]);
+  const [downloading, setDownloading] = useState(false);
+  const path = `/queue/${queueEntryId}/documents/${document.id}/content`;
+
+  async function download() {
+    setDownloading(true);
+    try {
+      const blob = await api.getBlob(path);
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = document.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <li className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2 text-sm">
+      <FileText className="size-4 flex-shrink-0 text-muted-foreground" />
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left disabled:opacity-60"
+        onClick={() => void download()}
+        disabled={downloading}
+      >
+        <span className="truncate font-medium">{document.filename}</span>
+        <span className="flex-shrink-0 text-xs text-muted-foreground">({humanFileSize(document.sizeBytes)})</span>
+        <Download className="size-3.5 flex-shrink-0 text-muted-foreground" aria-label={t("nursing:downloadDocument")} />
+      </button>
+      <Badge variant="outline" className="flex-shrink-0 text-[11px]">
+        {t(DOCUMENT_KIND_LABEL_KEY[document.kind])}
+      </Badge>
+      <span className="flex-shrink-0 text-xs text-muted-foreground">
+        {t("nursing:documentUploadedBy", { name: document.uploadedByName ?? t("nursing:attributionUnknown"), time: formatClinicTime(document.uploadedAt) })}
+      </span>
+      {canRemove && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="flex-shrink-0 text-destructive hover:text-destructive"
+          onClick={onRemove}
+          disabled={removing}
+          aria-label={t("nursing:removeDocument")}
+        >
+          {removing ? <Loader2 className="animate-spin" /> : <Trash2 />}
+        </Button>
+      )}
+    </li>
+  );
+}
+
+
 /** Sentinel for a Radix `Select.Item`'s `value` -- Radix rejects an empty string there (it's
  * reserved to mean "no selection" internally), but `patientSex`/`allergyStatus` are real
  * nullable fields the nurse must be able to clear back to "não informado". Mapped to/from
@@ -1408,6 +1669,24 @@ function SummaryField({ label, children }: { label: string; children: React.Reac
  * sent to the API (the PATCH body always reads the underlying `DetailsDraft` field, never
  * this constant). */
 const UNSET = "__unset__";
+
+/** Soft client-side mirror of the server's own `QUEUE_DOCUMENT_MAX_BYTES` default (20MB) --
+ * same "the client check is a UX nicety, not the real gate" relationship `ExamChat`'s own
+ * `MAX_ATTACHMENT_BYTES` has to `CHAT_ATTACHMENT_MAX_BYTES`. */
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+
+/** `metforminUse`/`anticoagulantUse` are tri-state (`boolean | null`), not the two-state
+ * `Checkbox` the rest of this form's yes/no questions use -- same reasoning as
+ * `allergyStatus`'s own `Select`+`UNSET` pattern, which this mirrors exactly rather than
+ * inventing a second way to represent "not asked yet" as a string. */
+function boolToSelectValue(value: boolean | null): string {
+  return value === null ? UNSET : value ? "true" : "false";
+}
+function selectValueToBool(value: string): boolean | null {
+  return value === UNSET ? null : value === "true";
+}
+
+
 
 interface DetailsDraft {
   examDescription: string;
@@ -1426,6 +1705,11 @@ interface DetailsDraft {
   allergyStatus: AllergyStatus | null;
   allergyNotes: string;
   contrastVolumeMl: number | null;
+  // Tri-state like allergyStatus above (not two-state like fastingConfirmed/contrastRequired):
+  // "not asked yet" and "asked, answered no" are different states, so these are rendered as
+  // a Select with the same UNSET sentinel, not a Checkbox.
+  metforminUse: boolean | null;
+  anticoagulantUse: boolean | null;
 }
 
 function emptyDetailsDraft(): DetailsDraft {
@@ -1442,6 +1726,8 @@ function emptyDetailsDraft(): DetailsDraft {
     allergyStatus: null,
     allergyNotes: "",
     contrastVolumeMl: null,
+    metforminUse: null,
+    anticoagulantUse: null,
   };
 }
 
@@ -1459,6 +1745,8 @@ function draftFromEntry(entry: QueueEntryDto): DetailsDraft {
     allergyStatus: entry.allergyStatus,
     allergyNotes: entry.allergyNotes ?? "",
     contrastVolumeMl: entry.contrastVolumeMl,
+    metforminUse: entry.metforminUse,
+    anticoagulantUse: entry.anticoagulantUse,
   };
 }
 
@@ -1477,7 +1765,9 @@ function hasDetailsChanged(previous: QueueEntryDto, next: QueueEntryDto): boolea
     previous.creatinineMgDl !== next.creatinineMgDl ||
     previous.allergyStatus !== next.allergyStatus ||
     previous.allergyNotes !== next.allergyNotes ||
-    previous.contrastVolumeMl !== next.contrastVolumeMl
+    previous.contrastVolumeMl !== next.contrastVolumeMl ||
+    previous.metforminUse !== next.metforminUse ||
+    previous.anticoagulantUse !== next.anticoagulantUse
   );
 }
 
@@ -1502,6 +1792,8 @@ function detailsDraftToPatchBody(draft: DetailsDraft, today: string): Record<str
     allergyStatus: draft.allergyStatus,
     allergyNotes: draft.allergyNotes.trim() === "" ? null : draft.allergyNotes.trim(),
     contrastVolumeMl: draft.contrastVolumeMl,
+    metforminUse: draft.metforminUse,
+    anticoagulantUse: draft.anticoagulantUse,
   };
 }
 
