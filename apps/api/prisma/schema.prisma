@@ -342,10 +342,16 @@ model OperatorAgreement {
 /// `operatorTenantId` links preserved prior access by writing a real grant per unit, rather
 /// than by making "empty means all" the rule forever.
 ///
-/// Unit and equipment grants are not interchangeable: a unit grant follows the unit, so
-/// equipment installed there later is covered automatically, while an equipment grant names one
-/// device permanently. That is a genuine difference in how much ongoing trust the clinic
-/// extends, so both are offered rather than normalising one into the other.
+/// Unit grants still exist and are still fully honored (`OperatorAgreement.grantsAccessTo`),
+/// but the scope modal (`AgreementsPage.tsx`) offers equipment-level grants exclusively now: a
+/// clinic names exactly which scanners an outside company may drive, and a device installed
+/// later grants nothing until named explicitly. A unit grant keeps covering whatever that room
+/// gains later -- which is exactly why every agreement from before this change still holds one
+/// (the original conversion migration wrote one per existing unit), and why the test fixture
+/// `grantWholeClinicScope` (apps/api/test/helpers.ts) still writes one on purpose, so ~30 spec
+/// files don't have to re-grant each new device they create. A unit grant is converted to the
+/// equipment it currently covers the first time an admin opens that agreement's scope in the UI
+/// and saves -- see `AgreementScopeOptionSchema.grantedViaUnit` in packages/shared.
 model OperatorAgreementScope {
   id          String            @id @default(uuid())
   agreementId String

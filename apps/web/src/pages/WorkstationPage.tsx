@@ -313,7 +313,7 @@ export default function WorkstationPage() {
   const displayStatus = selectedEquipment ? displayStatusOf(selectedEquipment) : null;
 
   return (
-    <ConsoleShell activeNav="dashboard" pageTitle={t("workstation:heading")}>
+    <ConsoleShell activeNav="workstation" pageTitle={t("workstation:heading")}>
       <h1 className="sr-only">{t("workstation:heading")}</h1>
       <p className="mb-4 text-muted-foreground">{t("workstation:intro")}</p>
 

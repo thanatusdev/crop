@@ -19,10 +19,16 @@ import { AgreementStatus, ExamModality } from "../enums.js";
  * for every existing unit, rather than by special-casing "empty means all" -- which would have
  * made the dangerous reading the default forever.
  *
- * A grant is per *unit* or per *equipment*, never both on one row, and the two are not
- * equivalent: a unit grant follows the unit, so equipment the clinic installs there later is
- * automatically covered, while an equipment grant names one device and stays that way. Which a
- * clinic wants is a real decision about how much ongoing trust it is extending, so both exist.
+ * A grant is per *unit* or per *equipment*, never both on one row. Equipment-level is the only
+ * shape the scope modal offers now: a clinic names exactly which scanners an outside company may
+ * drive, and a device installed later grants nothing until named explicitly (deny-by-default).
+ *
+ * Unit-level grants still exist in the model and are still honored by `grantsAccessTo` -- every
+ * agreement that predates this change holds one, and `createContractedOperator`'s test fixture
+ * still writes one deliberately, exploiting the old "covers whatever the unit contains, now or
+ * later" behavior so tests don't have to re-grant each new piece of equipment they create. A unit
+ * grant is converted to the equipment it currently covers the first time an admin opens that
+ * agreement's scope in the UI and saves -- see `AgreementScopeOptionSchema.grantedViaUnit`.
  */
 export const AgreementScopeSchema = z.object({
   id: z.string().uuid(),
@@ -97,16 +103,48 @@ export const SetAgreementScopeRequestSchema = z.object({
 export type SetAgreementScopeRequest = z.infer<typeof SetAgreementScopeRequestSchema>;
 
 /**
- * `GET /agreements/clinic-options` -- what the operator-side "Propor Contrato" picker offers:
- * every non-deactivated `CLINIC` tenant the caller's own company does not already have a
- * `PENDING` or `ACTIVE` agreement with. Deliberately not the full `TenantDto` `GET /tenants`
+ * One piece of equipment as a candidate for an agreement's scope -- what `GET
+ * /agreements/:id/scope-options` returns, and the data behind the scope modal's equipment picker.
+ *
+ * `granted`/`grantedViaUnit` are both server-computed so the picker can pre-check exactly what
+ * this agreement already covers, by whichever grant shape put it there: `granted` is a scope row
+ * naming this equipment directly, `grantedViaUnit` is a scope row naming the unit it currently
+ * sits in (the legacy shape -- see `AgreementScopeSchema`'s own docstring). The two are not
+ * mutually exclusive -- nothing stops a clinic from granting both a unit and one of its devices --
+ * so a picker must OR them to decide what starts checked, and must warn the admin when
+ * `grantedViaUnit` is true: `PUT :id/scope` replaces the whole set, so saving without that
+ * equipment selected would silently drop the unit grant that used to cover it.
+ */
+export const AgreementScopeOptionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  roomLabel: z.string().nullable(),
+  modality: z.nativeEnum(ExamModality).nullable(),
+  unitId: z.string().uuid().nullable(),
+  unitName: z.string().nullable(),
+  granted: z.boolean(),
+  grantedViaUnit: z.boolean(),
+});
+export type AgreementScopeOption = z.infer<typeof AgreementScopeOptionSchema>;
+
+/**
+ * The shape behind both "Propor Contrato" pickers -- `GET /agreements/clinic-options` (what an
+ * operator admin may propose to) and `GET /agreements/operator-options` (what a clinic admin
+ * may propose to). Same `{id, name}` shape either way; which side's tenants it lists is purely
+ * a function of which endpoint built it. Deliberately not the full `TenantDto` `GET /tenants`
  * would return (that route is `PLATFORM_ADMIN`-only precisely because it has no tenant-scoping
  * concept at all -- see `TenantsController`'s own docstring) -- this is the narrow, properly
  * -scoped "options" shape the same handful of admin pickers in this app already use (e.g.
  * `ResponsibleManagerOption`), not a second way to enumerate the whole platform's tenants.
  */
-export const ClinicAgreementOptionSchema = z.object({
+export const AgreementCounterpartyOptionSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
 });
-export type ClinicAgreementOption = z.infer<typeof ClinicAgreementOptionSchema>;
+export type AgreementCounterpartyOption = z.infer<typeof AgreementCounterpartyOptionSchema>;
+
+/** @deprecated Kept as an alias -- use `AgreementCounterpartyOptionSchema`/`AgreementCounterpartyOption`.
+ * Named for the operator-side picker only, before the clinic-side one (`GET
+ * /agreements/operator-options`) existed to share the same shape. */
+export const ClinicAgreementOptionSchema = AgreementCounterpartyOptionSchema;
+export type ClinicAgreementOption = AgreementCounterpartyOption;

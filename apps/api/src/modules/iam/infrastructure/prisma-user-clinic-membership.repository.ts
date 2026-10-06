@@ -19,6 +19,18 @@ export class PrismaUserClinicMembershipRepository implements UserClinicMembershi
     });
   }
 
+  /** Delete-then-insert in one transaction, not a diff -- the simplest way to make
+   * "whatever's in `clinicTenantIds` is now the complete set" true, mirroring
+   * `SetAgreementScopeHandler`'s own whole-set-replacement write. An empty array is legal
+   * and clears every membership row (`UpdateUserHandler` itself still enforces the
+   * `requiresClinicAssignment` business rule -- this port method is pure persistence). */
+  async replace(userId: string, clinicTenantIds: readonly string[]): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.userClinicMembership.deleteMany({ where: { userId } }),
+      this.prisma.userClinicMembership.createMany({ data: clinicTenantIds.map((clinicTenantId) => ({ userId, clinicTenantId })) }),
+    ]);
+  }
+
   async listClinicIdsForUser(userId: string): Promise<string[]> {
     const rows = await this.prisma.userClinicMembership.findMany({ where: { userId }, select: { clinicTenantId: true } });
     return rows.map((row) => row.clinicTenantId);

@@ -248,7 +248,10 @@ test("Dashboard page", async ({ page }) => {
 
 test("Audit page", async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);
-  await page.getByRole("button", { name: "Log de Auditoria" }).click();
+  // Navigates via ConsoleShell's own sidebar item now -- the inline "Log de Auditoria" button
+  // DashboardPage used to render was removed once the sidebar got its own "Auditoria" link
+  // (every other `canViewAudit` role already lacked any way to reach this page at all).
+  await page.getByRole("link", { name: "Auditoria" }).click();
   await page.waitForURL("/audit");
   await page.getByRole("heading", { name: "Log de Auditoria" }).waitFor();
   await expectNoViolations(page);
@@ -265,22 +268,59 @@ test("Admin users page", async ({ page }) => {
   // that navigates here stays English (see docs/architecture.md's note on that seam).
   await page.getByRole("heading", { name: "Usuários" }).waitFor();
   await expectNoViolations(page);
+});
+
+test("User form page: create, read-only view, and edit", async ({ page }) => {
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto("/admin/users/new");
 
   // Exercises the clinic multi-select fieldset (a CLINIC_ADMIN may only grant NURSING --
   // see roles.ts's ROLE_GRANTS -- which requires at least one clinic checked), then scans
-  // the "invitation sent" success-banner state too. No password field anymore: POST /users
-  // sends an activation link instead (see SendInvitationHandler).
+  // the "invitation sent" success state too -- now its own page (`UserFormPage`'s own
+  // docstring on why it doesn't auto-navigate away), not a banner on the listing. No
+  // password field anymore: POST /users sends an activation link instead (see
+  // SendInvitationHandler).
+  await page.getByRole("heading", { name: "Cadastrar Novo Usuário" }).waitFor();
+  await expectNoViolations(page);
+
   const email = `a11y-admin-created-${Date.now()}@test.crop.health`;
   lastInvitedEmail = email;
   await page.getByLabel("E-mail corporativo").fill(email);
-  await page.getByLabel("Nome", { exact: true }).fill("Paulo");
-  await page.getByLabel("Sobrenome", { exact: true }).fill("Andrade");
+  // By id, not `getByLabel`/`getByRole("textbox", { name: ... })`: "Nome" is a literal
+  // substring of "Sobrenome"'s own accessible name, and `UserFormPage` renders both behind
+  // `RequiredLabel` (the hidden required-asterisk span `ClinicFormPage`'s own tests already
+  // document complicating exact-name matching) -- the id is unambiguous either way.
+  await page.locator("#user-first-name").fill("Paulo");
+  await page.locator("#user-last-name").fill("Andrade");
   await page.getByRole("checkbox", { name: "Clinica Alpha" }).check();
   const createButton = page.getByRole("button", { name: "Enviar convite" });
   await expect(createButton).toBeEnabled();
   await createButton.click();
   await page.getByText("Convite enviado.").waitFor();
   await expectNoViolations(page);
+
+  await page.getByRole("link", { name: "Voltar para usuários" }).click();
+  await page.waitForURL("/admin/users");
+  const row = page.getByRole("row").filter({ hasText: email });
+  await row.waitFor();
+
+  // Read-only view: every control disabled, same convention ClinicFormPage/OperatorFormPage
+  // both use.
+  await row.getByRole("link", { name: "Ver detalhes" }).click();
+  await page.waitForURL(/\/admin\/users\/[^/]+$/);
+  await page.getByRole("heading", { name: "Detalhes do Usuário" }).waitFor();
+  await expect(page.locator("#user-first-name")).toBeDisabled();
+  await expectNoViolations(page);
+
+  await page.getByRole("link", { name: "Editar usuário" }).click();
+  await page.waitForURL(/\/admin\/users\/[^/]+\/edit$/);
+  await page.getByRole("heading", { name: "Editar Usuário" }).waitFor();
+  await expect(page.locator("#user-first-name")).toBeEnabled();
+  await page.locator("#user-last-name").fill("Andrade Silva");
+  await expectNoViolations(page);
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await page.waitForURL("/admin/users");
+  await page.getByRole("row").filter({ hasText: "Andrade Silva" }).waitFor();
 });
 
 test("Activate account page (the invitation-link redemption flow)", async ({ page }) => {
@@ -554,6 +594,144 @@ test("Clinic form page: create, read-only view, and edit", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Desativar clínica" });
   await dialog.waitFor();
   await expectNoViolations(page);
+  await dialog.getByRole("button", { name: "Desativar" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("Admin operators page: the registry listing, with filters applied", async ({ page }) => {
+  await login(page, SUPERADMIN.email, SUPERADMIN.password);
+  await page.getByRole("link", { name: "Operadoras" }).click();
+  await page.waitForURL("/superadmin/operadoras");
+  await page.getByRole("heading", { name: "Gestão de Operadoras Cadastradas" }).waitFor();
+  await expectNoViolations(page);
+
+  // Same reasoning as the clinic listing's own filtered-state scan: swaps the table for a
+  // "nothing matches" note and updates the `aria-live` filter-summary region axe doesn't
+  // see by default.
+  await page.getByLabel("Buscar operadora").fill("nao-existe-nenhuma-operadora-assim");
+  await page.getByText("Nenhuma operadora corresponde aos filtros aplicados.").waitFor();
+  await expectNoViolations(page);
+});
+
+test("Operator form page: create, read-only view, and edit", async ({ page }) => {
+  await login(page, SUPERADMIN.email, SUPERADMIN.password);
+  await page.goto("/superadmin/operadoras/new");
+
+  // The create form: two sections, no "Responsável" section at all (unlike the clinic
+  // form's create-only note replacing it) -- see OperatorFormPage's own docstring.
+  await page.getByRole("heading", { name: "Cadastrar Nova Operadora" }).waitFor();
+  await expectNoViolations(page);
+
+  const cnpj = generateValidCnpj();
+  const operatorName = `A11y Operator ${Date.now()}`;
+  await page.getByLabel("Nome da operadora").fill(operatorName);
+  await page.getByLabel("CNPJ").fill(cnpj);
+  await page.getByLabel("E-mail institucional").fill("contato@a11y-operator.crop.health");
+  await page.getByLabel("Telefone de contato").fill("(11) 2345-6789");
+  // Same Playwright accessible-name quirk the clinic form's own test already documents.
+  await page.getByRole("textbox", { name: "CEP", exact: true }).fill("04567-002");
+  await page.getByLabel("Rua / Logradouro").fill("Avenida Faria Lima");
+  await page.getByLabel("Número").fill("500");
+  await page.getByLabel("Bairro").fill("Itaim Bibi");
+  await page.getByLabel("Cidade").fill("São Paulo");
+  await selectRadixOption(page, "UF", "SP");
+  await page.getByRole("button", { name: "Salvar Operadora" }).click();
+
+  await page.waitForURL("/superadmin/operadoras");
+  const row = page.getByRole("row").filter({ hasText: operatorName });
+  await row.waitFor();
+
+  // Read-only view: every control disabled, and the CNPJ renders as read-only formatted
+  // text, same as the clinic form's own view mode.
+  await row.getByRole("link", { name: "Ver detalhes" }).click();
+  await page.waitForURL(/\/superadmin\/operadoras\/[^/]+$/);
+  await page.getByRole("heading", { name: "Detalhes da Operadora" }).waitFor();
+  await expect(page.getByLabel("Nome da operadora")).toBeDisabled();
+  await expectNoViolations(page);
+
+  await page.getByRole("link", { name: "Editar operadora" }).click();
+  await page.waitForURL(/\/superadmin\/operadoras\/[^/]+\/edit$/);
+  await page.getByRole("heading", { name: "Editar Operadora" }).waitFor();
+  await expect(page.getByLabel("Nome da operadora")).toBeEnabled();
+  await expectNoViolations(page);
+
+  // Cleanup: retire the operadora this test registered, so repeated runs don't accumulate
+  // rows (and so the deactivation confirmation modal gets scanned too).
+  await page.getByRole("link", { name: "Cancelar" }).click();
+  await page.waitForURL("/superadmin/operadoras");
+  await page.getByRole("row").filter({ hasText: operatorName }).getByRole("button", { name: "Desativar" }).click();
+  const dialog = page.getByRole("dialog", { name: "Desativar operadora" });
+  await dialog.waitFor();
+  await expectNoViolations(page);
+  await dialog.getByRole("button", { name: "Desativar" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("Agreements page: a clinic admin proposes a contract to a freshly-registered operadora", async ({ page }) => {
+  // Every operator-provider tenant in the seed already has an agreement with Clinica Alpha
+  // (see infra/seeds/seed.ts's own agreement topology), so `GET /agreements/operator-options`
+  // would offer nothing to propose to against seeded data alone -- a fresh operadora,
+  // registered here the same way "Operator form page" above does, guarantees one with zero
+  // existing agreements for this test's own propose button to actually use.
+  await login(page, SUPERADMIN.email, SUPERADMIN.password);
+  await page.goto("/superadmin/operadoras/new");
+  const operatorName = `A11y Agreement Operator ${Date.now()}`;
+  await page.getByLabel("Nome da operadora").fill(operatorName);
+  await page.getByLabel("CNPJ").fill(generateValidCnpj());
+  await page.getByLabel("E-mail institucional").fill("contato@a11y-agreement-operator.crop.health");
+  await page.getByLabel("Telefone de contato").fill("(11) 2345-6789");
+  await page.getByRole("textbox", { name: "CEP", exact: true }).fill("04567-002");
+  await page.getByLabel("Rua / Logradouro").fill("Avenida Faria Lima");
+  await page.getByLabel("Número").fill("500");
+  await page.getByLabel("Bairro").fill("Itaim Bibi");
+  await page.getByLabel("Cidade").fill("São Paulo");
+  await selectRadixOption(page, "UF", "SP");
+  await page.getByRole("button", { name: "Salvar Operadora" }).click();
+  await page.waitForURL("/superadmin/operadoras");
+
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.getByRole("link", { name: "Contratos" }).click();
+  await page.waitForURL("/contratos");
+  await page.getByRole("heading", { name: "Contratos" }).waitFor();
+  await expectNoViolations(page);
+
+  // The clinic-side propose button and picker -- new capability, mirroring the
+  // operator-side one `AgreementsPage`'s own docstring already describes.
+  await page.getByRole("button", { name: "Propor contrato" }).click();
+  const proposeDialog = page.getByRole("dialog", { name: "Propor novo contrato" });
+  await proposeDialog.waitFor();
+  await expectNoViolations(page);
+  await selectRadixOption(page, "Empresa operadora", operatorName);
+  await proposeDialog.getByRole("button", { name: "Enviar proposta" }).click();
+  await expect(proposeDialog).toBeHidden();
+
+  const row = page.getByRole("row").filter({ hasText: operatorName });
+  await row.waitFor();
+  await expectNoViolations(page);
+
+  // The scope modal's equipment picker -- `CheckboxCardGroup` over `GET
+  // /agreements/:id/scope-options`'s real equipment, not the old unit list, so this is the
+  // first a11y coverage of that fetch actually populating checkboxes.
+  await row.getByRole("button", { name: "Abrangência" }).click();
+  const scopeDialog = page.getByRole("dialog", { name: `Abrangência: ${operatorName}` });
+  await scopeDialog.waitFor();
+  await expectNoViolations(page);
+  await scopeDialog.getByRole("checkbox").first().click();
+  await scopeDialog.getByRole("button", { name: "Salvar abrangência" }).click();
+  await expect(scopeDialog).toBeHidden();
+  await expectNoViolations(page);
+
+  // Cleanup: no "Encerrar" (revoke) here -- `assertCanBeRevokedBy` only allows revoking an
+  // ACTIVE agreement, and this one stays PENDING forever (nobody logs in as the freshly
+  // registered operadora's own admin to accept it; `OperatorFormPage` only ever creates the
+  // tenant, no user). Deactivating the operadora tenant itself is what actually keeps repeated
+  // runs from accumulating rows in the superadmin listing, and does not depend on the
+  // agreement's status at all.
+  await login(page, SUPERADMIN.email, SUPERADMIN.password);
+  await page.goto("/superadmin/operadoras");
+  await page.getByRole("row").filter({ hasText: operatorName }).getByRole("button", { name: "Desativar" }).click();
+  const dialog = page.getByRole("dialog", { name: "Desativar operadora" });
+  await dialog.waitFor();
   await dialog.getByRole("button", { name: "Desativar" }).click();
   await expect(dialog).toBeHidden();
 });

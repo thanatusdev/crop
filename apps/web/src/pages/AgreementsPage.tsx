@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AgreementStatus,
-  type ClinicAgreementOption,
-  type EquipmentDto,
+  UserRole,
+  type AgreementCounterpartyOption,
+  type AgreementScopeOption,
   type MyClinic,
   type OperatorAgreementDto,
-  type UnitDto,
 } from "@crop/shared";
 import { Plus } from "lucide-react";
 import { cn } from "cn";
@@ -22,7 +22,7 @@ import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { Card, CardContent } from "../components/ui/card.js";
-import { tailwindBadgeClassOf, type DisplayStatus } from "../lib/equipment-display.js";
+import { MODALITY_ABBREVIATION, tailwindBadgeClassOf, type DisplayStatus } from "../lib/equipment-display.js";
 import { agreementStatusBadgeClassOf, agreementStatusLabelKeyOf, counterpartyOf, isActionableBy } from "../lib/agreement-display.js";
 
 const ALL = "__all__";
@@ -69,33 +69,31 @@ export default function AgreementsPage() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AgreementStatus | "ALL">("ALL");
 
-  // A clinic-side admin proposes to a company and vice versa, so the picker's contents depend on
-  // which side the viewer is. Clinic-side has no picker at all: `GET /tenants` (which would list
-  // operating companies) is `PLATFORM_ADMIN`-only and always will be -- see `TenantsController`'s
-  // own docstring -- so a clinic's own route into a contract stays "accept one", never "propose
-  // one". Operator-side gets a real, working picker instead: `GET /agreements/clinic-options`
-  // (`ListClinicOptionsHandler`), a narrow, properly-scoped list built for exactly this button,
-  // not a second way to read `GET /tenants`.
+  // A clinic-side admin proposes to a company and vice versa, so the picker's contents and the
+  // request's counterparty field both depend on which side the viewer is on. Both sides now get
+  // a real, working picker: `GET /agreements/clinic-options` (`ListClinicOptionsHandler`) for the
+  // operator side, `GET /agreements/operator-options` (`ListOperatorOptionsHandler`) for the
+  // clinic side -- narrow, properly-scoped lists built for exactly this button, not a second way
+  // to read `GET /tenants`.
   //
-  // `PLATFORM_ADMIN` used to be offered this same button, on the mistaken assumption that they
-  // could complete the flow because they alone can call `GET /tenants` -- they cannot actually
-  // *propose*, though: `ProposeAgreementHandler` derives the proposer's side from
-  // `actor.homeTenantId`, which for a platform admin is the `PLATFORM` tenant, neither `CLINIC`
-  // nor `OPERATOR_PROVIDER` -- so `POST /agreements` was always going to reject it with "An
-  // agreement is always between one CLINIC and one OPERATOR_PROVIDER tenant". A real, previously
-  // undiscovered dead end for that role, closed by removing the button rather than by chasing a
-  // proposer identity a platform admin structurally does not have.
-  const isOperatorSide = user?.role === "OPERATOR_ADMIN";
+  // `PLATFORM_ADMIN` is not offered this button: `ProposeAgreementHandler` derives the proposer's
+  // side from `actor.homeTenantId`, which for a platform admin is the `PLATFORM` tenant, neither
+  // `CLINIC` nor `OPERATOR_PROVIDER` -- so `POST /agreements` would always reject it with "An
+  // agreement is always between one CLINIC and one OPERATOR_PROVIDER tenant". A structural dead
+  // end for that role, closed by removing the button rather than by chasing a proposer identity a
+  // platform admin does not have.
+  const isOperatorSide = user?.role === UserRole.OPERATOR_ADMIN;
+  const isClinicSide = user?.role === UserRole.CLINIC_ADMIN || user?.role === UserRole.LOCAL_SUPERVISOR;
+  const canPropose = isOperatorSide || isClinicSide;
 
   const [proposeOpen, setProposeOpen] = useState(false);
-  const [counterpartyOptions, setCounterpartyOptions] = useState<ClinicAgreementOption[]>([]);
+  const [counterpartyOptions, setCounterpartyOptions] = useState<AgreementCounterpartyOption[]>([]);
   const [proposeTarget, setProposeTarget] = useState("");
   const [proposing, setProposing] = useState(false);
 
   const [scopeFor, setScopeFor] = useState<OperatorAgreementDto | null>(null);
-  const [scopeUnits, setScopeUnits] = useState<UnitDto[]>([]);
-  const [scopeEquipment, setScopeEquipment] = useState<EquipmentDto[]>([]);
-  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const [scopeOptions, setScopeOptions] = useState<AgreementScopeOption[]>([]);
+  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [savingScope, setSavingScope] = useState(false);
 
   useEffect(() => {
@@ -114,17 +112,19 @@ export default function AgreementsPage() {
     }
   }
 
-  // Only offered to (and only ever called for) `isOperatorSide` now -- see that flag's own
-  // docstring above. `actionError` is reset here on every open, not only on a fresh failure, so
-  // a stale message from a *previous* attempt (or from before the modal was closed -- see
+  // Offered to (and only ever called for) `canPropose` roles -- see that flag's own docstring
+  // above. `actionError` is reset here on every open, not only on a fresh failure, so a stale
+  // message from a *previous* attempt (or from before the modal was closed -- see
   // `closePropose`) can never be mistaken for a fresh one.
   async function openPropose() {
     setActionError(null);
     setProposeTarget("");
     setProposeOpen(true);
     try {
-      const clinics = await api.get<ClinicAgreementOption[]>("/agreements/clinic-options");
-      setCounterpartyOptions(clinics);
+      const options = await api.get<AgreementCounterpartyOption[]>(
+        isOperatorSide ? "/agreements/clinic-options" : "/agreements/operator-options"
+      );
+      setCounterpartyOptions(options);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : t("agreements:counterpartyLoadFailed"));
     }
@@ -149,10 +149,10 @@ export default function AgreementsPage() {
     setProposing(true);
     setActionError(null);
     try {
-      // Operator-side is the only caller now (see `isOperatorSide`'s own docstring) -- always a
-      // clinic counterparty, never the `operatorTenantId` branch this used to also send for a
-      // platform admin who could never have reached a successful response anyway.
-      await api.post("/agreements", { clinicTenantId: proposeTarget });
+      // The caller supplies only the counterparty; their own side is taken from their token by
+      // the handler, never from this body. An operator-side proposer names a clinic; a
+      // clinic-side proposer names an operating company.
+      await api.post("/agreements", isOperatorSide ? { clinicTenantId: proposeTarget } : { operatorTenantId: proposeTarget });
       closePropose();
       await load();
     } catch (err) {
@@ -178,14 +178,19 @@ export default function AgreementsPage() {
   async function openScope(agreement: OperatorAgreementDto) {
     setScopeFor(agreement);
     setActionError(null);
-    setSelectedUnitIds(agreement.scopes.filter((scope) => scope.unitId).map((scope) => scope.unitId!));
+    setScopeOptions([]);
+    setSelectedEquipmentIds([]);
     try {
-      const [units, equipment] = await Promise.all([
-        api.get<UnitDto[]>(`/units?clinicTenantId=${agreement.clinicTenantId}`),
-        api.get<EquipmentDto[]>("/equipment"),
-      ]);
-      setScopeUnits(units.filter((unit) => !unit.deactivated));
-      setScopeEquipment(equipment);
+      // `GET /agreements/:id/scope-options`, not `GET /equipment` -- see
+      // `ListScopeOptionsHandler`'s own docstring for why a dedicated, agreement-scoped route
+      // exists instead of a `clinicTenantId` param on the equipment list.
+      const options = await api.get<AgreementScopeOption[]>(`/agreements/${agreement.id}/scope-options`);
+      setScopeOptions(options);
+      // Pre-checks whatever this agreement already reaches, by either grant shape. This is also
+      // the lazy migration: a legacy unit grant (`grantedViaUnit`) starts checked on every piece
+      // of equipment it currently covers, so saving without changes converts it to equipment-level
+      // grants instead of silently dropping it -- `PUT :id/scope` replaces the whole set.
+      setSelectedEquipmentIds(options.filter((option) => option.granted || option.grantedViaUnit).map((option) => option.id));
     } catch (err) {
       setActionError(err instanceof Error ? err.message : t("agreements:scopeLoadFailed"));
     }
@@ -196,11 +201,14 @@ export default function AgreementsPage() {
     setSavingScope(true);
     setActionError(null);
     try {
-      // Units only from this screen. Per-equipment grants exist in the model and are honoured by
-      // the API, but offering both here would ask a clinic admin to reason about two overlapping
-      // granularities in one form -- and a unit grant is the one that keeps covering rooms as
-      // scanners are replaced, which is what a clinic almost always means.
-      await api.put(`/agreements/${scopeFor.id}/scope`, { unitIds: selectedUnitIds, equipmentIds: [] });
+      // Equipment only. The model also honours a unit-level grant (see `AgreementScopeSchema`'s
+      // own docstring on why that shape still exists), but this screen offers equipment
+      // exclusively: a clinic can now let one company into Room A's CT and a different company
+      // into Room A's X-ray, which a unit grant cannot express. `unitIds: []` here is what
+      // converts any legacy unit grant this agreement held into the equipment selected below --
+      // `openScope`'s pre-check already included that equipment, so a save with no further
+      // changes preserves access rather than narrowing it.
+      await api.put(`/agreements/${scopeFor.id}/scope`, { unitIds: [], equipmentIds: selectedEquipmentIds });
       closeScope();
       await load();
     } catch (err) {
@@ -216,6 +224,8 @@ export default function AgreementsPage() {
   // own overlay hid it, surfacing on the main page only once the modal was gone.
   function closeScope() {
     setScopeFor(null);
+    setScopeOptions([]);
+    setSelectedEquipmentIds([]);
     setActionError(null);
   }
 
@@ -224,13 +234,12 @@ export default function AgreementsPage() {
     [agreements, statusFilter]
   );
 
-  const equipmentCountByUnit = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of scopeEquipment) {
-      if (item.unitId) counts.set(item.unitId, (counts.get(item.unitId) ?? 0) + 1);
-    }
-    return counts;
-  }, [scopeEquipment]);
+  // Any equipment the picker pre-checked by way of a legacy unit grant rather than a direct
+  // equipment grant -- true while this agreement still has an unconverted unit-level row.
+  // Drives the conversion notice in the modal: without it, saving silently turns a "this whole
+  // unit" grant into "exactly the equipment it happened to contain today", and nothing on screen
+  // would say so.
+  const hasUnitConversion = useMemo(() => scopeOptions.some((option) => option.grantedViaUnit), [scopeOptions]);
 
   return (
     <ConsoleShell activeNav="agreements" pageTitle={t("agreements:pageTitle")}>
@@ -239,7 +248,7 @@ export default function AgreementsPage() {
           <h1 className="mt-0 mb-1 text-xl font-semibold">{t("agreements:heading")}</h1>
           <p className="text-muted-foreground">{isOperatorSide ? t("agreements:subtitleOperator") : t("agreements:subtitleClinic")}</p>
         </div>
-        {isOperatorSide && (
+        {canPropose && (
           <Button onClick={openPropose}>
             <Plus />
             {t("agreements:propose")}
@@ -310,7 +319,10 @@ export default function AgreementsPage() {
               <TableBody>
                 {visible.map((agreement) => {
                   const ownTenantId = isOperatorSide ? agreement.operatorTenantId : agreement.clinicTenantId;
-                  const isClinicSide = !isOperatorSide;
+                  // Row-local, not the page-level `isClinicSide` (which gates the propose
+                  // button by role): scope is the clinic's to set regardless of which role
+                  // within it is viewing, so this is just "not the operator side".
+                  const viewerOwnsScope = !isOperatorSide;
                   const canRespond = isActionableBy(agreement, ownTenantId);
                   return (
                     <TableRow key={agreement.id}>
@@ -352,7 +364,7 @@ export default function AgreementsPage() {
                               </Button>
                             </>
                           )}
-                          {isClinicSide && agreement.status !== "REJECTED" && agreement.status !== "REVOKED" && (
+                          {viewerOwnsScope && agreement.status !== "REJECTED" && agreement.status !== "REVOKED" && (
                             <Button variant="secondary" size="sm" onClick={() => void openScope(agreement)}>
                               {t("agreements:editScope")}
                             </Button>
@@ -381,7 +393,7 @@ export default function AgreementsPage() {
       {proposeOpen && (
         <Modal title={t("agreements:proposeTitle")} onClose={closePropose}>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="propose-counterparty">{t("agreements:pickClinic")}</Label>
+            <Label htmlFor="propose-counterparty">{t(isOperatorSide ? "agreements:pickClinic" : "agreements:pickOperator")}</Label>
             <Select value={proposeTarget} onValueChange={setProposeTarget}>
               <SelectTrigger id="propose-counterparty" className="w-full">
                 <SelectValue placeholder={t("agreements:pickPlaceholder")} />
@@ -415,18 +427,25 @@ export default function AgreementsPage() {
       {scopeFor && (
         <Modal title={t("agreements:scopeTitle", { name: counterpartyOf(scopeFor, isOperatorSide) })} onClose={closeScope}>
           <p className="text-sm text-muted-foreground">{t("agreements:scopeHint")}</p>
-          {scopeUnits.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("agreements:scopeNoUnits")}</p>
+          {hasUnitConversion && (
+            <Alert className="mt-3">
+              <AlertDescription>{t("agreements:scopeUnitConversionNotice")}</AlertDescription>
+            </Alert>
+          )}
+          {scopeOptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("agreements:scopeNoEquipment")}</p>
           ) : (
             <CheckboxCardGroup
               legend={t("agreements:scopeLegend")}
-              name="agreement-scope-units"
-              value={selectedUnitIds}
-              onChange={setSelectedUnitIds}
-              options={scopeUnits.map((unit) => ({
-                value: unit.id,
-                title: unit.name,
-                hint: t("agreements:scopeUnitHint", { count: equipmentCountByUnit.get(unit.id) ?? 0 }),
+              name="agreement-scope-equipment"
+              value={selectedEquipmentIds}
+              onChange={setSelectedEquipmentIds}
+              options={scopeOptions.map((option) => ({
+                value: option.id,
+                title: option.name,
+                hint: [option.unitName, option.roomLabel, option.modality ? MODALITY_ABBREVIATION[option.modality] : null]
+                  .filter(Boolean)
+                  .join(" • "),
               }))}
             />
           )}

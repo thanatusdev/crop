@@ -1,21 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ROLE_GRANTS, UserRole, evaluatePassword, requiresClinicAssignment, type MyClinic, type TenantDto, type UserDto } from "@crop/shared";
-import { Loader2, Lock, Unlock, KeyRound, Mail } from "lucide-react";
+import { evaluatePassword, type UserDto } from "@crop/shared";
+import { Lock, Unlock, KeyRound, Mail, Plus, Eye, Pencil } from "lucide-react";
 import { cn } from "cn";
-import { api, ApiError } from "../lib/api-client.js";
-import { useAuth } from "../lib/auth-context.js";
+import { api } from "../lib/api-client.js";
 import { PasswordStrength } from "../components/PasswordStrength.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
-import { RolePermissionSummary } from "../components/RolePermissionSummary.js";
 import { Button } from "../components/ui/button.js";
 import { Card, CardContent } from "../components/ui/card.js";
 import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
-import { Checkbox } from "../components/ui/checkbox.js";
 import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip.js";
 
@@ -27,31 +24,22 @@ const STATUS_BADGE_CLASS = {
 } as const;
 
 /**
- * Full pt-BR pass. Rebuilt on shadcn/ui in a later pass -- `Table` for the user listing,
- * `Select` for the role/tenant pickers, `Checkbox` for the clinic multi-select and the
- * "active" toggle, `Badge` for status pills (same hex pairs as the old
- * `.badge.online`/`.maintenance`, carried over). `RolePermissionSummary` moved to shadcn in
- * the same pass as this page, one of its two callers -- see that component's own docstring.
+ * The user listing -- creation, viewing, and editing now live on their own route
+ * (`UserFormPage`, `/admin/users/new` · `/:id` · `/:id/edit`), the same split
+ * `AdminClinicsPage`/`ClinicFormPage` already use. Before `PATCH /users/:id` existed, this
+ * page's own inline create form was the only way to touch a user beyond lock/unlock/reset
+ * -password -- see `UserFormPage`'s own docstring for what moved and why `GET /users/:id`
+ * had no caller until it did.
  *
- * Registration rule this page enforces client-side (the server, `RegisterUserHandler`, is
- * the actual authority -- see `canGrantRole`/`ROLE_GRANTS` in roles.ts): "The System
- * Administrator registers users with the Clinic Manager, Supervisor, and Nursing profiles.
- * The Clinic Manager registers users with the Nursing profile." The role dropdown below is
- * built from `ROLE_GRANTS[actingUser.role]`, not the full `ASSIGNABLE_ROLES` list, so a
- * CLINIC_ADMIN is never even shown a role they aren't allowed to grant.
- *
- * There is no password field anymore -- `POST /users` sends the new account a secure,
- * single-use, 24h invitation link instead (see SendInvitationHandler); the new user chooses
- * their own first password when they redeem it at `/ativar-conta`.
+ * Lock/unlock, reset-password, and resend-invite stay here, inline per row, unchanged:
+ * none of the three is a form with fields to validate the way create/edit are, and moving
+ * them to their own page would only add navigation for no benefit.
  *
  * `DashboardPage`'s "Manage users" button that links here is deliberately still English --
  * see this file's own note in architecture.md on that seam.
  */
 export default function AdminUsersPage() {
   const { t } = useTranslation(["adminUsers", "roles"]);
-  const { user } = useAuth();
-  const isSuperadmin = user?.role === "PLATFORM_ADMIN";
-  const grantableRoles = useMemo(() => (user ? ROLE_GRANTS[user.role] : []), [user]);
 
   const [users, setUsers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,77 +51,9 @@ export default function AdminUsersPage() {
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
-  // Create user.
-  const [newEmail, setNewEmail] = useState("");
-  const [newFirstName, setNewFirstName] = useState("");
-  const [newLastName, setNewLastName] = useState("");
-  const [newProfessionalRegistration, setNewProfessionalRegistration] = useState("");
-  const [newRole, setNewRole] = useState<UserRole>(grantableRoles[0] ?? UserRole.NURSING);
-  const [newActive, setNewActive] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  // Shown once, right after creation -- no password to relay anymore (see class docstring),
-  // just confirmation that the invitation was sent.
-  const [justCreated, setJustCreated] = useState<{ email: string; role: UserRole } | null>(null);
-
-  // Which clinics the new account should be linked to -- required (non-empty) exactly when
-  // `requiresClinicAssignment(newRole)`. Sourced from `GET /tenants` (every CLINIC tenant)
-  // for a PLATFORM_ADMIN caller, or `GET /auth/me/clinics` (only the caller's own clinics --
-  // RegisterUserHandler's actor-scope check rejects anything else) for a CLINIC_ADMIN.
-  const [tenants, setTenants] = useState<TenantDto[]>([]);
-  const [myClinics, setMyClinics] = useState<MyClinic[]>([]);
-  const [selectedClinicIds, setSelectedClinicIds] = useState<string[]>([]);
-  const clinicAssignmentNeeded = requiresClinicAssignment(newRole);
-  const clinicOptions = useMemo(
-    () =>
-      isSuperadmin
-        ? tenants.filter((tenant) => tenant.type === "CLINIC").map((tenant) => ({ id: tenant.id, name: tenant.name, deactivated: tenant.deactivated }))
-        : myClinics.map((clinic) => ({ id: clinic.id, name: clinic.name, deactivated: clinic.deactivated })),
-    [isSuperadmin, tenants, myClinics]
-  );
-
-  // PLATFORM_ADMIN-only legacy single-tenant picker, for the roles this feature doesn't
-  // touch (LOCAL_IT, OPERATOR_ADMIN, OPERATIONAL_SUPERVISOR, OPERATOR, AUDITOR) -- see
-  // CreateUserRequestSchema's own comment on `tenantId` vs `clinicTenantIds`.
-  const [targetTenantId, setTargetTenantId] = useState("");
-
   useEffect(() => {
-    // `/users` (`load`) is scoped to the caller's *active* tenant server-side, so it depends
-    // on `user?.tenantId` -- same reasoning as ConsoleShell's own fix. `/tenants` and
-    // `/auth/me/clinics` are platform-wide/home-tenant scoped respectively, immune to an
-    // active-clinic switch, so they stay mount-once.
     void load();
-    if (isSuperadmin) void loadTenants();
-    else void loadMyClinics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.tenantId]);
-
-  function handleRoleChange(role: UserRole) {
-    setNewRole(role);
-    setSelectedClinicIds([]);
-    setTargetTenantId("");
-  }
-
-  function toggleClinic(id: string, checked: boolean) {
-    setSelectedClinicIds((prev) => (checked ? [...prev, id] : prev.filter((existing) => existing !== id)));
-  }
-
-  async function loadTenants() {
-    try {
-      setTenants(await api.get<TenantDto[]>("/tenants"));
-    } catch {
-      // Non-fatal: the create-user form just won't offer a clinic picker if this fails --
-      // the user list itself (this page's main purpose) still loads and works independently.
-    }
-  }
-
-  async function loadMyClinics() {
-    try {
-      setMyClinics(await api.get<MyClinic[]>("/auth/me/clinics"));
-    } catch {
-      // Same non-fatal reasoning as loadTenants above.
-    }
-  }
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -188,169 +108,26 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function submitCreate(ev: React.FormEvent) {
-    ev.preventDefault();
-    setCreateError(null);
-    setCreating(true);
-    try {
-      await api.post("/users", {
-        email: newEmail,
-        firstName: newFirstName,
-        lastName: newLastName,
-        professionalRegistration: newProfessionalRegistration || undefined,
-        role: newRole,
-        active: newActive,
-        ...(clinicAssignmentNeeded
-          ? { clinicTenantIds: selectedClinicIds }
-          : isSuperadmin && targetTenantId
-            ? { tenantId: targetTenantId }
-            : {}),
-      });
-      setJustCreated({ email: newEmail, role: newRole });
-      setNewEmail("");
-      setNewFirstName("");
-      setNewLastName("");
-      setNewProfessionalRegistration("");
-      setSelectedClinicIds([]);
-      setTargetTenantId("");
-      setNewActive(true);
-      await load();
-    } catch (err) {
-      setCreateError(err instanceof ApiError ? err.message : t("adminUsers:genericCreateError"));
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  const canSubmitCreate = !creating && (!clinicAssignmentNeeded || selectedClinicIds.length > 0);
-
   return (
     <ConsoleShell activeNav="users" pageTitle={t("adminUsers:heading")}>
-      {/* Same missing-heading gap `DashboardPage` had -- `ConsoleShell`'s topbar renders
-          `pageTitle` as a plain `<strong>`, not a heading, so this page needs its own
-          level-one one. Found by the same fresh a11y run against a reset demo stack. */}
-      <h1 className="sr-only">{t("adminUsers:heading")}</h1>
-      <Card className="mb-4">
-        <CardContent>
-          <h2 className="mt-0 text-lg font-semibold">{t("adminUsers:createTitle")}</h2>
-          <p className="-mt-1.5 mb-3 text-sm text-muted-foreground">{t("adminUsers:inviteNote")}</p>
-          <form onSubmit={submitCreate}>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="new-user-email">{t("adminUsers:emailLabel")}</Label>
-              <Input id="new-user-email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
-            </div>
-            <div className="mt-3 flex gap-3">
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="new-user-first-name">{t("adminUsers:firstNameLabel")}</Label>
-                <Input id="new-user-first-name" value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} required />
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="new-user-last-name">{t("adminUsers:lastNameLabel")}</Label>
-                <Input id="new-user-last-name" value={newLastName} onChange={(e) => setNewLastName(e.target.value)} required />
-              </div>
-            </div>
-            <div className="mt-3 flex flex-col gap-1.5">
-              <Label htmlFor="new-user-registration">{t("adminUsers:professionalRegistrationLabel")}</Label>
-              <Input
-                id="new-user-registration"
-                value={newProfessionalRegistration}
-                onChange={(e) => setNewProfessionalRegistration(e.target.value)}
-              />
-            </div>
+      <nav aria-label={t("adminUsers:breadcrumbList")}>
+        <ol className="mb-3 flex list-none gap-1.5 p-0 text-sm text-muted-foreground">
+          <li>{t("adminUsers:breadcrumbHome")}</li>
+          <li aria-current="page" className="before:mr-1.5 before:content-['/']">
+            {t("adminUsers:breadcrumbList")}
+          </li>
+        </ol>
+      </nav>
 
-            <div className="mt-3.5 flex flex-col gap-1.5">
-              <Label htmlFor="new-user-role">{t("adminUsers:roleLabel")}</Label>
-              <Select value={newRole} onValueChange={(value) => handleRoleChange(value as UserRole)}>
-                <SelectTrigger id="new-user-role" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {grantableRoles.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {t(`roles:${role}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <RolePermissionSummary role={newRole} />
-
-            {clinicAssignmentNeeded ? (
-              <fieldset className="rounded-lg border p-2.5">
-                <legend className="px-1 text-sm font-medium">{t("adminUsers:clinicsLabel")}</legend>
-                <p className="mt-0 text-xs text-muted-foreground">{t("adminUsers:clinicsHint")}</p>
-                {clinicOptions.length === 0 ? (
-                  <p className="text-muted-foreground">{t("adminUsers:clinicsEmpty")}</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {clinicOptions.map((clinic) => (
-                      <Label key={clinic.id} className="flex items-center gap-2 font-normal">
-                        <Checkbox
-                          checked={selectedClinicIds.includes(clinic.id)}
-                          onCheckedChange={(checked) => toggleClinic(clinic.id, checked === true)}
-                        />
-                        {clinic.name}
-                        {clinic.deactivated ? t("adminUsers:tenantDeactivatedSuffix") : ""}
-                      </Label>
-                    ))}
-                  </div>
-                )}
-              </fieldset>
-            ) : (
-              isSuperadmin && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="new-user-tenant">{t("adminUsers:tenantLabel")}</Label>
-                  <Select value={targetTenantId} onValueChange={setTargetTenantId}>
-                    <SelectTrigger id="new-user-tenant" className="w-full">
-                      <SelectValue placeholder={t("adminUsers:tenantPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenants
-                        .filter((tenant) => tenant.type !== "PLATFORM")
-                        .map((tenant) => (
-                          <SelectItem key={tenant.id} value={tenant.id}>
-                            {tenant.name}
-                            {tenant.deactivated ? t("adminUsers:tenantDeactivatedSuffix") : ""}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )
-            )}
-
-            <div className="mt-3.5">
-              <Label htmlFor="new-user-active" className="flex items-center gap-2 font-normal">
-                <Checkbox id="new-user-active" checked={newActive} onCheckedChange={(checked) => setNewActive(checked === true)} />
-                {t("adminUsers:statusActiveToggle")}
-              </Label>
-            </div>
-
-            {createError && (
-              <Alert variant="destructive" className="mt-3">
-                <AlertDescription>{createError}</AlertDescription>
-              </Alert>
-            )}
-            <Button type="submit" disabled={!canSubmitCreate} className="mt-3.5">
-              {creating && <Loader2 className="animate-spin" />}
-              {creating ? t("adminUsers:creating") : t("adminUsers:create")}
-            </Button>
-          </form>
-          {justCreated && (
-            <Alert role="status" className="mt-3.5 border-[#5fdc8a]">
-              <AlertDescription>
-                <strong className="text-[#166534]">{t("adminUsers:createdBannerTitle")}</strong> {t("adminUsers:createdBannerBody")}
-                <div className="mt-2 font-mono text-sm">
-                  {t("adminUsers:createdEmailField")}: {justCreated.email}
-                  <br />
-                  {t("adminUsers:createdRoleField")}: {t(`roles:${justCreated.role}`)}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <h1 className="mt-0 mb-1 text-xl font-semibold">{t("adminUsers:heading")}</h1>
+        <Button asChild>
+          <Link to="/admin/users/new">
+            <Plus />
+            {t("adminUsers:newUser")}
+          </Link>
+        </Button>
+      </div>
 
       <Card>
         <CardContent>
@@ -421,6 +198,26 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="secondary" size="icon-sm" aria-label={t("adminUsers:actionView")} asChild>
+                                <Link to={`/admin/users/${target.id}`}>
+                                  <Eye />
+                                </Link>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("adminUsers:actionView")}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="secondary" size="icon-sm" aria-label={t("adminUsers:actionEdit")} asChild>
+                                <Link to={`/admin/users/${target.id}/edit`}>
+                                  <Pencil />
+                                </Link>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("adminUsers:actionEdit")}</TooltipContent>
+                          </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button

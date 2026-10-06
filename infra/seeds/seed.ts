@@ -114,10 +114,11 @@ async function main(): Promise<void> {
   // "staff directory" demo: it is where the people who actually run the exams work.
   //
   // Contracts with both clinics are negotiated further down, once units and equipment exist:
-  // an agreement's scope names real units, so it cannot be created before them. A second
-  // operating company is seeded too, so the many-to-many shape is actually exercised rather
-  // than merely supported -- "Clinica Alpha" ends up contracting two companies with different
-  // scope, which the old single `Tenant.operatorTenantId` column could not represent at all.
+  // an agreement's scope names real equipment, so it cannot be created before any of it. A
+  // second operating company is seeded too, so the many-to-many shape is actually exercised
+  // rather than merely supported -- "Clinica Alpha" ends up contracting two companies with
+  // different scope, which the old single `Tenant.operatorTenantId` column could not represent
+  // at all.
   const { tenant: central } = await commandBus.execute(new CreateTenantCommand("Operadora Central", TenantType.OPERATOR_PROVIDER));
   const { tenant: teleSul } = await commandBus.execute(new CreateTenantCommand("Teleimagem Sul", TenantType.OPERATOR_PROVIDER));
 
@@ -422,29 +423,30 @@ async function main(): Promise<void> {
   });
 
   // --- Alpha <-> Operadora Central: proposed by the clinic, accepted by the company ----------
-  // Scope: Unidade Jardins only. Alpha's MRI-01 lives there, so Central reaches it -- while
-  // RX-02 in Unidade Paulista stays out of scope, which is what makes the narrowing visible in
-  // the demo instead of only being expressible.
+  // Scope: MRI-01 directly, by equipment id -- the scope modal's only grant shape now (see
+  // AgreementsPage.tsx's own docstring). RX-02, in a different room, stays out of scope,
+  // which is what makes the narrowing visible in the demo instead of only being expressible.
   const alphaCentral = await commandBus.execute(
-    new ProposeAgreementCommand(actorFor(alphaAdmin, alpha.id), central.id, [alphaUnit2.id], [])
+    new ProposeAgreementCommand(actorFor(alphaAdmin, alpha.id), central.id, [], [mri.id])
   );
   await commandBus.execute(new RespondToAgreementCommand(actorFor(centralAdmin, central.id), alphaCentral.id, true));
 
   // --- Alpha <-> Teleimagem Sul: proposed by the *company*, accepted by the clinic -----------
   // The mirror image of the handshake above, so both directions are real seeded data. Scope is
   // set by Alpha afterwards (an operating company cannot scope itself -- see
-  // OperatorAgreement.assertScopeCanBeSetBy), and covers Unidade Paulista: the room Central
-  // cannot see. Two companies, same clinic, disjoint scope -- the exact shape the old
-  // single-operator column could not express.
+  // OperatorAgreement.assertScopeCanBeSetBy), and covers RX-02 only: the scanner Central cannot
+  // see. Two companies, same clinic, disjoint scope -- the exact shape the old single-operator
+  // column could not express.
   const alphaSul = await commandBus.execute(new ProposeAgreementCommand(actorFor(sulAdmin, teleSul.id), alpha.id, [], []));
   await commandBus.execute(new RespondToAgreementCommand(actorFor(alphaAdmin, alpha.id), alphaSul.id, true));
-  await commandBus.execute(new SetAgreementScopeCommand(actorFor(alphaAdmin, alpha.id), alphaSul.id, [alphaUnit3.id], []));
+  await commandBus.execute(new SetAgreementScopeCommand(actorFor(alphaAdmin, alpha.id), alphaSul.id, [], [rx.id]));
 
   // --- Beta <-> Operadora Central ------------------------------------------------------------
   // One company serving two clinics, the direction the old column *could* express -- kept so
-  // nothing that relied on it is lost.
+  // nothing that relied on it is lost. Scope: CT-01 directly, same equipment-level shape as the
+  // Alpha agreements above.
   const betaCentral = await commandBus.execute(
-    new ProposeAgreementCommand(actorFor(betaAdmin, beta.id), central.id, [betaUnit2.id], [])
+    new ProposeAgreementCommand(actorFor(betaAdmin, beta.id), central.id, [], [ct.id])
   );
   await commandBus.execute(new RespondToAgreementCommand(actorFor(centralAdmin, central.id), betaCentral.id, true));
 
@@ -553,8 +555,8 @@ async function main(): Promise<void> {
   console.log("Tenants:");
   console.log(`  Clinica Alpha:     ${alpha.id}  (2 operating companies, disjoint scope)`);
   console.log(`  Clinica Beta:      ${beta.id}  (operator: Operadora Central)`);
-  console.log(`  Operadora Central: ${central.id}  (agreements: Alpha/Unidade Jardins, Beta/Unidade Centro)`);
-  console.log(`  Teleimagem Sul:    ${teleSul.id}  (agreement: Alpha/Unidade Paulista only)`);
+  console.log(`  Operadora Central: ${central.id}  (agreements: Alpha/MRI-01, Beta/CT-01 -- equipment-level grants)`);
+  console.log(`  Teleimagem Sul:    ${teleSul.id}  (agreement: Alpha/RX-02 only -- equipment-level grant)`);
   console.log(`  Unidade Jardins (Alpha): ${alphaUnit2.id}`);
   console.log(`  Unidade Centro (Beta):   ${betaUnit2.id}`);
   console.log("\nUsers (password is the same for all, for demo convenience only):");

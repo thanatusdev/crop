@@ -219,6 +219,12 @@ export async function createContractedOperator(
  * designed for (see the OperatorAgreementScope model), so the fixture exercises it rather than
  * working around it.
  *
+ * This is deliberately the one place in the codebase that still *chooses* a unit grant: the real
+ * scope modal (`AgreementsPage.tsx`) offers equipment-level grants exclusively now, and a unit
+ * grant is otherwise a legacy shape most agreements only hold because they predate that change.
+ * Using it here is a test-convenience trade, not a product recommendation -- see
+ * `operator-agreements.e2e.spec.ts`'s own equipment-level tests for the shape real contracts take.
+ *
  * Exported because a spec that creates a *new* unit after its operator, and puts equipment there
  * explicitly, is outside that guarantee and has to re-grant. Idempotent, so calling it again is
  * always safe.
@@ -294,6 +300,27 @@ export function clinicPayload(overrides: Record<string, unknown> = {}): Record<s
     street: "Avenida Paulista",
     number: "1000",
     district: "Bela Vista",
+    city: "São Paulo",
+    state: "SP",
+    ...overrides,
+  };
+}
+
+/** `OPERATOR_PROVIDER` counterpart to `clinicPayload` -- same required institutional fields,
+ * same reasoning (a fresh `generateValidCnpj()` per call so repeated test runs never 409 on
+ * CNPJ uniqueness), different `type` and a name that reads like a company rather than a
+ * clinic. */
+export function operatorPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    name: `Test-Operator-${crypto.randomUUID().slice(0, 8)}`,
+    type: "OPERATOR_PROVIDER",
+    cnpj: generateValidCnpj(),
+    institutionalEmail: "contato@test-operator.crop.health",
+    phone: "(11) 2345-6789",
+    zipCode: "04567-002",
+    street: "Avenida Faria Lima",
+    number: "500",
+    district: "Itaim Bibi",
     city: "São Paulo",
     state: "SP",
     ...overrides,

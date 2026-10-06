@@ -1,12 +1,14 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { CommandBus, QueryBus } from "@nestjs/cqrs";
 import {
   AdminResetPasswordRequestSchema,
   CreateUserRequestSchema,
+  UpdateUserRequestSchema,
   UserRole,
   type AccessTokenClaims,
   type AdminResetPasswordRequest,
   type CreateUserRequest,
+  type UpdateUserRequest,
 } from "@crop/shared";
 import { ZodValidationPipe } from "../../../shared/infrastructure/http/zod-validation.pipe.js";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard.js";
@@ -21,6 +23,7 @@ import { UnlockUserCommand } from "../application/commands/unlock-user/unlock-us
 import { AdminResetPasswordCommand } from "../application/commands/admin-reset-password/admin-reset-password.command.js";
 import { RegisterUserCommand, type RegisterUserResult } from "../application/commands/register-user/register-user.command.js";
 import { SendInvitationCommand } from "../application/commands/send-invitation/send-invitation.command.js";
+import { UpdateUserCommand } from "../application/commands/update-user/update-user.command.js";
 import { USER_CLINIC_MEMBERSHIP_REPOSITORY, type UserClinicMembershipRepositoryPort } from "../application/ports/user-clinic-membership.port.js";
 import { toUserDto } from "./user.dto.js";
 
@@ -115,6 +118,19 @@ export class UsersController {
   @Get(":id")
   async getOne(@CurrentUser() admin: AccessTokenClaims, @Param("id") id: string) {
     const user = await this.queryBus.execute(new GetUserByIdQuery(id, admin.tenantId));
+    const clinicTenantIds = await this.memberships.listClinicIdsForUser(user.id);
+    return toUserDto(user, clinicTenantIds);
+  }
+
+  @Patch(":id")
+  async update(
+    @CurrentUser() admin: AccessTokenClaims,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(UpdateUserRequestSchema)) body: UpdateUserRequest
+  ) {
+    const user = await this.commandBus.execute(
+      new UpdateUserCommand(id, admin.sub, admin.tenantId, admin.role, body)
+    );
     const clinicTenantIds = await this.memberships.listClinicIdsForUser(user.id);
     return toUserDto(user, clinicTenantIds);
   }

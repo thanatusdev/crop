@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import type { UserRole } from "@crop/shared";
 import { PrismaService } from "../../../shared/infrastructure/prisma/prisma.service.js";
 import { User } from "../domain/user.entity.js";
-import type { CreateUserData, UserRepositoryPort } from "../application/ports/user-repository.port.js";
+import type { CreateUserData, UpdateUserData, UserRepositoryPort } from "../application/ports/user-repository.port.js";
 
 @Injectable()
 export class PrismaUserRepository implements UserRepositoryPort {
@@ -50,6 +50,19 @@ export class PrismaUserRepository implements UserRepositoryPort {
       await tx.passwordHistory.create({ data: { userId: row.id, passwordHash: data.passwordHash } });
       return this.toDomain(row);
     });
+  }
+
+  async update(id: string, data: UpdateUserData): Promise<User> {
+    const row = await this.prisma.user.update({
+      where: { id },
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        professionalRegistration: data.professionalRegistration,
+        role: data.role,
+      },
+    });
+    return this.toDomain(row);
   }
 
   async activateMfa(userId: string): Promise<void> {

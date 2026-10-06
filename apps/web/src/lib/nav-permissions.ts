@@ -19,6 +19,7 @@ export interface NavPermissions {
   canManageQueue: boolean;
   canManageAgreements: boolean;
   canViewOperations: boolean;
+  canSelectWorkstation: boolean;
 }
 
 export function computeNavPermissions(role: UserRole | undefined): NavPermissions {
@@ -79,10 +80,22 @@ export function computeNavPermissions(role: UserRole | undefined): NavPermission
       role === UserRole.LOCAL_SUPERVISOR ||
       role === UserRole.OPERATOR_ADMIN ||
       role === UserRole.PLATFORM_ADMIN,
-    // DashboardPage's whole surface is remote-session/equipment operation -- a nurse never
-    // starts, watches, or takes over a session, so unlike every other flag here this one is
-    // deliberately false for a role that otherwise has real permissions (canManageQueue).
-    // Everyone else keeps seeing "Dashboard" exactly as before.
-    canViewOperations: role !== UserRole.NURSING,
+    // DashboardPage's whole surface is remote-session/equipment operation. Two roles are
+    // deliberately excluded despite otherwise having real permissions, each for its own
+    // screen rather than the generic multi-equipment dashboard: NURSING never starts,
+    // watches, or takes over a session (its own screen is "/enfermagem", canManageQueue);
+    // OPERATOR has its own real landing page too (`WorkstationPage`, `/posto-de-trabalho`,
+    // see role-routes.ts and canSelectWorkstation below) and showing "Painel" alongside it
+    // offered a second, non-converging path to the same equipment (Dashboard's own
+    // "Iniciar sessão" button lands on the generic `SessionPage`, not the operator's
+    // dedicated `ExamPage` cockpit `WorkstationPage` actually confirms into). Everyone else
+    // keeps seeing Dashboard exactly as before.
+    canViewOperations: role !== UserRole.NURSING && role !== UserRole.OPERATOR,
+    // Mirrors this route's own `RoleRoute allowed={[OPERATOR]}` in App.tsx -- the
+    // workstation-selection screen (clinic -> unit -> equipment, narrowed to whatever the
+    // operator's own company holds an active `OperatorAgreement` for) is OPERATOR's real
+    // home route (role-routes.ts) and nobody else's; OPERATOR_ADMIN/OPERATIONAL_SUPERVISOR
+    // deliberately stay on the generic Dashboard instead (see that route's own comment).
+    canSelectWorkstation: role === UserRole.OPERATOR,
   };
 }

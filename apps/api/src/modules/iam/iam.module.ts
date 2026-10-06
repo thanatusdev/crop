@@ -26,6 +26,7 @@ import { RedisRateLimiterService } from "./infrastructure/redis-rate-limiter.ser
 import { RedisTokenRevocationService } from "./infrastructure/redis-token-revocation.service.js";
 
 import { RegisterUserHandler } from "./application/commands/register-user/register-user.handler.js";
+import { UpdateUserHandler } from "./application/commands/update-user/update-user.handler.js";
 import { LoginHandler } from "./application/commands/login/login.handler.js";
 import { VerifyMfaHandler } from "./application/commands/verify-mfa/verify-mfa.handler.js";
 import { RefreshTokensHandler } from "./application/commands/refresh-tokens/refresh-tokens.handler.js";
@@ -53,6 +54,7 @@ import { AccessModule } from "../access/access.module.js";
 
 const COMMAND_AND_QUERY_HANDLERS = [
   RegisterUserHandler,
+  UpdateUserHandler,
   LoginHandler,
   VerifyMfaHandler,
   RefreshTokensHandler,

@@ -9,7 +9,7 @@ import { useAuth } from "../lib/auth-context.js";
 import { computeNavPermissions } from "../lib/nav-permissions.js";
 import { Button } from "./ui/button.js";
 
-export type ConsoleNavKey = "dashboard" | "users" | "clinics" | "units" | "equipment" | "nursing" | "agreements";
+export type ConsoleNavKey = "dashboard" | "workstation" | "users" | "clinics" | "operators" | "units" | "equipment" | "nursing" | "agreements" | "audit";
 
 /**
  * The shared light-theme sidebar+topbar chrome (Dashboard, Gestores & Usuários, Unidades,
@@ -63,6 +63,7 @@ export function ConsoleShell({
 
   const [equipmentHealth, setEquipmentHealth] = useState<{ online: number; total: number } | null>(null);
   const [clinicCount, setClinicCount] = useState<number | null>(null);
+  const [operatorCount, setOperatorCount] = useState<number | null>(null);
   const [unitCount, setUnitCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -79,6 +80,7 @@ export function ConsoleShell({
     setEquipmentHealth(null);
     setUnitCount(null);
     setClinicCount(null);
+    setOperatorCount(null);
 
     api
       .get<EquipmentDto[]>("/equipment")
@@ -105,6 +107,16 @@ export function ConsoleShell({
           if (!cancelled) setClinicCount(list.filter((tenant) => tenant.type === "CLINIC").length);
         })
         .catch(() => {});
+
+      // Its own `?type=` fetch rather than reusing the unfiltered list above -- this nav
+      // item didn't exist when that one was written (see its own comment on why it still
+      // over-fetches instead of using the filter this request already uses).
+      api
+        .get<TenantDto[]>("/tenants?type=OPERATOR_PROVIDER")
+        .then((list) => {
+          if (!cancelled) setOperatorCount(list.length);
+        })
+        .catch(() => {});
     }
 
     return () => {
@@ -124,14 +136,24 @@ export function ConsoleShell({
     visible: boolean;
     count?: number | null;
   }> = [
-    // Hidden for NURSING -- see canViewOperations's own docstring in nav-permissions.ts.
+    // Hidden for NURSING and OPERATOR -- see canViewOperations's own docstring in nav-permissions.ts.
     { key: "dashboard", to: "/", label: t("shell:navDashboard"), visible: nav.canViewOperations },
+    // OPERATOR's own equivalent of "Painel" -- the two are mutually exclusive by construction
+    // (canViewOperations/canSelectWorkstation never both true for the same role), so this
+    // never competes with the item above for the same sidebar slot.
+    { key: "workstation", to: "/posto-de-trabalho", label: t("shell:navWorkstation"), visible: nav.canSelectWorkstation },
     { key: "users", to: "/admin/users", label: t("shell:navUsers"), visible: nav.canManageUsers },
     { key: "clinics", to: "/superadmin/clinics", label: t("shell:navClinics"), visible: nav.canManagePlatform, count: clinicCount },
+    { key: "operators", to: "/superadmin/operadoras", label: t("shell:navOperators"), visible: nav.canManagePlatform, count: operatorCount },
     { key: "units", to: "/admin/units", label: t("shell:navUnits"), visible: nav.canManageUnits, count: unitCount },
     { key: "equipment", to: "/admin/equipment", label: t("shell:navEquipment"), visible: nav.canManageEquipment },
     { key: "nursing", to: "/enfermagem", label: t("shell:navNursing"), visible: nav.canManageQueue },
     { key: "agreements", to: "/contratos", label: t("shell:navAgreements"), visible: nav.canManageAgreements },
+    // Mirrors AuditController's own @Roles (canViewAudit) -- previously reachable only
+    // through a conditional link inline on DashboardPage, which meant it had no presence at
+    // all for a role landing anywhere else, and duplicated a destination the sidebar should
+    // just list like every other screen.
+    { key: "audit", to: "/audit", label: t("shell:navAudit"), visible: nav.canViewAudit },
   ];
 
   return (

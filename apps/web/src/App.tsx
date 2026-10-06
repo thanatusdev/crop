@@ -16,6 +16,7 @@ import SessionPage from "./pages/SessionPage.js";
 import SessionReplayPage from "./pages/SessionReplayPage.js";
 import AuditPage from "./pages/AuditPage.js";
 import AdminUsersPage from "./pages/AdminUsersPage.js";
+import UserFormPage from "./pages/UserFormPage.js";
 import AdminEquipmentPage from "./pages/AdminEquipmentPage.js";
 import EquipmentFormPage from "./pages/EquipmentFormPage.js";
 import AdminUnitsPage from "./pages/AdminUnitsPage.js";
@@ -23,6 +24,8 @@ import AgreementsPage from "./pages/AgreementsPage.js";
 import UnitFormPage from "./pages/UnitFormPage.js";
 import AdminClinicsPage from "./pages/AdminClinicsPage.js";
 import ClinicFormPage from "./pages/ClinicFormPage.js";
+import AdminOperatorsPage from "./pages/AdminOperatorsPage.js";
+import OperatorFormPage from "./pages/OperatorFormPage.js";
 import LatencyClockPage from "./pages/LatencyClockPage.js";
 
 function ProtectedLayout() {
@@ -103,11 +106,22 @@ export default function App() {
             >
               <Route path="/audit" element={<AuditPage />} />
             </Route>
-            {/* Mirrors UsersController's @Roles. */}
+            {/* Mirrors UsersController's @Roles. LOCAL_SUPERVISOR included -- they can grant
+                NURSING/LOCAL_IT per ROLE_GRANTS and the backend already authorizes them;
+                this route list is what used to leave them with a nav link to nowhere. */}
             <Route
-              element={<RoleRoute allowed={[UserRole.CLINIC_ADMIN, UserRole.OPERATOR_ADMIN, UserRole.PLATFORM_ADMIN]} />}
+              element={
+                <RoleRoute
+                  allowed={[UserRole.CLINIC_ADMIN, UserRole.LOCAL_SUPERVISOR, UserRole.OPERATOR_ADMIN, UserRole.PLATFORM_ADMIN]}
+                />
+              }
             >
               <Route path="/admin/users" element={<AdminUsersPage />} />
+              {/* Same shape as the equipment/unit/clinic blocks: `/admin/users/:id` alone
+                  is the read-only view, `:mode` a literal `edit` segment. */}
+              <Route path="/admin/users/new" element={<UserFormPage />} />
+              <Route path="/admin/users/:id" element={<UserFormPage />} />
+              <Route path="/admin/users/:id/:mode" element={<UserFormPage />} />
             </Route>
             {/* Mirrors EquipmentController's POST/@Roles -- LOCAL_IT included, unlike
                 /admin/users above, since it has equipment permissions but not user ones. */}
@@ -153,6 +167,12 @@ export default function App() {
               <Route path="/superadmin/clinics/new" element={<ClinicFormPage />} />
               <Route path="/superadmin/clinics/:id" element={<ClinicFormPage />} />
               <Route path="/superadmin/clinics/:id/:mode" element={<ClinicFormPage />} />
+              {/* OPERATOR_PROVIDER's own registry, same shape as clinics above -- see
+                  AdminOperatorsPage's own docstring. */}
+              <Route path="/superadmin/operadoras" element={<AdminOperatorsPage />} />
+              <Route path="/superadmin/operadoras/new" element={<OperatorFormPage />} />
+              <Route path="/superadmin/operadoras/:id" element={<OperatorFormPage />} />
+              <Route path="/superadmin/operadoras/:id/:mode" element={<OperatorFormPage />} />
             </Route>
             {/* Mirrors AgreementsController's @Roles: the administrator of each side of the
                 contract plus PLATFORM_ADMIN. One route for both sides -- see AgreementsPage's

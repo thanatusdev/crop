@@ -11,8 +11,8 @@ export class ListTenantsHandler implements IQueryHandler<ListTenantsQuery, Enric
     private readonly enrichment: TenantEnrichmentService
   ) {}
 
-  async execute(): Promise<EnrichedTenant[]> {
-    const tenants = await this.tenants.listAll();
+  async execute(query: ListTenantsQuery): Promise<EnrichedTenant[]> {
+    const tenants = await this.tenants.listAll({ type: query.type });
     return this.enrichment.enrichMany(tenants);
   }
 }

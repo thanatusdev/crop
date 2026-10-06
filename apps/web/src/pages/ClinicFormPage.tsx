@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { BR_STATES, formatCnpj, type ResponsibleManagerOption, type TenantDto } from "@crop/shared";
+import { formatCnpj, type ResponsibleManagerOption, type TenantDto } from "@crop/shared";
 import { api, ApiError } from "../lib/api-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
 import { Button } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
 import { Label } from "../components/ui/label.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.js";
+import { Card, CardContent } from "../components/ui/card.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.js";
+import { AddressFormFields, FormSectionHeader, RequiredLabel } from "../components/TenantFormFields.js";
 
 // Radix `Select.Item` rejects an empty-string `value` -- stands in for "no responsible
 // manager assigned," a real, selectable state (edit/view only; a brand-new clinic has no
@@ -76,31 +77,6 @@ function formFrom(clinic: TenantDto): FormState {
     state: clinic.state ?? "",
     responsibleManagerId: clinic.responsibleManagerId ?? "",
   };
-}
-
-/** A field label carrying the required marker -- module scope for the same reason
- * `UnitFormPage`'s identical `RequiredLabel` is: redeclaring it inside the component would
- * remount its subtree on every keystroke instead of updating it in place. */
-function RequiredLabel({ htmlFor, required, children }: { htmlFor: string; required: boolean; children: React.ReactNode }) {
-  return (
-    <Label htmlFor={htmlFor}>
-      {children}
-      {required && (
-        <span className="text-destructive" aria-hidden="true">
-          *
-        </span>
-      )}
-    </Label>
-  );
-}
-
-function SectionHeader({ step, title }: { step: string; title: string }) {
-  return (
-    <CardHeader className="flex-row items-center gap-3 space-y-0 border-b [.border-b]:pb-4">
-      <span className="rounded-md bg-accent px-2 py-0.5 text-xs font-bold tabular-nums text-accent-foreground">{step}</span>
-      <CardTitle className="text-sm font-semibold tracking-wide uppercase">{title}</CardTitle>
-    </CardHeader>
-  );
 }
 
 /**
@@ -179,7 +155,7 @@ export default function ClinicFormPage() {
   async function loadManagers(clinicTenantId: string) {
     setManagerLoadError(null);
     try {
-      setManagerOptions(await api.get<ManagerOption[]>(`/tenants/responsible-manager-options?clinicTenantId=${clinicTenantId}`));
+      setManagerOptions(await api.get<ManagerOption[]>(`/tenants/responsible-manager-options?tenantId=${clinicTenantId}`));
     } catch {
       setManagerLoadError(t("clinicForm:managerLoadError"));
     }
@@ -313,7 +289,7 @@ export default function ClinicFormPage() {
 
       <form onSubmit={submit}>
         <Card className="mb-4 py-0">
-          <SectionHeader step="01" title={t("clinicForm:sectionInstitutional")} />
+          <FormSectionHeader step="01" title={t("clinicForm:sectionInstitutional")} />
           <CardContent className="grid gap-3.5 py-5">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-4">
               <div className="mb-3.5 flex flex-col gap-1.5">
@@ -408,115 +384,37 @@ export default function ClinicFormPage() {
         </Card>
 
         <Card className="mb-4 py-0">
-          <SectionHeader step="02" title={t("clinicForm:sectionAddress")} />
+          <FormSectionHeader step="02" title={t("clinicForm:sectionAddress")} />
           <CardContent className="grid gap-3.5 py-5">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-4">
-              <div className="mb-3.5 flex flex-col gap-1.5">
-                <RequiredLabel required={!readOnly} htmlFor="clinic-zip">
-                  {t("clinicForm:zipCodeLabel")}
-                </RequiredLabel>
-                <Input
-                  id="clinic-zip"
-                  value={form.zipCode}
-                  placeholder={t("clinicForm:zipCodePlaceholder")}
-                  onChange={(e) => update("zipCode", e.target.value)}
-                  required
-                  disabled={readOnly}
-                  aria-describedby="clinic-zip-hint"
-                />
-                <span className="text-xs text-muted-foreground" id="clinic-zip-hint">
-                  {t("clinicForm:zipCodeHint")}
-                </span>
-              </div>
-              <div className="mb-3.5 flex flex-col gap-1.5">
-                <RequiredLabel required={!readOnly} htmlFor="clinic-street">
-                  {t("clinicForm:streetLabel")}
-                </RequiredLabel>
-                <Input
-                  id="clinic-street"
-                  value={form.street}
-                  placeholder={t("clinicForm:streetPlaceholder")}
-                  onChange={(e) => update("street", e.target.value)}
-                  required
-                  disabled={readOnly}
-                />
-              </div>
-              <div className="mb-3.5 flex flex-col gap-1.5">
-                <RequiredLabel required={!readOnly} htmlFor="clinic-number">
-                  {t("clinicForm:numberLabel")}
-                </RequiredLabel>
-                <Input
-                  id="clinic-number"
-                  value={form.number}
-                  placeholder={t("clinicForm:numberPlaceholder")}
-                  onChange={(e) => update("number", e.target.value)}
-                  required
-                  disabled={readOnly}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-4">
-              <div className="mb-3.5 flex flex-col gap-1.5">
-                <Label htmlFor="clinic-complement">{t("clinicForm:complementLabel")}</Label>
-                <Input
-                  id="clinic-complement"
-                  value={form.complement}
-                  placeholder={t("clinicForm:complementPlaceholder")}
-                  onChange={(e) => update("complement", e.target.value)}
-                  disabled={readOnly}
-                />
-              </div>
-              <div className="mb-3.5 flex flex-col gap-1.5">
-                <RequiredLabel required={!readOnly} htmlFor="clinic-district">
-                  {t("clinicForm:districtLabel")}
-                </RequiredLabel>
-                <Input
-                  id="clinic-district"
-                  value={form.district}
-                  placeholder={t("clinicForm:districtPlaceholder")}
-                  onChange={(e) => update("district", e.target.value)}
-                  required
-                  disabled={readOnly}
-                />
-              </div>
-              <div className="mb-3.5 flex flex-col gap-1.5">
-                <RequiredLabel required={!readOnly} htmlFor="clinic-city">
-                  {t("clinicForm:cityLabel")}
-                </RequiredLabel>
-                <Input
-                  id="clinic-city"
-                  value={form.city}
-                  placeholder={t("clinicForm:cityPlaceholder")}
-                  onChange={(e) => update("city", e.target.value)}
-                  required
-                  disabled={readOnly}
-                />
-              </div>
-              <div className="mb-3.5 flex flex-col gap-1.5">
-                <RequiredLabel required={!readOnly} htmlFor="clinic-state">
-                  {t("clinicForm:stateLabel")}
-                </RequiredLabel>
-                <Select value={form.state || undefined} onValueChange={(value) => update("state", value)} disabled={readOnly}>
-                  <SelectTrigger id="clinic-state" className="w-full">
-                    <SelectValue placeholder={t("clinicForm:statePlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BR_STATES.map((state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <AddressFormFields
+              idPrefix="clinic"
+              values={form}
+              onChange={update}
+              readOnly={readOnly}
+              labels={{
+                zipCodeLabel: t("clinicForm:zipCodeLabel"),
+                zipCodePlaceholder: t("clinicForm:zipCodePlaceholder"),
+                zipCodeHint: t("clinicForm:zipCodeHint"),
+                streetLabel: t("clinicForm:streetLabel"),
+                streetPlaceholder: t("clinicForm:streetPlaceholder"),
+                numberLabel: t("clinicForm:numberLabel"),
+                numberPlaceholder: t("clinicForm:numberPlaceholder"),
+                complementLabel: t("clinicForm:complementLabel"),
+                complementPlaceholder: t("clinicForm:complementPlaceholder"),
+                districtLabel: t("clinicForm:districtLabel"),
+                districtPlaceholder: t("clinicForm:districtPlaceholder"),
+                cityLabel: t("clinicForm:cityLabel"),
+                cityPlaceholder: t("clinicForm:cityPlaceholder"),
+                stateLabel: t("clinicForm:stateLabel"),
+                statePlaceholder: t("clinicForm:statePlaceholder"),
+              }}
+            />
           </CardContent>
         </Card>
 
         {mode !== "create" && (
           <Card className="mb-4 py-0">
-            <SectionHeader step="03" title={t("clinicForm:sectionManager")} />
+            <FormSectionHeader step="03" title={t("clinicForm:sectionManager")} />
             <CardContent className="grid gap-3.5 py-5">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="clinic-manager">{t("clinicForm:managerLabel")}</Label>
@@ -562,7 +460,7 @@ export default function ClinicFormPage() {
 
         {mode === "create" && (
           <Card className="mb-4 py-0">
-            <SectionHeader step="03" title={t("clinicForm:sectionManager")} />
+            <FormSectionHeader step="03" title={t("clinicForm:sectionManager")} />
             <CardContent className="py-5">
               <p className="text-sm text-muted-foreground">{t("clinicForm:managerCreateNote")}</p>
             </CardContent>
