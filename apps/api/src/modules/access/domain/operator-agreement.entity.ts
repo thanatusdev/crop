@@ -4,11 +4,15 @@ import { ForbiddenError } from "../../../shared/domain/errors.js";
 /**
  * One grant inside an agreement: a unit, or a single piece of equipment, never both.
  *
- * The two are not interchangeable. A unit grant follows the unit, so equipment the clinic
- * installs into that room later is covered without renegotiating; an equipment grant names one
- * device and stays that way. Which one a clinic wants is a real decision about how much ongoing
- * trust it is extending to an outside company, which is why both exist rather than normalising
- * unit grants into the set of equipment they currently contain.
+ * Equipment-level is the only shape the scope modal offers now -- see
+ * `AgreementScopeSchema`'s own docstring in packages/shared for why, and for
+ * `grantedViaUnit`'s role in converting a legacy unit grant the first time an admin opens and
+ * saves it. Unit-level rows still exist and are still fully honored here (`grantsAccessTo`
+ * below): every agreement that predates this change holds one, and this codebase's own test
+ * fixture (`createContractedOperator`/`grantWholeClinicScope`, apps/api/test/helpers.ts) still
+ * writes one deliberately, because a unit grant keeps covering whatever equipment that room
+ * gains later and a fixture used by ~30 spec files should not have to re-grant each new device
+ * those specs create.
  */
 export interface AgreementScopeProps {
   id: string;

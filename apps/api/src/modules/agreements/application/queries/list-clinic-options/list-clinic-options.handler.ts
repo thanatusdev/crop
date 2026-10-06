@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 import { QueryHandler, type IQueryHandler } from "@nestjs/cqrs";
-import { AgreementStatus, TenantType, type ClinicAgreementOption } from "@crop/shared";
+import { AgreementStatus, TenantType, type AgreementCounterpartyOption } from "@crop/shared";
 import { AGREEMENT_REPOSITORY, type AgreementRepositoryPort } from "../../../../access/application/ports/agreement-repository.port.js";
 import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../../../tenants/application/ports/tenant-repository.port.js";
 import { ListClinicOptionsQuery } from "./list-clinic-options.query.js";
@@ -16,13 +16,13 @@ import { ListClinicOptionsQuery } from "./list-clinic-options.query.js";
  * narrower "agreements by clinic-exclusion" method for this one caller.
  */
 @QueryHandler(ListClinicOptionsQuery)
-export class ListClinicOptionsHandler implements IQueryHandler<ListClinicOptionsQuery, ClinicAgreementOption[]> {
+export class ListClinicOptionsHandler implements IQueryHandler<ListClinicOptionsQuery, AgreementCounterpartyOption[]> {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort
   ) {}
 
-  async execute(query: ListClinicOptionsQuery): Promise<ClinicAgreementOption[]> {
+  async execute(query: ListClinicOptionsQuery): Promise<AgreementCounterpartyOption[]> {
     const [allTenants, ownAgreements] = await Promise.all([this.tenants.listAll(), this.agreements.listForTenant(query.operatorTenantId)]);
 
     const unavailableClinicIds = new Set(

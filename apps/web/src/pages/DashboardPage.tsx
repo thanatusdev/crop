@@ -8,7 +8,6 @@ import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
 import { createSessionSocket } from "../lib/socket-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
-import { computeNavPermissions } from "../lib/nav-permissions.js";
 import { displayStatusOf, statusLabelKeyOf, tailwindBadgeClassOf } from "../lib/equipment-display.js";
 import { queueStatusBadgeClass, queueStatusLabelKeyOf } from "../lib/queue-display.js";
 import { Button } from "../components/ui/button.js";
@@ -83,9 +82,6 @@ export default function DashboardPage() {
   const [newPatientName, setNewPatientName] = useState<Record<string, string>>({});
   const [queueActionId, setQueueActionId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
-  // AuditPage isn't part of ConsoleShell's own nav (not shown in the mock this shell was
-  // built from) -- rendered as a plain inline link here instead.
-  const { canViewAudit } = computeNavPermissions(user?.role);
 
   const [myClinics, setMyClinics] = useState<MyClinic[]>([]);
   const [switchingClinic, setSwitchingClinic] = useState(false);
@@ -306,13 +302,6 @@ export default function DashboardPage() {
             </Link>
           </AlertDescription>
         </Alert>
-      )}
-      {canViewAudit && (
-        <p className="-mt-2 mb-4">
-          <button className="cursor-pointer text-primary underline" onClick={() => navigate("/audit")}>
-            {t("dashboard:auditLog")}
-          </button>
-        </p>
       )}
       {error && (
         <Alert variant="destructive" className="mb-4">

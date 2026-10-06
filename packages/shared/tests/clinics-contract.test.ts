@@ -4,10 +4,11 @@ import { CreateTenantRequestSchema, UpdateTenantRequestSchema } from "../src/con
 
 /**
  * `Tenant`'s institutional/address columns are nullable in Postgres (rows predating this
- * feature, and every `PLATFORM`/`OPERATOR_PROVIDER` tenant, have no honest value for them --
- * see the clinic_registry migration's own note), so the only thing keeping a new CLINIC row
- * from joining that null set is `CreateTenantRequestSchema`'s `.superRefine` -- there is no
- * NOT NULL constraint backing it up, which is exactly why this is worth testing directly.
+ * feature, and the one `PLATFORM` tenant, have no honest value for them -- see the
+ * clinic_registry migration's own note), so the only thing keeping a new CLINIC or
+ * OPERATOR_PROVIDER row from joining that null set is `CreateTenantRequestSchema`'s
+ * `.superRefine` -- there is no NOT NULL constraint backing it up, which is exactly why this
+ * is worth testing directly.
  */
 
 const validClinic = {
@@ -66,14 +67,35 @@ describe("CreateTenantRequestSchema -- institutional identity is mandatory for a
   });
 });
 
-describe("CreateTenantRequestSchema -- an OPERATOR_PROVIDER tenant needs none of this", () => {
-  it("accepts just a name and type -- the documented standalone-staff-directory creation path", () => {
-    const result = CreateTenantRequestSchema.safeParse({ name: "Operadora Central", type: TenantType.OPERATOR_PROVIDER });
-    expect(result.success).toBe(true);
+const validOperator = {
+  name: "Operadora Central",
+  type: TenantType.OPERATOR_PROVIDER,
+  cnpj: "11.122.233/0001-83", // real check-digit-valid CNPJ, distinct root from validClinic's
+  institutionalEmail: "contato@operadoracentral.com.br",
+  phone: "(11) 2345-6789",
+  zipCode: "04567-002",
+  street: "Avenida Paulista",
+  number: "900",
+  district: "Bela Vista",
+  city: "São Paulo",
+  state: "SP",
+};
+
+describe("CreateTenantRequestSchema -- institutional identity is mandatory for an OPERATOR_PROVIDER too", () => {
+  it("accepts an OPERATOR_PROVIDER registration carrying every required field, the same set a CLINIC needs", () => {
+    expect(CreateTenantRequestSchema.safeParse(validOperator).success).toBe(true);
   });
 
+  it.each(["cnpj", "institutionalEmail", "phone", "zipCode", "street", "number", "district", "city", "state"] as const)(
+    "rejects an OPERATOR_PROVIDER registration missing %s -- no longer exempt from this now that it has its own registration screen",
+    (field) => {
+      const { [field]: _omitted, ...withoutField } = validOperator;
+      expect(CreateTenantRequestSchema.safeParse(withoutField).success).toBe(false);
+    }
+  );
+
   it("rejects an OPERATOR_PROVIDER with no name, same as any other tenant", () => {
-    expect(CreateTenantRequestSchema.safeParse({ name: "", type: TenantType.OPERATOR_PROVIDER }).success).toBe(false);
+    expect(CreateTenantRequestSchema.safeParse({ ...validOperator, name: "" }).success).toBe(false);
   });
 });
 

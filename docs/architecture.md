@@ -2650,10 +2650,12 @@ route, because it is one relationship and `GET /agreements` already answers from
 two pages would have duplicated the list, the status vocabulary and the propose flow to express a
 difference the API does not make. Accept/Reject render only for the side that may actually use them,
 mirroring `assertCanBeRespondedToBy` — the same "don't offer an action the API will refuse" lesson
-`SessionPage`'s own "End session" button documents having learned once. Scope editing offers units
-only: per-equipment grants exist in the model and the API honours them, but asking a clinic admin to
-reason about two overlapping granularities in one form buys little, and the unit grant is the one that
-keeps covering a room as its scanners are replaced.
+`SessionPage`'s own "End session" button documents having learned once. Scope editing offered units
+only at the time this section was written: per-equipment grants existed in the model and the API
+already honoured them, but asking a clinic admin to reason about two overlapping granularities in
+one form seemed to buy little, and a unit grant is the one that keeps covering a room as its
+scanners are replaced. *(Reversed later — see "Equipment-level scope: when one room needs two
+operators" below, where exactly that overlap turned out to be a real requirement.)*
 
 **What is deliberately still missing**: emailing a counterparty when a contract is proposed (the
 pending row in the list *is* the notification; a clinic's `institutionalEmail` is nullable and there
@@ -3821,4 +3823,69 @@ default. Before this volume existed, session snapshots and chat attachments were
 every redeploy/restart, a tradeoff DEPLOY.md documented as deliberate for a demo; a
 physician's order is not something a demo tradeoff should apply to, which is what made adding
 the volume now, rather than deferring it again, the right call.
+
+## Equipment-level scope: when one room needs two operators
+
+The scope modal offered units only (see "Migrating to shadcn/ui, continued: the admin-table
+cluster and `AgreementsPage`" above) on the reasoning that a unit grant is what a clinic
+almost always means, and that offering both granularities would ask an admin to reason about
+overlap for no real benefit. That reasoning held until a concrete case broke it: a clinic
+with one room holding two scanners, contracted to two different operating companies, each
+cleared for a different device in it. A unit grant cannot express that at all — it is
+all-or-nothing per room — and the overlap the earlier section worried about turned out to be
+exactly the feature being asked for, not a trap to avoid.
+
+**Nothing changed in the model or the authorization path.** `OperatorAgreementScope` already
+had `equipmentId`, `OperatorAgreement.grantsAccessTo` already checked it, and
+`replaceScope`'s ownership validation already covered it — see the handshake's own section
+above. The entire gap was the UI hard-coding `equipmentIds: []` and a backend route that had
+no way to list one clinic's equipment safely. Confining the change to those two layers is
+what kept this from being a migration: every agreement written before today still holds a
+unit-level row, and it keeps working exactly as it always did until someone opens its scope
+in the UI and saves.
+
+**Equipment options needed their own route, not a query param on `GET /equipment`.** The
+obvious shape — `GET /equipment?clinicTenantId=` mirroring `GET /units?clinicTenantId=` — is
+unsafe for this endpoint specifically. `OperatorAccessService.filterReachableEquipment`
+returns its input *unfiltered* whenever the caller is not a cross-tenant actor, which is
+every `CLINIC_ADMIN`; `GET /equipment` has never needed a `clinicTenantId` param because it
+has only ever read the caller's own `user.tenantId`, so that unfiltered return path was never
+reachable with an attacker-chosen tenant. Adding the param would have made it reachable: any
+clinic admin could name another clinic's id and read its whole inventory.
+`ListScopeOptionsHandler` sidesteps the question entirely rather than closing it with a
+second check — it authorizes through the agreement itself (`assertScopeCanBeSetBy`, already
+clinic-only) and only then lists *that* agreement's own clinic, so there is no independent
+tenant parameter for a caller to abuse in the first place. `AgreementsModule` importing
+`EquipmentModule`/`UnitsModule` for this is new, but adds no cycle: nothing either module (or
+anything they import) imports is `AgreementsModule`, which only `AppModule` pulls in.
+
+**The lazy conversion is what makes "equipment-only in the UI" safe for agreements that
+predate it.** `PUT :id/scope` replaces the whole scope set, which means an admin who opened
+an old, unit-scoped agreement under an equipment-only picker and saved would silently drop
+the unit grant — revoking access to devices the clinic never meant to touch. Each scope
+option now carries `granted` (a direct equipment-level row) and `grantedViaUnit` (reached
+only because its unit is granted) as two separate booleans rather than one merged flag, and
+the picker pre-checks the OR of both: a legacy unit grant starts fully expanded into the
+equipment it currently covers, so a save with no further changes preserves exactly the access
+that existed before, converted rather than lost. The modal also surfaces this explicitly —
+a plain, non-destructive `Alert` reading that this contract still covers a whole room and
+saving will convert that into the equipment selected below — because a conversion an admin
+can't see coming is still a surprise, even if nothing was actually revoked.
+
+**Deny-by-default now also applies to new equipment inside an already-contracted room**,
+which is a real behavior change for a clinic still holding a converted (or newly-created)
+equipment-level grant: installing a scanner into a room an operator was cleared for no longer
+clears the new scanner automatically. That trade only became acceptable once the use case
+driving this section existed — a clinic that genuinely wants "cover the whole room, including
+whatever shows up later" still gets it, by not converting, since legacy unit grants keep
+their old behavior until an admin's own save narrows them.
+
+**What stayed unit-level on purpose.** `grantWholeClinicScope`
+(`apps/api/test/helpers.ts`), the fixture `createContractedOperator` and ~45 call sites
+across ~30 spec files lean on, keeps granting units — it exists specifically to cover
+equipment those specs create *after* the operator, which only a unit grant can do, and
+rewriting all of them to equipment-level grants after the fact would have bought nothing a
+real clinic needs. The seed (`infra/seeds/seed.ts`) moved the other way, to equipment-level
+grants for all three demo agreements, since it is meant to show what the product actually
+offers rather than what the test suite finds convenient.
 

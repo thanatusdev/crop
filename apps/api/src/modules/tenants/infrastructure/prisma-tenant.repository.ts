@@ -5,6 +5,7 @@ import { Tenant } from "../domain/tenant.entity.js";
 import type {
   ClinicSummary,
   CreateTenantData,
+  OperatorSummary,
   ResponsibleManagerCandidate,
   ResponsibleManagerSummary,
   TenantRepositoryPort,
@@ -45,8 +46,13 @@ export class PrismaTenantRepository implements TenantRepositoryPort {
     return row ? this.toDomain(row) : null;
   }
 
-  async listAll(): Promise<Tenant[]> {
-    const rows = await this.prisma.tenant.findMany({ orderBy: { name: "asc" } });
+  async findByResponsibleManagerId(userId: string): Promise<Tenant | null> {
+    const row = await this.prisma.tenant.findFirst({ where: { responsibleManagerId: userId } });
+    return row ? this.toDomain(row) : null;
+  }
+
+  async listAll(filter?: { type?: TenantType }): Promise<Tenant[]> {
+    const rows = await this.prisma.tenant.findMany({ where: filter?.type ? { type: filter.type } : undefined, orderBy: { name: "asc" } });
     return rows.map((row) => this.toDomain(row));
   }
 
@@ -106,6 +112,38 @@ export class PrismaTenantRepository implements TenantRepositoryPort {
     return summaries;
   }
 
+  async summarizeOperators(tenantIds: string[]): Promise<Record<string, OperatorSummary>> {
+    const summaries: Record<string, OperatorSummary> = {};
+    if (tenantIds.length === 0) return summaries;
+    for (const tenantId of tenantIds) summaries[tenantId] = { activeAgreementCount: 0, userCount: 0 };
+
+    // ACTIVE agreements naming this tenant on either side -- a CLINIC and an
+    // OPERATOR_PROVIDER are each a party the same way, so both relations are counted and
+    // merged rather than picking one based on this tenant's own type.
+    const [asClinic, asOperator, userCounts] = await Promise.all([
+      this.prisma.operatorAgreement.groupBy({
+        by: ["clinicTenantId"],
+        where: { clinicTenantId: { in: tenantIds }, status: "ACTIVE" },
+        _count: { _all: true },
+      }),
+      this.prisma.operatorAgreement.groupBy({
+        by: ["operatorTenantId"],
+        where: { operatorTenantId: { in: tenantIds }, status: "ACTIVE" },
+        _count: { _all: true },
+      }),
+      this.prisma.user.groupBy({
+        by: ["tenantId"],
+        where: { tenantId: { in: tenantIds } },
+        _count: { _all: true },
+      }),
+    ]);
+    for (const row of asClinic) summaries[row.clinicTenantId]!.activeAgreementCount += row._count._all;
+    for (const row of asOperator) summaries[row.operatorTenantId]!.activeAgreementCount += row._count._all;
+    for (const row of userCounts) if (summaries[row.tenantId]) summaries[row.tenantId]!.userCount = row._count._all;
+
+    return summaries;
+  }
+
   async summarizeResponsibleManagers(userIds: string[]): Promise<Record<string, ResponsibleManagerSummary>> {
     const summaries: Record<string, ResponsibleManagerSummary> = {};
     if (userIds.length === 0) return summaries;
@@ -136,9 +174,9 @@ export class PrismaTenantRepository implements TenantRepositoryPort {
     return { id: user.id, tenantId: user.tenantId, role: user.role as UserRole, activatedAt: user.activatedAt, lockedAt: user.lockedAt };
   }
 
-  async listResponsibleManagerOptions(clinicTenantId: string): Promise<ResponsibleManagerOption[]> {
+  async listResponsibleManagerOptions(tenantId: string, role: UserRole): Promise<ResponsibleManagerOption[]> {
     const users = await this.prisma.user.findMany({
-      where: { tenantId: clinicTenantId, role: "CLINIC_ADMIN", activatedAt: { not: null }, lockedAt: null },
+      where: { tenantId, role, activatedAt: { not: null }, lockedAt: null },
       select: { id: true, firstName: true, lastName: true, email: true, role: true, professionalRegistration: true },
     });
     return users.map((user) => {

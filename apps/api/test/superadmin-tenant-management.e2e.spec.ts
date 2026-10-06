@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, clinicPayload } from "./helpers.js";
+import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, clinicPayload, operatorPayload } from "./helpers.js";
 
 /**
  * PLATFORM_ADMIN and tenant lifecycle -- the first genuinely cross-tenant capability in this
@@ -53,6 +53,26 @@ describe("Superadmin: tenant lifecycle management", () => {
 
     await http.post("/tenants").set("Authorization", `Bearer ${clinicAdminToken}`).send({ name: "Blocked" }).expect(403);
     await http.get("/tenants").set("Authorization", `Bearer ${clinicAdminToken}`).expect(403);
+  });
+
+  it("filters the tenant list by type, for the operadora admin screen's own listing", async () => {
+    const clinic = await http.post("/tenants").set("Authorization", `Bearer ${platformAdminToken}`).send(clinicPayload()).expect(201);
+    const operator = await http.post("/tenants").set("Authorization", `Bearer ${platformAdminToken}`).send(operatorPayload()).expect(201);
+
+    const operators = await http.get("/tenants?type=OPERATOR_PROVIDER").set("Authorization", `Bearer ${platformAdminToken}`).expect(200);
+    const operatorIds = operators.body.map((t: { id: string }) => t.id);
+    expect(operatorIds).toContain(operator.body.id);
+    expect(operatorIds).not.toContain(clinic.body.id);
+
+    const clinics = await http.get("/tenants?type=CLINIC").set("Authorization", `Bearer ${platformAdminToken}`).expect(200);
+    const clinicIds = clinics.body.map((t: { id: string }) => t.id);
+    expect(clinicIds).toContain(clinic.body.id);
+    expect(clinicIds).not.toContain(operator.body.id);
+
+    // PLATFORM is a legal TenantType but not a legal filter value -- there is exactly one
+    // such tenant and no screen lists it, so this is treated as an unknown filter.
+    const res = await http.get("/tenants?type=PLATFORM").set("Authorization", `Bearer ${platformAdminToken}`).expect(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
   });
 
   it("deactivates and reactivates a tenant, actually locking out and restoring its users' ability to log in", async () => {

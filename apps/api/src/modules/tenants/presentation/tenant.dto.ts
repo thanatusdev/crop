@@ -32,5 +32,7 @@ export function toTenantDto(enriched: EnrichedTenant): TenantDto {
     equipmentCount: enriched.equipmentCount,
     unitCount: enriched.unitCount,
     modalities: enriched.modalities,
+    activeAgreementCount: enriched.activeAgreementCount,
+    userCount: enriched.userCount,
   };
 }

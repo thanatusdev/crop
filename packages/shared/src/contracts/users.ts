@@ -113,3 +113,39 @@ export const CreateUserRequestSchema = z
     }
   });
 export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;
+
+/**
+ * Every field optional -- a real partial update, the same convention every other
+ * `Update*RequestSchema` in this codebase uses (`UpdateTenantRequestSchema`,
+ * `UpdateUnitRequestSchema`, `UpdateEquipmentRequestSchema`). `email` is deliberately
+ * **absent**, unlike every field above it: it is this user's login identity (unique, and
+ * what the invitation/password-reset flows address), not a profile field like a clinic's
+ * `institutionalEmail` -- changing it is a different, harder problem (re-verification,
+ * session/token implications) this schema does not attempt to solve. Correcting a wrong
+ * email means creating a new account, the same "fix a typo by creating a new row" answer
+ * `UpdateTenantRequestSchema` gives for `cnpj`.
+ *
+ * `professionalRegistration` accepts `null` (unlike `firstName`/`lastName`, which only
+ * accept a non-empty string): it was always optional at creation, so "remove it" is a
+ * legitimate edit a required field doesn't need to support -- same asymmetry
+ * `UpdateTenantRequestSchema.complement` already has.
+ *
+ * `role`/`clinicTenantIds` are the two fields no `Update*RequestSchema` elsewhere in this
+ * codebase has to handle, because granting a role is itself a permission
+ * (`canGrantRole`/`isRoleAllowedInTenantType`/`requiresClinicAssignment`) that depends on
+ * the *acting* admin and the *target*'s tenant, neither of which this schema can see. All of
+ * that -- plus the one rule specific to editing, not creating: the acting admin must be able
+ * to grant *both* the user's current role and the requested one, not just the destination,
+ * so a `LOCAL_SUPERVISOR` (who may grant `NURSING`/`LOCAL_IT`) cannot use a role change to
+ * touch a `CLINIC_ADMIN` they otherwise have no authority over -- is enforced in
+ * `UpdateUserHandler`, the same split `CreateUserRequestSchema`'s own docstring documents
+ * for `RegisterUserHandler`.
+ */
+export const UpdateUserRequestSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  professionalRegistration: z.string().min(1).nullable().optional(),
+  role: z.enum(ASSIGNABLE_ROLES as [UserRole, ...UserRole[]]).optional(),
+  clinicTenantIds: z.array(z.string().uuid()).optional(),
+});
+export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;

@@ -23,6 +23,20 @@ export interface CreateUserData {
   invitedAt: Date | null;
 }
 
+/**
+ * Every field optional -- a real partial update, same convention as `UpdateTenantData`.
+ * Deliberately narrower than `UpdateUserRequestSchema`: `clinicTenantIds` is not a `User`
+ * column at all (it lives in `UserClinicMembership`, written through
+ * `UserClinicMembershipRepositoryPort.replace` instead -- see `UpdateUserHandler`), and
+ * `email`/`tenantId` are immutable for the reasons that schema's own docstring gives.
+ */
+export interface UpdateUserData {
+  firstName?: string;
+  lastName?: string;
+  professionalRegistration?: string | null;
+  role?: User["role"];
+}
+
 export interface UserRepositoryPort {
   findByEmail(email: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
@@ -32,6 +46,9 @@ export interface UserRepositoryPort {
    * history at all and could trivially "rotate" straight back to the temp password an admin
    * just set. */
   create(data: CreateUserData): Promise<User>;
+  /** Partial update of the profile/role fields in `UpdateUserData` -- see that interface's
+   * own docstring for what it deliberately excludes. */
+  update(id: string, data: UpdateUserData): Promise<User>;
   activateMfa(userId: string): Promise<void>;
   recordLogin(userId: string): Promise<void>;
   lock(userId: string): Promise<void>;

@@ -37,13 +37,18 @@ export type ResponsibleManagerOption = z.infer<typeof ResponsibleManagerOptionSc
  * a per-unit/per-equipment scope), read through `GET /agreements`. See contracts/agreements.ts.
  *
  * The institutional/address/manager fields are nullable for the same reason `UnitSchema`'s
- * own are: rows predating this feature, and every `PLATFORM`/`OPERATOR_PROVIDER` tenant
- * (which never has a CNPJ or a clinical address at all), have no honest value for them.
+ * own are: rows predating this feature, and the one `PLATFORM` tenant (which never has a CNPJ
+ * or a clinical address at all -- see `bootstrap-superadmin.ts`), have no honest value for
+ * them. `OPERATOR_PROVIDER` tenants now populate the same institutional fields a `CLINIC` does
+ * (see `BaseCreateTenantRequestSchema`'s own docstring for why), so nullability here is about
+ * tenant *age*, not tenant *type*, except for `PLATFORM`.
  * `isMatriz`/`cnpjRoot` are `null` in lockstep with `cnpj` -- there is no branch role to
  * derive from a CNPJ that doesn't exist. `equipmentCount`/`unitCount`/`modalities` are
  * computed, the same reasoning as `Unit`'s own `equipmentCount`/`roomCount`: `GET /equipment`
  * is tenant-scoped, so a platform admin viewing another tenant's clinics has no client-side
- * way to derive them.
+ * way to derive them. Both are structurally `0`/`0`/`[]` for an `OPERATOR_PROVIDER` -- it owns
+ * no `Equipment`/`Unit` of its own -- so `activeAgreementCount`/`userCount` exist instead for
+ * the metrics that actually describe one.
  */
 export const TenantSchema = z.object({
   id: z.string().uuid(),
@@ -75,6 +80,13 @@ export const TenantSchema = z.object({
   equipmentCount: z.number().int().nonnegative(),
   unitCount: z.number().int().nonnegative(),
   modalities: z.array(z.nativeEnum(ExamModality)),
+
+  // The operadora-side counterparts to equipmentCount/unitCount above -- structurally `0` for
+  // a CLINIC (it has no OperatorAgreement where it is the operator side, and `GET /users` is
+  // itself tenant-scoped so this is the one place a platform admin can see headcount without
+  // switching into the tenant). See TenantEnrichmentService for how both are computed.
+  activeAgreementCount: z.number().int().nonnegative(),
+  userCount: z.number().int().nonnegative(),
 });
 export type TenantDto = z.infer<typeof TenantSchema>;
 
@@ -90,12 +102,13 @@ export type TenantDto = z.infer<typeof TenantSchema>;
  * link plus an active-clinic switch (`SwitchActiveClinicHandler`), rather than by belonging to
  * that clinic outright as the seed data used to model.
  *
- * The institutional/address fields are required, but **only when `type === CLINIC`** --
- * enforced by the `.superRefine` below, since a plain zod object has no way to express
- * "required unless this other field has this other value." An OPERATOR_PROVIDER tenant
- * never has a CNPJ or a clinical address (nothing in this codebase gives it one), so
- * requiring these unconditionally would make that documented, intentional creation path
- * impossible.
+ * The institutional/address fields are required for **both** `CLINIC` and
+ * `OPERATOR_PROVIDER` -- enforced by the `.superRefine` below for the one real exception,
+ * `type: PLATFORM`, which this schema does not even accept (see above). Earlier, only a
+ * `CLINIC` required them and an `OPERATOR_PROVIDER` got away with a bare `name`; that was
+ * never a technical constraint (nothing about an operating company makes a CNPJ or a
+ * registered address meaningless for it), just a feature that had not been built yet -- see
+ * `AdminOperatorsPage`/`OperatorFormPage` for the registration screen this schema backs.
  */
 const BaseCreateTenantRequestSchema = z.object({
   name: z.string().trim().min(1),
@@ -118,13 +131,12 @@ const BaseCreateTenantRequestSchema = z.object({
   state: z.enum(BR_STATES).optional(),
 });
 
-const CLINIC_REQUIRED_FIELDS = ["cnpj", "institutionalEmail", "phone", "zipCode", "street", "number", "district", "city", "state"] as const;
+const INSTITUTIONAL_REQUIRED_FIELDS = ["cnpj", "institutionalEmail", "phone", "zipCode", "street", "number", "district", "city", "state"] as const;
 
 export const CreateTenantRequestSchema = BaseCreateTenantRequestSchema.superRefine((data, ctx) => {
-  if (data.type !== TenantType.CLINIC) return;
-  for (const field of CLINIC_REQUIRED_FIELDS) {
+  for (const field of INSTITUTIONAL_REQUIRED_FIELDS) {
     if (data[field] === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when type is CLINIC` });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required` });
     }
   }
 });

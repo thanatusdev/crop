@@ -6,7 +6,8 @@ import {
   SetAgreementScopeRequestSchema,
   UserRole,
   type AccessTokenClaims,
-  type ClinicAgreementOption,
+  type AgreementCounterpartyOption,
+  type AgreementScopeOption,
   type OperatorAgreementDto,
   type ProposeAgreementRequest,
   type SetAgreementScopeRequest,
@@ -26,6 +27,8 @@ import { SetAgreementScopeCommand } from "../application/commands/set-agreement-
 import { GetAgreementQuery } from "../application/queries/get-agreement/get-agreement.query.js";
 import { ListAgreementsQuery } from "../application/queries/list-agreements/list-agreements.query.js";
 import { ListClinicOptionsQuery } from "../application/queries/list-clinic-options/list-clinic-options.query.js";
+import { ListOperatorOptionsQuery } from "../application/queries/list-operator-options/list-operator-options.query.js";
+import { ListScopeOptionsQuery } from "../application/queries/list-scope-options/list-scope-options.query.js";
 import { toAgreementDto, toAgreementDtos } from "./agreement.dto.js";
 
 /**
@@ -77,12 +80,22 @@ export class AgreementsController {
   /** Declared before `:id` -- a static route after a param route of the same shape would never be
    * reached, since Nest matches in declaration order and "clinic-options" would just bind to `:id`.
    * `OPERATOR_ADMIN`-only, narrower than the class-level `@Roles`: this is the operator-side
-   * "Propor Contrato" picker's own data source -- see `ClinicAgreementOptionSchema`'s own docstring
-   * in packages/shared for why it exists instead of pointing that picker at `GET /tenants`. */
+   * "Propor Contrato" picker's own data source -- see `AgreementCounterpartyOptionSchema`'s own
+   * docstring in packages/shared for why it exists instead of pointing that picker at `GET
+   * /tenants`. */
   @Get("clinic-options")
   @Roles(UserRole.OPERATOR_ADMIN)
-  async listClinicOptions(@CurrentUser() user: AccessTokenClaims): Promise<ClinicAgreementOption[]> {
+  async listClinicOptions(@CurrentUser() user: AccessTokenClaims): Promise<AgreementCounterpartyOption[]> {
     return this.queryBus.execute(new ListClinicOptionsQuery(this.homeTenantOf(user)));
+  }
+
+  /** Mirror of `clinic-options` above, same "declared before `:id`" reasoning. The clinic-side
+   * "Propor Contrato" picker's own data source -- `CLINIC_ADMIN`/`LOCAL_SUPERVISOR`-only,
+   * narrower than the class-level `@Roles`. */
+  @Get("operator-options")
+  @Roles(UserRole.CLINIC_ADMIN, UserRole.LOCAL_SUPERVISOR)
+  async listOperatorOptions(@CurrentUser() user: AccessTokenClaims): Promise<AgreementCounterpartyOption[]> {
+    return this.queryBus.execute(new ListOperatorOptionsQuery(this.homeTenantOf(user)));
   }
 
   @Get(":id")
@@ -137,6 +150,15 @@ export class AgreementsController {
       new SetAgreementScopeCommand(user, id, body.unitIds, body.equipmentIds)
     );
     return this.toDto(agreement);
+  }
+
+  /** The scope modal's equipment picker -- see `AgreementScopeOptionSchema`'s own docstring for
+   * why this is a dedicated, agreement-scoped route rather than a `clinicTenantId` param on
+   * `GET /equipment`. Two path segments after `agreements/`, so this never collides with the
+   * bare `@Get(":id")` above regardless of declaration order. */
+  @Get(":id/scope-options")
+  async listScopeOptions(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string): Promise<AgreementScopeOption[]> {
+    return this.queryBus.execute(new ListScopeOptionsQuery(id, this.homeTenantOf(user)));
   }
 
   private async toDto(agreement: OperatorAgreement): Promise<OperatorAgreementDto> {

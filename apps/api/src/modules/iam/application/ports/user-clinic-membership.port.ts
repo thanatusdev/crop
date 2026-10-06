@@ -10,8 +10,15 @@ export const USER_CLINIC_MEMBERSHIP_REPOSITORY = Symbol("USER_CLINIC_MEMBERSHIP_
  */
 export interface UserClinicMembershipRepositoryPort {
   /** Replaces nothing -- additive only. Used once, at registration; `RegisterUserHandler`
-   * is the only writer today (no "edit a user's clinics" endpoint exists yet). */
+   * is the only writer today. */
   grant(userId: string, clinicTenantIds: readonly string[]): Promise<void>;
+  /** Whole-set replacement, not merge -- the same "send the complete desired state" shape
+   * `SetAgreementScopeCommand`/`ReorderQueueRequestSchema` use, for the identical reason: a
+   * partial add/remove API would need its own conflict semantics for two admins editing at
+   * once, and a full replacement is idempotent with an obvious meaning. `UpdateUserHandler`
+   * is the only writer -- the "edit a user's clinics" endpoint `grant`'s own docstring,
+   * before this, noted did not exist yet. */
+  replace(userId: string, clinicTenantIds: readonly string[]): Promise<void>;
   listClinicIdsForUser(userId: string): Promise<string[]>;
   /** Bulk form of `listClinicIdsForUser`, for rendering a user list (`GET /users`) without
    * one query per row. Every requested id is present in the result, even with an empty

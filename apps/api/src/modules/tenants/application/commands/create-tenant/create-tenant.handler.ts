@@ -20,27 +20,28 @@ export class CreateTenantHandler implements ICommandHandler<CreateTenantCommand,
   async execute(command: CreateTenantCommand): Promise<EnrichedTenant> {
     // Friendly pre-check before the insert -- see TenantRepositoryPort.findByCnpj's own
     // docstring for why (the same precedent RegisterUserHandler.findByEmail sets). Only
-    // meaningful when a CNPJ was actually supplied; every non-CLINIC tenant has none.
-    if (command.clinicDetails?.cnpj) {
-      const existing = await this.tenants.findByCnpj(command.clinicDetails.cnpj);
+    // meaningful when a CNPJ was actually supplied; the PLATFORM tenant and any direct
+    // CommandBus caller that omitted `tenantDetails` has none.
+    if (command.tenantDetails?.cnpj) {
+      const existing = await this.tenants.findByCnpj(command.tenantDetails.cnpj);
       if (existing) {
-        throw new ConflictError(`A clinic with CNPJ ${command.clinicDetails.cnpj} already exists`);
+        throw new ConflictError(`A tenant with CNPJ ${command.tenantDetails.cnpj} already exists`);
       }
     }
 
     const tenant = await this.tenants.create({
       name: command.name,
       type: command.type,
-      cnpj: command.clinicDetails?.cnpj ?? null,
-      institutionalEmail: command.clinicDetails?.institutionalEmail ?? null,
-      phone: command.clinicDetails?.phone ?? null,
-      zipCode: command.clinicDetails?.zipCode ?? null,
-      street: command.clinicDetails?.street ?? null,
-      number: command.clinicDetails?.number ?? null,
-      complement: command.clinicDetails?.complement ?? null,
-      district: command.clinicDetails?.district ?? null,
-      city: command.clinicDetails?.city ?? null,
-      state: command.clinicDetails?.state ?? null,
+      cnpj: command.tenantDetails?.cnpj ?? null,
+      institutionalEmail: command.tenantDetails?.institutionalEmail ?? null,
+      phone: command.tenantDetails?.phone ?? null,
+      zipCode: command.tenantDetails?.zipCode ?? null,
+      street: command.tenantDetails?.street ?? null,
+      number: command.tenantDetails?.number ?? null,
+      complement: command.tenantDetails?.complement ?? null,
+      district: command.tenantDetails?.district ?? null,
+      city: command.tenantDetails?.city ?? null,
+      state: command.tenantDetails?.state ?? null,
     });
 
     // Attributed to the *new* tenant, not the acting PLATFORM_ADMIN's own (platform) tenant

@@ -174,12 +174,15 @@ const ptBR = {
     hubLabel: "Hub Operacional",
     navLabel: "Navegação principal",
     navDashboard: "Painel",
+    navWorkstation: "Posto de Trabalho",
     navUsers: "Gestores & Usuários",
     navClinics: "Clínicas",
+    navOperators: "Operadoras",
     navUnits: "Unidades",
     navEquipment: "Equipamentos",
     navNursing: "Enfermagem",
     navAgreements: "Contratos",
+    navAudit: "Auditoria",
     healthPill: "Equipamentos: {{online}}/{{total}} online",
     healthPillLoading: "Verificando equipamentos...",
     signOut: "Sair",
@@ -198,6 +201,11 @@ const ptBR = {
     topbarTitle: "Gerenciar usuários",
     backToDashboard: "Voltar ao painel",
     heading: "Usuários",
+    newUser: "+ Novo Usuário",
+    breadcrumbHome: "Início",
+    breadcrumbList: "Usuários",
+    actionView: "Ver detalhes",
+    actionEdit: "Editar",
 
     createTitle: "Criar usuário",
     inviteNote: "Um link de ativação seguro será enviado para este e-mail (válido por 24 horas). A pessoa escolherá sua própria senha e configurará a autenticação em dois fatores no primeiro acesso.",
@@ -253,6 +261,42 @@ const ptBR = {
     loadError: "Não foi possível carregar os usuários.",
     retry: "Tentar novamente",
     empty: "Nenhum usuário na sua organização ainda.",
+  },
+
+  /** The dedicated create/edit/read-only form for one user, on its own route -- the
+   * `UsersController` counterpart to `clinicForm`/`operatorForm`, same "three modes, one
+   * component" shape. Reuses most of `adminUsers`'s own field-level labels
+   * (`emailLabel`/`firstNameLabel`/`roleLabel`/`clinicsLabel`/etc.) rather than duplicating
+   * them -- those were already shared between the create form and the listing's own
+   * column headers before this page existed, and nothing about them is create-only. This
+   * namespace holds only what's new: the page's own titles, breadcrumbs, and the
+   * save/cancel/edit actions `adminUsers`'s "Enviar convite"/"Enviando..." (create-specific
+   * copy, kept there since it only ever applies in `new` mode) didn't need to cover. */
+  userForm: {
+    breadcrumbHome: "Início",
+    breadcrumbList: "Usuários",
+    breadcrumbNew: "Cadastrar Novo Usuário",
+    breadcrumbEdit: "Editar Usuário",
+    breadcrumbView: "Detalhes do Usuário",
+
+    createTitle: "Cadastrar Novo Usuário",
+    createSubtitle: "Um link de ativação seguro será enviado para o e-mail informado.",
+    editTitle: "Editar Usuário",
+    editSubtitle: "Atualize os dados pessoais, o perfil de acesso e as clínicas vinculadas desta pessoa.",
+    viewTitle: "Detalhes do Usuário",
+    viewSubtitle: "Visualização somente leitura do cadastro desta pessoa.",
+    requiredLegend: "Campos com * são obrigatórios",
+
+    emailImmutableHint: "O e-mail é a identidade de login desta conta e não pode ser alterado após o cadastro.",
+
+    save: "Salvar",
+    saving: "Salvando...",
+    cancel: "Cancelar",
+    backToList: "Voltar para usuários",
+    editThis: "Editar usuário",
+    genericSaveError: "Não foi possível salvar o usuário.",
+    loadError: "Não foi possível carregar este usuário.",
+    loading: "Carregando...",
   },
 
   /**
@@ -864,6 +908,115 @@ const ptBR = {
     loading: "Carregando...",
   },
 
+  /** `AdminOperatorsPage` -- the `OPERATOR_PROVIDER` counterpart to `adminClinics` above,
+   * same shape and the same "only what the data model actually tracks" policy. Metrics
+   * differ because an operadora is a staff directory with contracts, not a clinical site:
+   * "Contratos Ativos" and "Usuários Operadores" replace "Equipamentos Vinculados" and the
+   * matriz/filial branch note, neither of which an operadora has. */
+  adminOperators: {
+    heading: "Gestão de Operadoras Cadastradas",
+    subheading: "Gerencie as empresas de operação remota credenciadas e seus contratos com clínicas.",
+    breadcrumbHome: "Início",
+    breadcrumbList: "Operadoras",
+    newOperator: "+ Nova Operadora",
+
+    statsTotalLabel: "Total de Operadoras",
+    statsTotalNew: "+{{count}} este mês",
+    statsActiveLabel: "Operadoras Ativas",
+    statsActivePct: "{{pct}}% ativas",
+    statsActiveNote: "{{count}} inativas",
+    statsAgreementsLabel: "Contratos Ativos",
+    statsAgreementsNote: "{{count}} operadoras com pelo menos um contrato ativo",
+    statsUsersLabel: "Usuários Operadores",
+    statsUsersNote: "Distribuídos entre as operadoras listadas",
+
+    searchLabel: "Buscar operadora",
+    searchPlaceholder: "Buscar por nome, CNPJ ou e-mail",
+    filterStatusLabel: "Status",
+    filterStatusAll: "Todos os status",
+    filterClear: "Limpar",
+    filterResultCount: "{{filtered}} de {{total}} operadoras",
+    export: "Exportar CSV",
+
+    tableCaption: "Operadoras cadastradas",
+    colName: "Nome da Operadora",
+    colCnpj: "CNPJ",
+    colAddress: "Endereço",
+    colAgreements: "Contratos Ativos",
+    colUsers: "Usuários",
+    colStatus: "Status",
+    colActions: "Ações",
+    notRecorded: "Não informado",
+
+    statusActive: "Ativo",
+    statusInactive: "Inativo",
+
+    actionView: "Ver detalhes",
+    actionEdit: "Editar",
+    actionDeactivate: "Desativar",
+    actionReactivate: "Reativar",
+
+    confirmDeactivateTitle: "Desativar operadora",
+    confirmDeactivateBodyWithAgreements:
+      "{{name}} deixará de aceitar login de seus usuários. Ela possui {{count}} contrato(s) ativo(s) com clínicas, que não são revogados automaticamente -- revogue-os em Contratos se necessário. O cadastro é preservado e pode ser reativado depois.",
+    confirmDeactivateBodyNoAgreements: "{{name}} deixará de aceitar login de seus usuários. O cadastro é preservado e pode ser reativado depois.",
+    confirmDeactivateConfirm: "Desativar",
+    confirmCancel: "Cancelar",
+
+    pageSizeLabel: "Linhas por página",
+    paginationSummary: "Mostrando {{from}} a {{to}} de {{total}} operadoras",
+    paginationPrev: "Página anterior",
+    paginationNext: "Próxima página",
+    paginationPage: "Página {{page}}",
+
+    loading: "Carregando...",
+    loadError: "Não foi possível carregar as operadoras.",
+    retry: "Tentar novamente",
+    empty: "Nenhuma operadora cadastrada ainda.",
+    emptyFiltered: "Nenhuma operadora corresponde aos filtros aplicados.",
+    genericActionError: "Não foi possível concluir esta ação.",
+  },
+
+  /** The dedicated create/edit/read-only form for one operadora -- the `OPERATOR_PROVIDER`
+   * counterpart to `clinicForm` above. Reuses several of that namespace's own keys for the
+   * CNPJ/address fields (`cnpjLabel`, `zipCodeLabel`, etc.) rather than duplicating them --
+   * see `TenantFormFields.tsx`'s own docstring for why: "CEP"/"Rua"/"Bairro" carries no
+   * clinic-specific meaning. Has no "Responsável" section (see `OperatorFormPage`'s own
+   * docstring for why) and so no `sectionManager`/`managerLabel`/etc. keys exist here. */
+  operatorForm: {
+    breadcrumbHome: "Início",
+    breadcrumbList: "Operadoras",
+    breadcrumbNew: "Cadastrar Nova Operadora",
+    breadcrumbEdit: "Editar Operadora",
+    breadcrumbView: "Detalhes da Operadora",
+
+    createTitle: "Cadastrar Nova Operadora",
+    createSubtitle: "Preencha as informações institucionais e de contato para integrar a operadora à rede RadLink.",
+    editTitle: "Editar Operadora",
+    editSubtitle: "Atualize os dados institucionais e o endereço desta operadora.",
+    viewTitle: "Detalhes da Operadora",
+    viewSubtitle: "Visualização somente leitura do cadastro desta operadora.",
+    requiredLegend: "Campos com * são obrigatórios",
+
+    sectionInstitutional: "Dados Institucionais e Gerais",
+
+    nameLabel: "Nome da operadora",
+    nameHint: "Nome fantasia da empresa de operação remota.",
+    namePlaceholder: "Operadora Central",
+    institutionalEmailLabel: "E-mail institucional",
+    institutionalEmailHint: "Receberá alertas administrativos relacionados aos contratos.",
+    institutionalEmailPlaceholder: "contato@operadora.com.br",
+
+    save: "Salvar Operadora",
+    saving: "Salvando...",
+    cancel: "Cancelar",
+    backToList: "Voltar para operadoras",
+    editThis: "Editar operadora",
+    genericSaveError: "Não foi possível salvar a operadora.",
+    loadError: "Não foi possível carregar esta operadora.",
+    loading: "Carregando...",
+  },
+
   /**
    * NursingPage (`/enfermagem`) -- the Nurse role's quick-action screen for the "Patient
    * Positioned" / "Injected" / "Patient Released" business rule. Built from a RadLink Teleop
@@ -1252,18 +1405,19 @@ const ptBR = {
     reject: "Recusar",
     revoke: "Encerrar",
     editScope: "Abrangência",
-    scopeEmpty: "Nenhuma unidade liberada — sem acesso",
+    scopeEmpty: "Nenhum equipamento liberado — sem acesso",
     scopeTitle: "Abrangência: {{name}}",
-    scopeLegend: "Unidades liberadas para esta empresa",
-    scopeHint: "A empresa só acessa os equipamentos das unidades marcadas. Equipamentos instalados depois em uma unidade marcada já entram liberados.",
+    scopeLegend: "Equipamentos liberados para esta empresa",
+    scopeHint: "A empresa só acessa os equipamentos marcados. Um equipamento instalado depois não entra liberado automaticamente — é preciso marcá-lo aqui.",
+    scopeUnitConversionNotice:
+      "Este contrato ainda cobre uma unidade inteira (um modelo antigo). Os equipamentos dessa unidade já vêm marcados abaixo; ao salvar, a liberação passa a valer só para os equipamentos marcados, não mais para a unidade como um todo.",
     scopeSubmit: "Salvar abrangência",
-    scopeNoUnits: "Esta clínica ainda não possui unidades cadastradas.",
-    scopeUnitHint: "{{count}} equipamento(s)",
+    scopeNoEquipment: "Esta clínica ainda não possui equipamentos cadastrados.",
     loadFailed: "Não foi possível carregar os contratos.",
     actionFailed: "Não foi possível concluir a ação.",
     proposeFailed: "Não foi possível enviar a proposta.",
     counterpartyLoadFailed: "Não foi possível carregar as organizações disponíveis.",
-    scopeLoadFailed: "Não foi possível carregar as unidades desta clínica.",
+    scopeLoadFailed: "Não foi possível carregar os equipamentos desta clínica.",
     scopeSaveFailed: "Não foi possível salvar a abrangência.",
   },
 
@@ -1381,7 +1535,6 @@ const ptBR = {
     noEquipment: "Nenhum equipamento registrado para o seu tenant ainda.",
     loadError: "Não foi possível carregar os equipamentos. Verifique sua conexão e tente novamente.",
     retry: "Tentar novamente",
-    auditLog: "Log de Auditoria",
     rejoinSession: "Reingressar na Sessão",
     startSession: "Iniciar Sessão",
     starting: "Iniciando...",
@@ -1405,8 +1558,8 @@ const ptBR = {
     cancelQueueEntryError: "Não foi possível cancelar esta entrada da fila.",
   },
 
-  // AuditPage.tsx -- the append-only hash-chain log, reachable from DashboardPage's own
-  // "Log de Auditoria" link (dashboard:auditLog). `action`/`resourceType` in the table stay
+  // AuditPage.tsx -- the append-only hash-chain log, reachable from ConsoleShell's own
+  // "Auditoria" sidebar item (shell:navAudit). `action`/`resourceType` in the table stay
   // untranslated on purpose: they're the exact `AuditAction`/resource-type identifiers this
   // log's own integrity guarantee (see AuditAction's own docstring) is about, the same reason
   // a stack trace or an HTTP method name would not get localized either -- translating them

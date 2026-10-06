@@ -268,6 +268,11 @@ export enum AuditAction {
   PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED",
   PASSWORD_CHANGED = "PASSWORD_CHANGED",
   USER_CREATED = "USER_CREATED",
+  // An edit to the user's own profile/role/clinic-membership record, mirroring the
+  // identical TENANT_UPDATED/UNIT_UPDATED split -- distinct from ACCOUNT_LOCKED/UNLOCKED
+  // (a lifecycle transition) and from PASSWORD_RESET_BY_ADMIN (a credential, not a profile,
+  // change).
+  USER_UPDATED = "USER_UPDATED",
   USER_INVITED = "USER_INVITED",
   USER_INVITE_RESENT = "USER_INVITE_RESENT",
   USER_ACTIVATED = "USER_ACTIVATED",

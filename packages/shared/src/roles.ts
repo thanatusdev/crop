@@ -101,6 +101,23 @@ export function isRoleAllowedInTenantType(role: UserRole, tenantType: TenantType
 }
 
 /**
+ * Which role is eligible to be a tenant's "Gestor Responsável" -- the one person a `CLINIC`
+ * or `OPERATOR_PROVIDER` names as accountable, enforced by `ResponsibleManagerValidator` and
+ * backing `GET /tenants/responsible-manager-options`. `null` for `PLATFORM`, which has no
+ * such concept (there is exactly one, and nothing names it responsible for itself).
+ */
+export function responsibleManagerRoleFor(tenantType: TenantType): UserRole | null {
+  switch (tenantType) {
+    case TenantType.CLINIC:
+      return UserRole.CLINIC_ADMIN;
+    case TenantType.OPERATOR_PROVIDER:
+      return UserRole.OPERATOR_ADMIN;
+    case TenantType.PLATFORM:
+      return null;
+  }
+}
+
+/**
  * Who may register whom, via `POST /users` -- narrower than `ASSIGNABLE_ROLES` (which is
  * just "every role that isn't bootstrap-only"). Enforced in `RegisterUserHandler` via
  * `canGrantRole`, not the controller, for the same reason `isRoleAllowedInTenantType` lives
