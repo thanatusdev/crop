@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { RT_EVENTS, type EquipmentDto, type MyClinic, type QueueEntryDto, type SessionState, type UnitDto } from "@crop/shared";
+import {
+  RT_EVENTS,
+  UserRole,
+  todayClinicDayString,
+  type EquipmentDto,
+  type MyClinic,
+  type OperatorAgreementDto,
+  type QueueEntryDto,
+  type SessionState,
+  type UnitDto,
+  type UserDto,
+} from "@crop/shared";
 import { Loader2, X } from "lucide-react";
 import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
@@ -10,6 +21,8 @@ import { createSessionSocket } from "../lib/socket-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
 import { displayStatusOf, statusLabelKeyOf, tailwindBadgeClassOf } from "../lib/equipment-display.js";
 import { queueStatusBadgeClass, queueStatusLabelKeyOf } from "../lib/queue-display.js";
+import { summarizeDashboard } from "../lib/dashboard-display.js";
+import { computeNavPermissions } from "../lib/nav-permissions.js";
 import { Button } from "../components/ui/button.js";
 import { Card, CardContent } from "../components/ui/card.js";
 import { Input } from "../components/ui/input.js";
@@ -87,6 +100,26 @@ export default function DashboardPage() {
   const [switchingClinic, setSwitchingClinic] = useState(false);
   const [clinicError, setClinicError] = useState<string | null>(null);
 
+  // The "general info" summary cards (equipamentos/pacientes hoje/usuários/contratos) --
+  // unscoped-mode only (see each card's own render check below): a single-room scoped view
+  // is a different, narrower screen, and a tenant-wide summary would be out of place next to
+  // it. `undefined`, not `0`/`[]`, is each one's own "never fetched" state (role lacks the
+  // permission, or we're in scoped mode) -- `summarizeDashboard` relies on that distinction
+  // to omit a card rather than render a dishonest zero. `nav.canManageUsers`/
+  // `canManageAgreements` are the exact same flags `ConsoleShell`'s sidebar uses to decide
+  // whether "Gestores & Usuários"/"Contratos" even render, which is why they're safe to also
+  // use here to avoid firing a request a role would just get a 403 back for.
+  const nav = computeNavPermissions(user?.role);
+  // Mirrors QueueController's class-level `@Roles` on the GET method (every role except
+  // `LOCAL_IT`) -- deliberately NOT `nav.canManageQueue`, which is a different, narrower set
+  // (only the roles allowed to reorder/edit a room's queue, see that flag's own docstring in
+  // nav-permissions.ts). No nav-permissions flag already matches this read permission because
+  // nothing else in the sidebar needed it before now.
+  const canViewPatientsToday = user?.role !== UserRole.LOCAL_IT;
+  const [todayQueueByEquipmentId, setTodayQueueByEquipmentId] = useState<Map<string, QueueEntryDto[]>>(new Map());
+  const [statsUsers, setStatsUsers] = useState<UserDto[] | undefined>(undefined);
+  const [statsAgreements, setStatsAgreements] = useState<OperatorAgreementDto[] | undefined>(undefined);
+
   // Independent of `load()` below on purpose: this list doesn't change when the scoped room
   // does, and fetching it unconditionally (rather than only in unscoped mode) means returning
   // from a scoped view straight back to "/" never has to wait on a second round trip.
@@ -156,13 +189,48 @@ export default function DashboardPage() {
       // queue fetched -- everything else on the tenant is deliberately not requested.
       const targetList = scopedEquipmentId ? equipmentList.filter((e) => e.id === scopedEquipmentId) : equipmentList;
       const withQueue = await Promise.all(
-        targetList.map(async (e) => ({ ...e, queue: await api.get<QueueEntryDto[]>(`/queue?equipmentId=${e.id}`) }))
+        targetList.map(async (e) => ({
+          ...e,
+          // Tolerant, not `await api.get(...)` bare: `LOCAL_IT` can reach this page
+          // (`canViewOperations` doesn't exclude it) but `QueueController`'s GET method's
+          // own `@Roles` does -- before this, that 403 rejected the whole `Promise.all`
+          // and `load()`'s catch block showed every room as a load *error*, for a tenant
+          // that may have equipment this role is otherwise completely entitled to see.
+          // An empty queue is the honest fallback: "can't see this room's patients," not
+          // "this room doesn't exist."
+          queue: await api.get<QueueEntryDto[]>(`/queue?equipmentId=${e.id}`).catch(() => []),
+        }))
       );
       setEquipment(withQueue);
       setActiveSessions(sessions);
       // The unit name in the context strip is the only reason this page ever needs
       // `/units` -- not fetched at all in unscoped mode.
       if (scopedEquipmentId) setUnits(await api.get<UnitDto[]>("/units"));
+
+      // The summary cards' own data -- unscoped mode only (see this state's own comment
+      // above), and each piece gated behind the same role check that would otherwise just
+      // get a 403 back, so a role missing one permission never pays for a request its own
+      // card won't render. Independent `Promise.all` from the one above: equipment/sessions
+      // are needed before anything else here can even be computed (`equipmentList`), and a
+      // failure in any one of these three must not blank the equipment list/queue state
+      // that already succeeded.
+      if (!scopedEquipmentId) {
+        const [todayQueueEntries, usersList, agreementsList] = await Promise.all([
+          canViewPatientsToday
+            ? Promise.all(
+                equipmentList.map(
+                  async (e) =>
+                    [e.id, await api.get<QueueEntryDto[]>(`/queue?equipmentId=${e.id}&date=${todayClinicDayString()}`).catch(() => [])] as const
+                )
+              )
+            : Promise.resolve(undefined),
+          nav.canManageUsers ? api.get<UserDto[]>("/users").catch(() => undefined) : Promise.resolve(undefined),
+          nav.canManageAgreements ? api.get<OperatorAgreementDto[]>("/agreements").catch(() => undefined) : Promise.resolve(undefined),
+        ]);
+        setTodayQueueByEquipmentId(todayQueueEntries ? new Map(todayQueueEntries) : new Map());
+        setStatsUsers(usersList);
+        setStatsAgreements(agreementsList);
+      }
     } catch (err) {
       // Distinct from "no equipment registered" below -- an empty array here on a failed
       // fetch would otherwise be indistinguishable from a tenant that genuinely has none.
@@ -240,6 +308,18 @@ export default function DashboardPage() {
   // nothing this copy could usefully tell them to do about it from here.
   const clinicNotYetSelected = !scopedEquipmentId && myClinics.length > 0 && !isOnAContractedClinic;
 
+  // Each `undefined` here (not a plain `0`/`[]`) is "this card doesn't apply to this role,"
+  // not "we checked and the answer is zero" -- see `DashboardStats`'s own docstring for why
+  // that distinction matters to `summarizeDashboard`, and the state declarations above for
+  // why `todayQueueByEquipmentId`/`statsUsers`/`statsAgreements` are only ever populated
+  // when the viewer's role (and unscoped mode) actually allows it.
+  const stats = summarizeDashboard({
+    equipment,
+    todayQueueByEquipmentId: canViewPatientsToday ? todayQueueByEquipmentId : undefined,
+    users: statsUsers,
+    agreements: statsAgreements,
+  });
+
   return (
     <ConsoleShell activeNav="dashboard" pageTitle={t("dashboard:heading")}>
       {/* `ConsoleShell`'s own topbar renders `pageTitle` as a plain `<strong>`, not a
@@ -249,6 +329,51 @@ export default function DashboardPage() {
           fresh run against a reset demo stack is what actually caught it. Visually hidden,
           same convention as every one of those. */}
       <h1 className="sr-only">{t("dashboard:heading")}</h1>
+      {/* General-info summary cards -- unscoped mode only (a single scoped room is a
+          different, narrower screen; see this state's own comment above), and only once
+          `load()` has actually resolved at least once, so a role missing a permission never
+          flashes a `0` for a card that's about to disappear once its `undefined` lands. Same
+          grid classes as `AdminEquipmentPage`'s/`AdminClinicsPage`'s own four-card rows --
+          not a new layout. Each card is entirely absent (not disabled/greyed) when its stat
+          is `undefined`, so e.g. AUDITOR gets a clean two-card row rather than two populated
+          cards and two empty-looking ones. */}
+      {!scopedEquipmentId && !loading && (
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardContent>
+              <div className="text-sm text-muted-foreground">{t("dashboard:statsEquipmentLabel")}</div>
+              <div className="text-2xl font-semibold">{stats.equipmentTotal}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{t("dashboard:statsEquipmentNote", { count: stats.equipmentOnline })}</p>
+            </CardContent>
+          </Card>
+          {stats.patientsToday !== undefined && (
+            <Card>
+              <CardContent>
+                <div className="text-sm text-muted-foreground">{t("dashboard:statsPatientsTodayLabel")}</div>
+                <div className="text-2xl font-semibold">{stats.patientsToday}</div>
+                <p className="mt-1 text-xs text-muted-foreground">{t("dashboard:statsPatientsTodayNote")}</p>
+              </CardContent>
+            </Card>
+          )}
+          {stats.usersTotal !== undefined && (
+            <Card>
+              <CardContent>
+                <div className="text-sm text-muted-foreground">{t("dashboard:statsUsersLabel")}</div>
+                <div className="text-2xl font-semibold">{stats.usersTotal}</div>
+              </CardContent>
+            </Card>
+          )}
+          {stats.agreementsActive !== undefined && (
+            <Card>
+              <CardContent>
+                <div className="text-sm text-muted-foreground">{t("dashboard:statsAgreementsLabel")}</div>
+                <div className="text-2xl font-semibold">{stats.agreementsActive}</div>
+                <p className="mt-1 text-xs text-muted-foreground">{t("dashboard:statsAgreementsNote", { count: stats.agreementsPending ?? 0 })}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
       {needsClinicPicker && (
         <Card className="mb-4">
           <CardContent>

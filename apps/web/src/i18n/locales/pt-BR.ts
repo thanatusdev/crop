@@ -1556,6 +1556,19 @@ const ptBR = {
     addToQueue: "Adicionar à Fila",
     addPatientError: "Não foi possível adicionar este paciente à fila.",
     cancelQueueEntryError: "Não foi possível cancelar esta entrada da fila.",
+    // The role-gated summary-card row at the top of the page -- see DashboardPage.tsx's own
+    // comment on why each stat is `undefined` (card omitted) rather than `0` for a role
+    // that lacks the underlying permission, and why the row doesn't render at all in scoped
+    // (single-room) mode. `{{count}}` interpolation follows the same convention as every
+    // other stat-card note in this file (adminEquipment/adminClinics/adminUnits' own
+    // `stats*Note` keys) rather than inventing named placeholders.
+    statsEquipmentLabel: "Equipamentos",
+    statsEquipmentNote: "{{count}} online",
+    statsPatientsTodayLabel: "Pacientes Hoje",
+    statsPatientsTodayNote: "Em todas as salas",
+    statsUsersLabel: "Usuários",
+    statsAgreementsLabel: "Contratos Ativos",
+    statsAgreementsNote: "{{count}} pendentes",
   },
 
   // AuditPage.tsx -- the append-only hash-chain log, reachable from ConsoleShell's own
