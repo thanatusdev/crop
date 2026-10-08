@@ -23,7 +23,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table.js";
 import { Card, CardContent } from "../components/ui/card.js";
 import { MODALITY_ABBREVIATION, tailwindBadgeClassOf, type DisplayStatus } from "../lib/equipment-display.js";
-import { agreementStatusBadgeClassOf, agreementStatusLabelKeyOf, counterpartyOf, isActionableBy } from "../lib/agreement-display.js";
+import {
+  agreementStatusBadgeClassOf,
+  agreementStatusLabelKeyFor,
+  agreementStatusLabelKeyOf,
+  counterpartyOf,
+  isActionableBy,
+} from "../lib/agreement-display.js";
 
 const ALL = "__all__";
 
@@ -85,6 +91,10 @@ export default function AgreementsPage() {
   const isOperatorSide = user?.role === UserRole.OPERATOR_ADMIN;
   const isClinicSide = user?.role === UserRole.CLINIC_ADMIN || user?.role === UserRole.LOCAL_SUPERVISOR;
   const canPropose = isOperatorSide || isClinicSide;
+  // The viewer's own organisation for per-row decisions (who answers, who owns scope) -- the home
+  // tenant, matching the API, so an operator admin switched into a client clinic still acts for
+  // their own company.
+  const viewerTenantId = user?.homeTenantId ?? user?.tenantId ?? "";
 
   const [proposeOpen, setProposeOpen] = useState(false);
   const [counterpartyOptions, setCounterpartyOptions] = useState<AgreementCounterpartyOption[]>([]);
@@ -318,23 +328,27 @@ export default function AgreementsPage() {
               </TableHeader>
               <TableBody>
                 {visible.map((agreement) => {
-                  const ownTenantId = isOperatorSide ? agreement.operatorTenantId : agreement.clinicTenantId;
-                  // Row-local, not the page-level `isClinicSide` (which gates the propose
-                  // button by role): scope is the clinic's to set regardless of which role
-                  // within it is viewing, so this is just "not the operator side".
-                  const viewerOwnsScope = !isOperatorSide;
-                  const canRespond = isActionableBy(agreement, ownTenantId);
+                  // Which side of *this row* the viewer is on, decided by tenant, not by role --
+                  // the same home tenant the API answers with (`homeTenantOf` in
+                  // AgreementsController). Inferring it from the role used to pick the clinic's
+                  // id for any viewer that wasn't OPERATOR_ADMIN, which on a clinic-proposed
+                  // contract equals `proposedByTenantId` and hid Accept from the side that had to
+                  // answer it.
+                  const viewerIsOperatorSide = agreement.operatorTenantId === viewerTenantId;
+                  // Scope is the clinic's to set regardless of which role within it is viewing.
+                  const viewerOwnsScope = agreement.clinicTenantId === viewerTenantId;
+                  const canRespond = isActionableBy(agreement, viewerTenantId);
                   return (
                     <TableRow key={agreement.id}>
                       <TableCell>
-                        <div className="font-medium">{counterpartyOf(agreement, isOperatorSide)}</div>
+                        <div className="font-medium">{counterpartyOf(agreement, viewerIsOperatorSide)}</div>
                         <div className="text-xs text-muted-foreground">{new Date(agreement.createdAt).toLocaleDateString("pt-BR")}</div>
                       </TableCell>
                       <TableCell>
                         <Badge
                           className={cn("border-transparent", tailwindBadgeClassOf(agreementStatusBadgeClassOf(agreement.status) as DisplayStatus))}
                         >
-                          {t(agreementStatusLabelKeyOf(agreement.status))}
+                          {t(agreementStatusLabelKeyFor(agreement, viewerTenantId))}
                         </Badge>
                       </TableCell>
                       <TableCell>

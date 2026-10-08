@@ -9,6 +9,8 @@ import { AgreementStatus, type OperatorAgreementDto } from "@crop/shared";
  */
 type AgreementLabelKey =
   | "agreements:statusPending"
+  | "agreements:statusPendingYou"
+  | "agreements:statusPendingOther"
   | "agreements:statusActive"
   | "agreements:statusRejected"
   | "agreements:statusRevoked";
@@ -57,4 +59,15 @@ export function counterpartyOf(agreement: OperatorAgreementDto, viewerIsOperator
  */
 export function isActionableBy(agreement: OperatorAgreementDto, tenantId: string): boolean {
   return agreement.status === AgreementStatus.PENDING && agreement.proposedByTenantId !== tenantId;
+}
+
+/**
+ * The badge label as `viewerTenantId` sees it. A bare "Aguardando resposta" on PENDING reads the
+ * same to both parties, so neither can tell whose turn it is -- this splits it into "your answer"
+ * for the side that must respond and "the other party" for the proposer, using `isActionableBy`
+ * so the label and the Accept button can never disagree.
+ */
+export function agreementStatusLabelKeyFor(agreement: OperatorAgreementDto, viewerTenantId: string): AgreementLabelKey {
+  if (agreement.status !== AgreementStatus.PENDING) return agreementStatusLabelKeyOf(agreement.status);
+  return isActionableBy(agreement, viewerTenantId) ? "agreements:statusPendingYou" : "agreements:statusPendingOther";
 }

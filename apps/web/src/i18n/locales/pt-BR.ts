@@ -1390,6 +1390,8 @@ const ptBR = {
     filterStatus: "Situação",
     statusAll: "Todas",
     statusPending: "Aguardando resposta",
+    statusPendingYou: "Aguardando sua resposta",
+    statusPendingOther: "Aguardando a outra parte",
     statusActive: "Ativo",
     statusRejected: "Recusado",
     statusRevoked: "Encerrado",
