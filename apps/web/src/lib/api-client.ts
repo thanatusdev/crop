@@ -155,8 +155,9 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
 
 async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const res = await request(path, options);
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  // 204, or a void Nest handler's 201/200 with no body (e.g. POST /sessions/:id/end): nothing to parse.
+  const text = await res.text();
+  return (text.length > 0 ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {
