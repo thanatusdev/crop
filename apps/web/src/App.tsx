@@ -85,9 +85,8 @@ export default function App() {
             </Route>
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
             <Route path="/sessions/:sessionId/replay" element={<SessionReplayPage />} />
-            {/* The operator's own equipment-scoped exam cockpit -- see ExamPage's own
-                docstring for why this is `?equipmentId=`-scoped rather than a `:sessionId`
-                route like SessionPage above, which this does not replace or redirect. */}
+            {/* The equipment-scoped exam cockpit, shared by operator and supervisor -- see
+                ExamPage's own docstring. SessionPage above now just redirects here. */}
             <Route path="/exame" element={<ExamPage />} />
             {/* Mirrors AuditController's @Roles. */}
             <Route

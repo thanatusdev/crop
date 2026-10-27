@@ -86,10 +86,10 @@ export function computeNavPermissions(role: UserRole | undefined): NavPermission
     // watches, or takes over a session (its own screen is "/enfermagem", canManageQueue);
     // OPERATOR has its own real landing page too (`WorkstationPage`, `/posto-de-trabalho`,
     // see role-routes.ts and canSelectWorkstation below) and showing "Painel" alongside it
-    // offered a second, non-converging path to the same equipment (Dashboard's own
-    // "Iniciar sessão" button lands on the generic `SessionPage`, not the operator's
-    // dedicated `ExamPage` cockpit `WorkstationPage` actually confirms into). Everyone else
-    // keeps seeing Dashboard exactly as before.
+    // offered a second path to the same equipment (Dashboard's "Iniciar sessão" and
+    // "Rejoin session" now land supervisors on the same `ExamPage` cockpit
+    // `WorkstationPage` confirms operators into). Everyone else keeps seeing Dashboard
+    // exactly as before.
     canViewOperations: role !== UserRole.NURSING && role !== UserRole.OPERATOR,
     // Mirrors this route's own `RoleRoute allowed={[OPERATOR]}` in App.tsx -- the
     // workstation-selection screen (clinic -> unit -> equipment, narrowed to whatever the

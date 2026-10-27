@@ -52,12 +52,12 @@ import {
  * patient's record plus every action button on the right. Reached from `WorkstationPage`'s
  * "Confirmar e Acessar Sala" (`?equipmentId=`) once the shift's room is picked.
  *
- * `/sessions/:sessionId` (`SessionPage`) is not removed or redirected by this -- it stays the
- * generic per-session console any authenticated participant/supervisor can reach by session
- * id (e.g. from `DashboardPage`'s "Rejoin session"). This page is `?equipmentId=`-scoped
- * instead, on purpose: the operator's own workflow is "this room, whichever exam is running
- * or about to," not "this one session id" -- when a session ends, the page reverts to its own
- * "start the next exam" prompt for the same room.
+ * Supervisors use this same page (reached from `DashboardPage`'s "Rejoin session"), so both
+ * sides see the same layout and share the same room chat; take-over/return-control buttons
+ * are gated by the role flags below. `/sessions/:sessionId` (`SessionPage`) is now only a
+ * redirect here for old links. This page is `?equipmentId=`-scoped on purpose: the workflow
+ * is "this room, whichever exam is running or about to," not "this one session id" -- when a
+ * session ends, the page reverts to its own "start the next exam" prompt for the same room.
  *
  * The exam-support chat (`ExamChat`, shared with `NursingPage`) is equipment-scoped, not
  * session-scoped -- it connects and stays usable whether or not an exam is currently running,
@@ -68,8 +68,8 @@ import {
  * Not reproduced from the source mock, for the same "no fabricated telemetry" policy every
  * prior pass has held to: parsed/native scanner protocol integration (kV/mA readouts, a
  * "Scan em Andamento" progress bar, DICOM/PACS viewport panes) -- the centre column is
- * reserved for the one real link to the equipment, the console mirror, exactly as on
- * `SessionPage`; "Intercorrência"/room-safety sensor panels -- same reasoning `NursingPage`'s
+ * reserved for the one real link to the equipment, the console mirror;
+ * "Intercorrência"/room-safety sensor panels -- same reasoning `NursingPage`'s
  * own docstring already gives for the identical mock elements there. The push-to-talk
  * intercom this page used to render (`IntercomChannel`, presence-only, no audio ever rode on
  * it) was removed outright, not merely hidden -- see that feature's own removal note on
@@ -126,6 +126,10 @@ export default function ExamPage() {
 
   const [messages, setMessages] = useState<ExamMessageDto[]>([]);
   const [chatDay, setChatDay] = useState(today);
+  // Read by the socket's EXAM_MESSAGE_CREATED handler, which is attached once per room and
+  // would otherwise keep comparing against whatever day was shown when it connected.
+  const chatDayRef = useRef(chatDay);
+  chatDayRef.current = chatDay;
   const [chatLoadError, setChatLoadError] = useState<string | null>(null);
   const [shortcuts, setShortcuts] = useState<MessageShortcutDto[]>([]);
   const [creatingShortcut, setCreatingShortcut] = useState(false);
@@ -153,6 +157,10 @@ export default function ExamPage() {
     user?.role === "PLATFORM_ADMIN";
   const isOperatorInControl = session?.controllerUserId === session?.operatorId;
   const isParticipant = session?.operatorId === user?.sub || session?.supervisorId === user?.sub;
+  // Supervisors share this page but can't reach the operator-only workstation screen.
+  const isOperator = user?.role === "OPERATOR";
+  const backRoute = isOperator ? "/posto-de-trabalho" : "/";
+  const backLabel = isOperator ? t("exam:backToWorkstation") : t("exam:backHome");
 
   const loadEquipmentAndQueue = useCallback(async () => {
     if (!equipmentId) return;
@@ -229,7 +237,7 @@ export default function ExamPage() {
       // silently grow a list the operator can't see grow, then reorder the world once they
       // paged back to today. Filtered by `chatDay` at append time, not at render time, so
       // switching days doesn't need to re-filter a mixed-day array.
-      setMessages((prev) => (payload.createdAt.slice(0, 10) === chatDay ? [...prev, payload] : prev));
+      setMessages((prev) => (payload.createdAt.slice(0, 10) === chatDayRef.current ? [...prev, payload] : prev));
     });
     sock.on(RT_EVENTS.QUEUE_UPDATED, (payload: { equipmentId: string }) => {
       if (payload.equipmentId === equipmentId) void loadEquipmentAndQueue();
@@ -436,8 +444,8 @@ export default function ExamPage() {
         <Alert variant="destructive">
           <AlertDescription>{t("exam:noEquipmentSelected")}</AlertDescription>
         </Alert>
-        <Button variant="secondary" onClick={() => navigate("/posto-de-trabalho")}>
-          {t("exam:backToWorkstation")}
+        <Button variant="secondary" onClick={() => navigate(backRoute)}>
+          {backLabel}
         </Button>
       </main>
     );
@@ -449,8 +457,8 @@ export default function ExamPage() {
         <Alert variant="destructive">
           <AlertDescription>{loadError}</AlertDescription>
         </Alert>
-        <Button variant="secondary" onClick={() => navigate("/posto-de-trabalho")}>
-          {t("exam:backToWorkstation")}
+        <Button variant="secondary" onClick={() => navigate(backRoute)}>
+          {backLabel}
         </Button>
       </main>
     );
@@ -607,8 +615,8 @@ export default function ExamPage() {
                     of the app's own theme -- a real video surface, not page chrome, so it keeps
                     its own self-contained colors exactly like a `Badge` does, per the "shared
                     ancestor" rule (see docs/architecture.md). The canvas itself keeps `w-full
-                    block` and no other sizing utility -- see `SessionPage`'s identical console
-                    box for why: `useHidInput`'s own mouse-coordinate math assumes its CSS box
+                    block` and no other sizing utility:
+                    `useHidInput`'s own mouse-coordinate math assumes its CSS box
                     always matches its intrinsic aspect ratio with zero letterboxing. */}
                 <div
                   className="relative overflow-hidden rounded-lg bg-black focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-primary focus-visible:outline-offset-2"

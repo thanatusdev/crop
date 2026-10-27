@@ -2,15 +2,9 @@ import { useEffect, useRef } from "react";
 import { useWhepPlayer } from "../hooks/use-whep-player.js";
 
 /**
- * The room camera feed as `ExamPage`'s own full-size left-column panel -- the same
- * `useWhepPlayer` connection `CctvPip` already established for the console's small
- * picture-in-picture overlay, promoted to a first-class card here because the RadLink cockpit
- * mock shows the room camera as its own panel, not a corner inset, once a dedicated exam
- * screen exists to give it the room. `CctvPip` itself is untouched and keeps doing exactly
- * that smaller job inside `.console-box` on both `SessionPage` and this page's own console
- * mirror -- the two are deliberately not unified into one configurable component, since a
- * "sometimes tiny corner overlay, sometimes full card" prop would be harder to read than two
- * small, honestly-named ones sharing the one hook that actually matters.
+ * The room camera feed as `ExamPage`'s own full-size left-column panel (via `useWhepPlayer`),
+ * shown as its own card because the RadLink cockpit mock shows the room camera as a panel,
+ * not a corner inset.
  */
 export function RoomCameraPanel({ whepUrl }: { whepUrl: string | null }) {
   const { stream, status } = useWhepPlayer(whepUrl);

@@ -3,7 +3,7 @@ import { API_URL } from "./config.js";
 import { tokenStore } from "./token-store.js";
 
 /**
- * One Socket.io connection per SessionPage mount, authenticated via `auth.token` in the
+ * One Socket.io connection per ExamPage mount, authenticated via `auth.token` in the
  * handshake (see SessionsGateway.handleConnection) -- not a header, since Socket.io's
  * transport negotiation makes headers unreliable across its polling/websocket fallback.
  */

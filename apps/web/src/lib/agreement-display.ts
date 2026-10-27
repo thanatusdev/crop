@@ -56,7 +56,7 @@ export function counterpartyOf(agreement: OperatorAgreementDto, viewerIsOperator
  *
  * Mirrors `OperatorAgreement.assertCanBeRespondedToBy` on the server, deliberately: the button only
  * renders when the request behind it would actually succeed. Showing Accept to the proposer would
- * offer an action the API refuses by design, which is the same mistake `SessionPage`'s "End session"
+ * offer an action the API refuses by design, which is the same mistake the old supervisor console's "End session"
  * button already documents having made once.
  */
 export function isActionableBy(agreement: OperatorAgreementDto, tenantId: string, isPlatformAdmin = false): boolean {

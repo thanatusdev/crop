@@ -121,7 +121,7 @@ export default function SessionReplayPage() {
           <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,1fr)] items-start gap-4">
             <div>
               {/* Stays black regardless of the app's own theme -- a real video surface, not
-                  page chrome, same "shared ancestor" reasoning as `SessionPage`'s own console
+                  page chrome, same "shared ancestor" reasoning as `ExamPage`'s own console
                   box (see docs/architecture.md). Unlike that one, this is a static `<img>`
                   snapshot, not a live canvas -- no HID coordinate math depends on its sizing,
                   but `w-full block` is kept anyway for the identical letterboxing-free layout. */}

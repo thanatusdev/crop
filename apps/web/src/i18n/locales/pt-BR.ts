@@ -1032,7 +1032,7 @@ const ptBR = {
    * - **Voice PTT ("Falar com Operador"), room microphone/audio, and the free-text chat +
    *   room macros ("CONT" / "PL" / "TB" / "INT" / "PSM")**. No voice/intercom channel and no
    *   chat feature exist. The one real communication surface between clinic and remote
-   *   operator is `SessionPage`'s own "Type text" panel (`PRINT_TEXT`), which the Biomédico
+   *   operator is `ExamPage`'s own "Type text" panel (`PRINT_TEXT`), which the Biomédico
    *   Operador's console already has; duplicating a second, unaudited free-text channel here
    *   would undercut that one's own audit trail.
    * - **Room telemetry ("Porta Chumbo: Travada", "Clima Sala: 19.4°C", "Parada Emergencial:
@@ -1040,7 +1040,7 @@ const ptBR = {
    *   would be honest to display.
    * - **"Intercorrência" / "Parada Emergencial" buttons**. The one real emergency control in
    *   this codebase is `SessionsController`'s `release-all` (unstick keys) endpoint, already
-   *   surfaced on `SessionPage` for the Biomédico Operador who is actually driving the
+   *   surfaced on `ExamPage` for the Biomédico Operador who is actually driving the
    *   equipment -- the nurse in the room has no equivalent real action to trigger.
    * - **Triage questionnaire / allergies, the digital medical order, contrast dose/
    *   concentration, patient weight/sex/age, and free-text nursing observations**. None of
@@ -1440,6 +1440,8 @@ const ptBR = {
     loadError: "Não foi possível carregar esta sala.",
     noEquipmentSelected: "Nenhum equipamento selecionado.",
     backToWorkstation: "Voltar ao posto de trabalho",
+    backHome: "Voltar ao início",
+    sessionLoadError: "Não foi possível carregar esta sessão.",
 
     startExamHeading: "Iniciar Exame",
     startExamWithPatient: "Próximo paciente: {{patient}}",

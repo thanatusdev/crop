@@ -249,7 +249,7 @@ export default function DashboardPage() {
     setStartingId(equipmentId);
     try {
       const session = await api.post<SessionState>("/sessions", { equipmentId, queueEntryId });
-      navigate(`/sessions/${session.id}`);
+      navigate(`/exame?equipmentId=${session.equipmentId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("dashboard:startSessionError"));
     } finally {
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     {activeSession ? (
-                      <Button onClick={() => navigate(`/sessions/${activeSession.id}`)}>{t("dashboard:rejoinSession")}</Button>
+                      <Button onClick={() => navigate(`/exame?equipmentId=${activeSession.equipmentId}`)}>{t("dashboard:rejoinSession")}</Button>
                     ) : (
                       <Button
                         disabled={item.status !== "ONLINE" || startingId === item.id}

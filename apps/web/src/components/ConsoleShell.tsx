@@ -23,7 +23,7 @@ export type ConsoleNavKey = "dashboard" | "workstation" | "users" | "clinics" | 
  * specifically, in favor of matching the RadLink console mock these five pages are modeled
  * on -- by the time every other page migrated too (see docs/architecture.md), light became
  * the app's one and only theme, not something distinguishing this shell from the rest.
- * `SessionPage`, `AuditPage`, `ClinicHomePage`, and `LatencyClockPage` still don't render
+ * `ExamPage`, `AuditPage`, `ClinicHomePage`, and `LatencyClockPage` still don't render
  * inside this shell, but for an unrelated reason: no sidebar nav/topbar chrome fits a
  * full-bleed video console, a page with no nav needs, or a standalone stub outside the
  * authenticated app entirely -- not a theme difference anymore.

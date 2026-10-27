@@ -202,8 +202,8 @@ export function useHidInput(params: {
       canvas.removeEventListener("mouseleave", onMouseLeave);
     };
     // Deliberately `canvasRef.current`/`containerRef.current`, not the ref objects
-    // themselves: SessionPage creates the Socket.io connection (fast, synchronous) before
-    // its session/equipment REST fetch resolves (a real network round trip), and renders no
+    // themselves: ExamPage creates the Socket.io connection (fast, synchronous) before
+    // its equipment REST fetch resolves (a real network round trip), and renders no
     // canvas/console-box at all until both are loaded. That means this effect's first run
     // sees `canvasRef.current`/`containerRef.current` as null, bails out via the early
     // `return` above, and -- since ref *objects* never change identity -- would otherwise
