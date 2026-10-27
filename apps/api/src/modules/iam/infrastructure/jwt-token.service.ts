@@ -73,7 +73,7 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyMfaChallenge(token: string): MfaChallengeClaims {
     const claims = this.verify<MfaChallengeClaims>(token, this.accessSecret);
-    if (claims.purpose !== "mfa_challenge") throw new UnauthorizedError("Invalid MFA challenge token");
+    if (claims.purpose !== "mfa_challenge") throw new UnauthorizedError("Sua verificação em duas etapas expirou ou é inválida. Faça login novamente.");
     return claims;
   }
 
@@ -84,7 +84,7 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyMfaEnrollment(token: string): MfaEnrollmentClaims {
     const claims = this.verify<MfaEnrollmentClaims>(token, this.accessSecret);
-    if (claims.purpose !== "mfa_enrollment") throw new UnauthorizedError("Invalid MFA enrollment token");
+    if (claims.purpose !== "mfa_enrollment") throw new UnauthorizedError("A configuração da verificação em duas etapas expirou ou é inválida. Faça login novamente.");
     return claims;
   }
 
@@ -99,7 +99,7 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyPasswordReset(token: string): PasswordResetClaims & { jti: string; exp: number } {
     const claims = this.verify<PasswordResetClaims & { jti: string; exp: number }>(token, this.accessSecret);
-    if (claims.purpose !== "password_reset") throw new UnauthorizedError("Invalid password reset token");
+    if (claims.purpose !== "password_reset") throw new UnauthorizedError("Este link de redefinição de senha é inválido ou expirou.");
     return claims;
   }
 
@@ -113,7 +113,7 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyInvitation(token: string): InvitationClaims & { jti: string; exp: number } {
     const claims = this.verify<InvitationClaims & { jti: string; exp: number }>(token, this.accessSecret);
-    if (claims.purpose !== "account_invitation") throw new UnauthorizedError("Invalid invitation token");
+    if (claims.purpose !== "account_invitation") throw new UnauthorizedError("Este link de convite é inválido ou expirou.");
     return claims;
   }
 
@@ -126,7 +126,7 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyPasswordChange(token: string): PasswordChangeClaims & { jti: string; exp: number } {
     const claims = this.verify<PasswordChangeClaims & { jti: string; exp: number }>(token, this.accessSecret);
-    if (claims.purpose !== "password_change") throw new UnauthorizedError("Invalid password change token");
+    if (claims.purpose !== "password_change") throw new UnauthorizedError("Sua solicitação de troca de senha expirou ou é inválida. Faça login novamente.");
     return claims;
   }
 
@@ -134,7 +134,7 @@ export class JwtTokenService implements TokenServicePort {
     try {
       return this.jwt.verify<T>(token, { secret });
     } catch {
-      throw new UnauthorizedError("Invalid or expired token");
+      throw new UnauthorizedError("Sua sessão expirou ou é inválida. Faça login novamente.");
     }
   }
 }

@@ -60,7 +60,7 @@ export class RequestPasswordResetHandler implements ICommandHandler<RequestPassw
     const { allowed } = await this.rateLimiter.checkAndIncrement(rateLimitKey, MAX_ATTEMPTS, WINDOW_SECONDS);
     if (!allowed) {
       this.logger.warn(`Rate limit exceeded for password reset requests against ${command.email}`);
-      throw new TooManyRequestsError("Too many password reset requests. Try again later.");
+      throw new TooManyRequestsError("Muitas solicitações de redefinição de senha. Tente novamente mais tarde.");
     }
 
     const user = await this.users.findByEmail(command.email);

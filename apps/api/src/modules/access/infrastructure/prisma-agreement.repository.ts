@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { AgreementStatus } from "@crop/shared";
-import { ForbiddenError, ValidationError } from "../../../shared/domain/errors.js";
+import { ConflictError, ForbiddenError, ValidationError } from "../../../shared/domain/errors.js";
 import { PrismaService } from "../../../shared/infrastructure/prisma/prisma.service.js";
 import { OperatorAgreement } from "../domain/operator-agreement.entity.js";
 import type {
@@ -63,6 +64,15 @@ export class PrismaAgreementRepository implements AgreementRepositoryPort {
     return rows.map((row) => this.toDomain(row));
   }
 
+  async listAll(status?: AgreementStatus): Promise<OperatorAgreement[]> {
+    const rows = await this.prisma.operatorAgreement.findMany({
+      where: status ? { status } : {},
+      include: WITH_SCOPES,
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((row) => this.toDomain(row));
+  }
+
   async listActiveClinicIdsForOperator(operatorTenantId: string): Promise<string[]> {
     const rows = await this.prisma.operatorAgreement.findMany({
       where: { operatorTenantId, status: AgreementStatus.ACTIVE },
@@ -94,27 +104,34 @@ export class PrismaAgreementRepository implements AgreementRepositoryPort {
   }
 
   async recordResponse(id: string, status: AgreementStatus, respondedByUserId: string | null): Promise<OperatorAgreement> {
-    const row = await this.prisma.operatorAgreement.update({
-      where: { id },
-      data: { status, respondedByUserId: respondedByUserId ?? undefined, respondedAt: new Date() },
-      include: WITH_SCOPES,
+    return this.transition(id, [AgreementStatus.PENDING], {
+      status,
+      respondedByUserId: respondedByUserId ?? undefined,
+      respondedAt: new Date(),
     });
-    return this.toDomain(row);
   }
 
   async revoke(id: string, revokedByUserId: string | null): Promise<OperatorAgreement> {
-    const row = await this.prisma.operatorAgreement.update({
-      where: { id },
-      data: { status: AgreementStatus.REVOKED, revokedByUserId: revokedByUserId ?? undefined, revokedAt: new Date() },
-      include: WITH_SCOPES,
+    return this.transition(id, [AgreementStatus.ACTIVE], {
+      status: AgreementStatus.REVOKED,
+      revokedByUserId: revokedByUserId ?? undefined,
+      revokedAt: new Date(),
     });
-    return this.toDomain(row);
+  }
+
+  async withdraw(id: string, withdrawnByUserId: string | null): Promise<OperatorAgreement> {
+    return this.transition(id, [AgreementStatus.PENDING], {
+      status: AgreementStatus.REVOKED,
+      revokedByUserId: withdrawnByUserId ?? undefined,
+      revokedAt: new Date(),
+    });
   }
 
   async reopenAsPending(id: string, proposedByTenantId: string, proposedByUserId: string | null): Promise<OperatorAgreement> {
-    const row = await this.prisma.operatorAgreement.update({
-      where: { id },
-      data: {
+    return this.transition(
+      id,
+      [AgreementStatus.REJECTED, AgreementStatus.REVOKED],
+      {
         status: AgreementStatus.PENDING,
         proposedByTenantId,
         proposedByUserId: proposedByUserId ?? undefined,
@@ -126,7 +143,36 @@ export class PrismaAgreementRepository implements AgreementRepositoryPort {
         revokedByUserId: null,
         revokedAt: null,
       },
-      include: WITH_SCOPES,
+      // The previous round's scope goes too. Kept, it would come back to life the moment this
+      // new proposal is accepted -- re-granting equipment the clinic never approved for *this*
+      // round, which matters most when it is the operating company re-proposing. A clinic
+      // proposer re-supplies its scope right after (see ProposeAgreementHandler).
+      { clearScope: true }
+    );
+  }
+
+  /**
+   * Moves an agreement out of one of `from` and into `data`, atomically.
+   *
+   * The handlers check the status on the loaded entity first (for a precise message), but that
+   * check and the write are separate round trips: two admins clicking Accept and Reject together
+   * would both pass it, and the last write would silently win with two audit rows behind it.
+   * Conditioning the UPDATE itself on the expected status makes the second one a no-op, which is
+   * reported as a conflict rather than applied.
+   */
+  private async transition(
+    id: string,
+    from: AgreementStatus[],
+    data: Prisma.OperatorAgreementUpdateManyMutationInput,
+    options: { clearScope?: boolean } = {}
+  ): Promise<OperatorAgreement> {
+    const row = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.operatorAgreement.updateMany({ where: { id, status: { in: from } }, data });
+      if (count === 0) {
+        throw new ConflictError("Este contrato acabou de ser alterado por outra pessoa. Recarregue a página e tente novamente.");
+      }
+      if (options.clearScope) await tx.operatorAgreementScope.deleteMany({ where: { agreementId: id } });
+      return tx.operatorAgreement.findUniqueOrThrow({ where: { id }, include: WITH_SCOPES });
     });
     return this.toDomain(row);
   }
@@ -145,20 +191,20 @@ export class PrismaAgreementRepository implements AgreementRepositoryPort {
     const equipmentIds = targets.map((t) => t.equipmentId).filter((v): v is string => !!v);
 
     if (new Set(unitIds).size !== unitIds.length || new Set(equipmentIds).size !== equipmentIds.length) {
-      throw new ValidationError("Duplicate unit or equipment in agreement scope");
+      throw new ValidationError("Há unidades ou equipamentos repetidos na abrangência do contrato.");
     }
 
     const row = await this.prisma.$transaction(async (tx) => {
       if (unitIds.length > 0) {
         const owned = await tx.unit.count({ where: { id: { in: unitIds }, clinicTenantId } });
         if (owned !== unitIds.length) {
-          throw new ForbiddenError("Every unit in an agreement's scope must belong to that agreement's clinic");
+          throw new ForbiddenError("Todas as unidades incluídas no contrato devem pertencer à clínica do contrato.");
         }
       }
       if (equipmentIds.length > 0) {
         const owned = await tx.equipment.count({ where: { id: { in: equipmentIds }, tenantId: clinicTenantId } });
         if (owned !== equipmentIds.length) {
-          throw new ForbiddenError("Every equipment in an agreement's scope must belong to that agreement's clinic");
+          throw new ForbiddenError("Todos os equipamentos incluídos no contrato devem pertencer à clínica do contrato.");
         }
       }
 

@@ -1,5 +1,6 @@
 import { AllergyStatus, PatientSex, PreparationStatus, QueueStatus } from "@crop/shared";
 import { ConflictError } from "../../../shared/domain/errors.js";
+import { labelOf, PREPARATION_STATUS_LABELS_PT_BR, QUEUE_STATUS_LABELS_PT_BR } from "../../../shared/domain/pt-br-labels.js";
 
 export interface QueueEntryProps {
   id: string;
@@ -174,7 +175,7 @@ export class QueueEntry {
   /** A patient can't go from DONE/CANCELLED back to WAITING, or skip straight to DONE. */
   assertCanTransitionTo(next: QueueStatus): void {
     if (!VALID_TRANSITIONS[this.props.status].includes(next)) {
-      throw new ConflictError(`Cannot move queue entry from ${this.props.status} to ${next}`);
+      throw new ConflictError(`Não é possível alterar o status do paciente de "${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}" para "${labelOf(QUEUE_STATUS_LABELS_PT_BR, next)}".`);
     }
   }
 
@@ -182,14 +183,14 @@ export class QueueEntry {
    * UpdatePreparationStatusHandler, the only caller. */
   assertCanTransitionPreparationTo(next: PreparationStatus): void {
     if (!VALID_PREPARATION_TRANSITIONS[this.props.preparationStatus].includes(next)) {
-      throw new ConflictError(`Cannot move patient preparation from ${this.props.preparationStatus} to ${next}`);
+      throw new ConflictError(`Não é possível alterar o preparo do paciente de "${labelOf(PREPARATION_STATUS_LABELS_PT_BR, this.props.preparationStatus)}" para "${labelOf(PREPARATION_STATUS_LABELS_PT_BR, next)}".`);
     }
     if (
       PREPARATION_STATUSES_REQUIRING_OPEN_SLOT.includes(next) &&
       this.props.status !== QueueStatus.WAITING &&
       this.props.status !== QueueStatus.IN_PROGRESS
     ) {
-      throw new ConflictError(`Cannot position or inject a patient whose queue entry is ${this.props.status}`);
+      throw new ConflictError(`Não é possível posicionar ou injetar um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`);
     }
   }
 
@@ -208,7 +209,7 @@ export class QueueEntry {
    * terminal statuses are locked out. See UpdateQueueEntryDetailsHandler, the only caller. */
   assertDetailsEditable(): void {
     if (this.props.status !== QueueStatus.WAITING && this.props.status !== QueueStatus.IN_PROGRESS) {
-      throw new ConflictError(`Cannot edit exam details for a queue entry that is ${this.props.status}`);
+      throw new ConflictError(`Não é possível editar os detalhes do exame de um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`);
     }
   }
 
@@ -221,7 +222,7 @@ export class QueueEntry {
    * record either. See UpdateTeleoperationNotesHandler, the only caller. */
   assertTeleoperationNotesEditable(): void {
     if (this.props.status !== QueueStatus.WAITING && this.props.status !== QueueStatus.IN_PROGRESS) {
-      throw new ConflictError(`Cannot edit teleoperation notes for a queue entry that is ${this.props.status}`);
+      throw new ConflictError(`Não é possível editar as notas de teleoperação de um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`);
     }
   }
 }

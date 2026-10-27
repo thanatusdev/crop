@@ -22,7 +22,7 @@ export class UploadQueueDocumentHandler implements ICommandHandler<UploadQueueDo
     const entry = await this.queue.findById(command.queueEntryId);
     if (!entry) throw new NotFoundError("QueueEntry", command.queueEntryId);
     if (!entry.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
     // Same rule as the exam-detail form itself -- uploading a document against a DONE/
     // CANCELLED entry would be adding to a record that is supposed to be closed, not just

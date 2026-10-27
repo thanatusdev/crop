@@ -29,7 +29,7 @@ export class CreateQueueEntryHandler implements ICommandHandler<CreateQueueEntry
     // add, list, or transition another tenant's patient queue by equipmentId/queueEntryId
     // alone. See docs/architecture.md.
     if (!equipment.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
     if (command.actor) {
       await this.operatorAccess.assertCanReachEquipment(command.actor, {

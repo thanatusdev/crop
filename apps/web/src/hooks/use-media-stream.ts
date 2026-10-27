@@ -71,7 +71,7 @@ export function useMediaStream(sessionId: string | null, canvasRef: React.RefObj
       if (!decoder || decoder.state === "closed") {
         decoder = new VideoDecoder({
           output: drawFrame,
-          error: (err) => setState({ status: "error", info: err.message }),
+          error: () => setState({ status: "error", info: "Falha ao decodificar o vídeo." }),
         });
       }
       if (decoder.state !== "configured") {
@@ -104,11 +104,11 @@ export function useMediaStream(sessionId: string | null, canvasRef: React.RefObj
     const setupCodec = (formats: { h264?: { profile_level_id: string } }) => {
       closeDecoder();
       if (!formats.h264) {
-        setState({ status: "error", info: "No H.264 stream available on PiKVM" });
+        setState({ status: "error", info: "Nenhum vídeo H.264 disponível no PiKVM." });
         return;
       }
       if (!("VideoDecoder" in window)) {
-        setState({ status: "error", info: "This browser cannot decode H.264 (needs WebCodecs)" });
+        setState({ status: "error", info: "Este navegador não consegue decodificar vídeo H.264 (requer WebCodecs)." });
         return;
       }
       codec = `avc1.${formats.h264.profile_level_id}`;
@@ -130,7 +130,7 @@ export function useMediaStream(sessionId: string | null, canvasRef: React.RefObj
         ticket = (await api.post<{ ticket: string }>(`/sessions/${sessionId}/stream-ticket`)).ticket;
       } catch (err) {
         if (stoppedRef.current) return;
-        setState({ status: "error", info: err instanceof Error ? err.message : "Could not obtain a stream ticket" });
+        setState({ status: "error", info: err instanceof Error ? err.message : "Não foi possível obter acesso ao vídeo." });
         reconnectTimer = setTimeout(() => void connect(), RECONNECT_DELAY_MS);
         return;
       }
@@ -160,7 +160,7 @@ export function useMediaStream(sessionId: string | null, canvasRef: React.RefObj
         }
       };
 
-      socket.onerror = () => setState({ status: "error", info: "Stream connection error" });
+      socket.onerror = () => setState({ status: "error", info: "Erro na conexão de vídeo." });
 
       socket.onclose = () => {
         if (pingTimer) clearInterval(pingTimer);

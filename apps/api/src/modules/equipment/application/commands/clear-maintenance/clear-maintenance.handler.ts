@@ -17,7 +17,7 @@ export class ClearMaintenanceHandler implements ICommandHandler<ClearMaintenance
     const target = await this.equipment.findById(command.equipmentId);
     if (!target) throw new NotFoundError("Equipment", command.equipmentId);
     if (!target.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
 
     if (!target.isInMaintenance()) return; // idempotent

@@ -65,6 +65,17 @@ export const ControllerChangedEventSchema = z.object({
 });
 export type ControllerChangedEvent = z.infer<typeof ControllerChangedEventSchema>;
 
+/** Server -> client push: `suspendedUserIds` no longer hold control of this session because their
+ * company's contract with the clinic stopped covering its equipment. `message` is pt-BR, ready to
+ * show. Deliberately not a SESSION_ENDED: aborting a running exam because of a commercial
+ * decision would be a clinical-safety hazard, so the session stays up for clinic staff. */
+export const ControlSuspendedEventSchema = z.object({
+  sessionId: z.string().uuid(),
+  suspendedUserIds: z.array(z.string().uuid()),
+  message: z.string(),
+});
+export type ControlSuspendedEvent = z.infer<typeof ControlSuspendedEventSchema>;
+
 /** Server -> client latency echo, used to render the HUD's measured RTT. */
 export const LatencyPongSchema = z.object({
   clientTs: z.number(),

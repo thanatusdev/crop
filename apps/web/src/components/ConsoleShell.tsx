@@ -61,6 +61,11 @@ export function ConsoleShell({
   const navigate = useNavigate();
   const nav = computeNavPermissions(user?.role);
 
+  // The title no longer shows in the topbar (see the header below); the browser tab carries it instead.
+  useEffect(() => {
+    document.title = `${pageTitle} · RadLink`;
+  }, [pageTitle]);
+
   const [equipmentHealth, setEquipmentHealth] = useState<{ online: number; total: number } | null>(null);
   const [clinicCount, setClinicCount] = useState<number | null>(null);
   const [operatorCount, setOperatorCount] = useState<number | null>(null);
@@ -200,8 +205,9 @@ export function ConsoleShell({
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="flex items-center justify-between gap-4 border-b bg-card px-6 py-4 text-foreground">
-          <strong>{pageTitle}</strong>
+        {/* No page title here: every page in this shell renders its own `<h1>` right below,
+            so repeating it in the topbar only showed the same name twice. */}
+        <header className="flex items-center justify-end gap-4 border-b bg-card px-6 py-4 text-foreground">
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs text-muted-foreground">
               <span aria-hidden="true" className="size-1.5 flex-shrink-0 rounded-full bg-[#5fdc8a]" />

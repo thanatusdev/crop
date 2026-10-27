@@ -26,7 +26,7 @@ export class ReleaseAllInputHandler implements ICommandHandler<ReleaseAllInputCo
     const session = await this.sessions.findById(command.sessionId);
     if (!session) throw new NotFoundError("Session", command.sessionId);
     if (!session.isParticipant(command.requestedByUserId)) {
-      throw new ForbiddenError("Only the operator or supervisor of this session may trigger an emergency release");
+      throw new ForbiddenError("Somente o operador ou o supervisor desta sessão pode acionar a liberação de emergência.");
     }
 
     await this.pikvm.releaseAllInput(session.equipmentId);

@@ -12,8 +12,8 @@ import { DEFAULT_KEYMAP, PIKVM_KEYMAPS } from "../hid/keymaps.js";
 const AeTitleSchema = z
   .string()
   .trim()
-  .max(16, "AE Title must be at most 16 characters")
-  .regex(/^[A-Z0-9_-]+$/, "AE Title must use uppercase letters, digits, underscore or hyphen only");
+  .max(16, "O AE Title deve ter no máximo 16 caracteres")
+  .regex(/^[A-Z0-9_-]+$/, "O AE Title deve usar apenas letras maiúsculas, dígitos, sublinhado ou hífen");
 
 /**
  * Accepts either a full ISO datetime or a bare `YYYY-MM-DD` (what an `<input type="date">`
@@ -23,7 +23,7 @@ const AeTitleSchema = z
  * exactly what `new Date("2025-12-21")` parsed as local time would do.
  */
 const CalendarDateSchema = z.union([
-  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD").transform((value) => new Date(`${value}T00:00:00.000Z`)),
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato AAAA-MM-DD").transform((value) => new Date(`${value}T00:00:00.000Z`)),
   z.coerce.date(),
 ]);
 

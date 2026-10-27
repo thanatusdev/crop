@@ -25,7 +25,7 @@ export class GetEquipmentHandler implements IQueryHandler<GetEquipmentQuery, Equ
     // Multi-tenant isolation, enforced here rather than trusted to the caller: a tenant
     // can never load another tenant's equipment by guessing its UUID.
     if (!equipment.belongsToTenant(query.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
 
     // Tenant scoping above is necessary but no longer sufficient. A contracted operator acts

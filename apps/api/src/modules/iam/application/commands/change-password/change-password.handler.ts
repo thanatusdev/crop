@@ -52,22 +52,22 @@ export class ChangePasswordHandler implements ICommandHandler<ChangePasswordComm
     const { allowed } = await this.rateLimiter.checkAndIncrement(rateLimitKey, MAX_ATTEMPTS, WINDOW_SECONDS);
     if (!allowed) {
       this.logger.warn(`Rate limit exceeded for password change confirmation against user ${claims.sub}`);
-      throw new TooManyRequestsError("Too many attempts. Try again later.");
+      throw new TooManyRequestsError("Muitas tentativas. Tente novamente mais tarde.");
     }
 
     if (await this.revocation.isRevoked(claims.jti, "password_change")) {
-      throw new UnauthorizedError("This session has expired. Please log in again.");
+      throw new UnauthorizedError("Sua sessão expirou. Faça login novamente.");
     }
 
     const user = await this.users.findById(claims.sub);
     if (!user) throw new NotFoundError("User", claims.sub);
 
     if (user.isLocked()) {
-      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+      throw new ForbiddenError("Esta conta está bloqueada. Entre em contato com o administrador.");
     }
     const tenant = await this.tenants.findById(user.tenantId);
     if (tenant?.isDeactivated()) {
-      throw new ForbiddenError("This organization's access has been deactivated. Contact your administrator.");
+      throw new ForbiddenError("O acesso desta organização foi desativado. Entre em contato com o administrador.");
     }
 
     assertPasswordPolicy(command.newPassword, { email: user.email, firstName: user.firstName, lastName: user.lastName });

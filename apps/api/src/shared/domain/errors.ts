@@ -4,14 +4,21 @@
  * only at the presentation layer (see shared/infrastructure/http/domain-exception.filter.ts).
  */
 
+import { RESOURCE_LABELS_PT_BR } from "./pt-br-labels.js";
+
 export abstract class DomainError extends Error {
   abstract readonly code: string;
 }
 
 export class NotFoundError extends DomainError {
   readonly code = "NOT_FOUND";
-  constructor(resource: string, id: string) {
-    super(`${resource} ${id} not found`);
+  /** `id` is kept for logs and debugging but left out of the message: users read this text, and
+   * a raw UUID in it says nothing to them. */
+  constructor(
+    public readonly resource: string,
+    public readonly id: string
+  ) {
+    super(RESOURCE_LABELS_PT_BR[resource] ?? "Registro não encontrado");
   }
 }
 

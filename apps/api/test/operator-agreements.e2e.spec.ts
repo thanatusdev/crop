@@ -630,4 +630,205 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
       expect(outsider.body.code).toBe("FORBIDDEN");
     });
   });
+
+  /**
+   * The platform admin is party to no contract -- its home tenant is `PLATFORM` -- yet it creates
+   * operating companies that have no OPERATOR_ADMIN of their own on day one. It therefore sees
+   * every agreement and may answer a pending proposal *on behalf of* the side it waits on, but
+   * revoking and scope stay with the two parties.
+   */
+  describe("PLATFORM_ADMIN", () => {
+    let platformToken: string;
+
+    beforeAll(async () => {
+      const platformId = (await createTenant(prisma, `AgreePlatform-${crypto.randomUUID()}`, "PLATFORM")).id;
+      platformToken = (await createLoggedInUser(app, { tenantId: platformId, role: UserRole.PLATFORM_ADMIN, emailPrefix: "agree-platform" }))
+        .accessToken;
+    });
+
+    it("sees every agreement and accepts a clinic's proposal on behalf of a company with no admin yet", async () => {
+      const newCompanyId = (await createTenant(prisma, `AgreeNewCompany-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
+      const proposed = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: newCompanyId, equipmentIds: [grantedEquipmentId] })
+        .expect(201);
+
+      const list = await http.get("/agreements").set("Authorization", `Bearer ${platformToken}`).expect(200);
+      expect((list.body as { id: string }[]).map((a) => a.id)).toContain(proposed.body.id);
+      await http.get(`/agreements/${proposed.body.id}`).set("Authorization", `Bearer ${platformToken}`).expect(200);
+
+      const accepted = await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${platformToken}`).expect(201);
+      expect(accepted.body.status).toBe("ACTIVE");
+
+      const audit = await prisma.auditLog.findFirst({
+        where: { resourceType: "OperatorAgreement", resourceId: proposed.body.id as string, action: "AGREEMENT_ACCEPTED" },
+      });
+      // Recorded as the company's answer, given by the platform -- not as the platform's own side.
+      expect(audit?.details).toMatchObject({ respondedByTenantId: newCompanyId, onBehalf: true });
+
+      // Answering is the platform's only write: ending the contract and setting scope stay with the parties.
+      const revoke = await http.post(`/agreements/${proposed.body.id}/revoke`).set("Authorization", `Bearer ${platformToken}`).expect(403);
+      expect(revoke.body.code).toBe("FORBIDDEN");
+      await http
+        .put(`/agreements/${proposed.body.id}/scope`)
+        .set("Authorization", `Bearer ${platformToken}`)
+        .send({ unitIds: [], equipmentIds: [] })
+        .expect(403);
+    });
+
+    it("cannot answer an agreement that is no longer pending, and says so in Portuguese", async () => {
+      const newCompanyId = (await createTenant(prisma, `AgreeNewCompany2-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
+      const proposed = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: newCompanyId }).expect(201);
+      await http.post(`/agreements/${proposed.body.id}/reject`).set("Authorization", `Bearer ${platformToken}`).expect(201);
+
+      const again = await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${platformToken}`).expect(403);
+      expect(again.body.message).toContain("recusado");
+    });
+  });
+
+  /**
+   * The lifecycle edges the first audit of this feature found open: a live session outliving the
+   * contract that justified it, a re-proposal quietly inheriting the previous round's scope, two
+   * answers both landing, and a proposer with no way to take a proposal back.
+   */
+  describe("lifecycle safety", () => {
+    async function freshCompanyWithAdmin(label: string): Promise<{ companyId: string; adminToken: string }> {
+      const companyId = (await createTenant(prisma, `Agree${label}-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
+      const adminToken = (await createLoggedInUser(app, { tenantId: companyId, role: UserRole.OPERATOR_ADMIN, emailPrefix: `agree-${label.toLowerCase()}` }))
+        .accessToken;
+      return { companyId, adminToken };
+    }
+
+    async function onlineEquipment(name: string): Promise<string> {
+      const id = (
+        await http.post("/equipment").set("Authorization", `Bearer ${clinicAdminToken}`).send(equipmentPayload({ name, unitId: grantedUnitId })).expect(201)
+      ).body.id as string;
+      await prisma.equipment.update({ where: { id }, data: { status: "ONLINE" } });
+      return id;
+    }
+
+    /** The suspension runs in an event handler, after the revoke/scope response has been sent. */
+    async function waitForSuspension(sessionId: string): Promise<{ details: unknown } | null> {
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const row = await prisma.auditLog.findFirst({ where: { sessionId, action: "SESSION_CONTROL_SUSPENDED" } });
+        if (row) return row;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return null;
+    }
+
+    it("revoking suspends the company's control of a live session without ending the exam", async () => {
+      const { companyId, adminToken } = await freshCompanyWithAdmin("SuspendRevoke");
+      const equipmentId = await onlineEquipment("Agree-Suspend-Revoke");
+      const proposed = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: companyId, equipmentIds: [equipmentId] })
+        .expect(201);
+      await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`).expect(201);
+
+      const operatorToken = await operatorInClinic(companyId, clinicId);
+      const session = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId }).expect(201);
+      const sessionId = session.body.id as string;
+
+      await http.post(`/agreements/${proposed.body.id}/revoke`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(200);
+
+      const suspended = await waitForSuspension(sessionId);
+      expect(suspended?.details).toMatchObject({ reason: "agreement_revoked", operatorTenantId: companyId });
+      // The exam is not aborted: clinical safety over a commercial decision.
+      const row = await prisma.session.findUniqueOrThrow({ where: { id: sessionId } });
+      expect(row.status).toBe("ACTIVE");
+
+      await prisma.session.update({ where: { id: sessionId }, data: { status: "ENDED", endedAt: new Date() } });
+    });
+
+    it("narrowing scope suspends only the sessions on equipment that left it", async () => {
+      const { companyId, adminToken } = await freshCompanyWithAdmin("SuspendScope");
+      const keptId = await onlineEquipment("Agree-Suspend-Kept");
+      const droppedId = await onlineEquipment("Agree-Suspend-Dropped");
+      const proposed = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: companyId, equipmentIds: [keptId, droppedId] })
+        .expect(201);
+      await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`).expect(201);
+
+      const kept = await http.post("/sessions").set("Authorization", `Bearer ${await operatorInClinic(companyId, clinicId)}`).send({ equipmentId: keptId }).expect(201);
+      const dropped = await http
+        .post("/sessions")
+        .set("Authorization", `Bearer ${await operatorInClinic(companyId, clinicId)}`)
+        .send({ equipmentId: droppedId })
+        .expect(201);
+
+      await http
+        .put(`/agreements/${proposed.body.id}/scope`)
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ unitIds: [], equipmentIds: [keptId] })
+        .expect(200);
+
+      expect((await waitForSuspension(dropped.body.id as string))?.details).toMatchObject({ reason: "agreement_scope_reduced" });
+      const keptAudit = await prisma.auditLog.findFirst({ where: { sessionId: kept.body.id as string, action: "SESSION_CONTROL_SUSPENDED" } });
+      expect(keptAudit).toBeNull();
+
+      await prisma.session.updateMany({ where: { id: { in: [kept.body.id, dropped.body.id] } }, data: { status: "ENDED", endedAt: new Date() } });
+    });
+
+    it("a re-proposal after a revoke starts with no scope instead of inheriting the old round's", async () => {
+      const { companyId, adminToken } = await freshCompanyWithAdmin("Reopen");
+      const proposed = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: companyId, unitIds: [grantedUnitId] })
+        .expect(201);
+      await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`).expect(201);
+      await http.post(`/agreements/${proposed.body.id}/revoke`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+
+      // The *company* re-proposes: accepting this must not silently restore Ala Norte.
+      const reopened = await http.post("/agreements").set("Authorization", `Bearer ${adminToken}`).send({ clinicTenantId: clinicId }).expect(201);
+      expect(reopened.body.id).toBe(proposed.body.id);
+      expect(reopened.body.scopes).toEqual([]);
+    });
+
+    it("lets the proposer withdraw a pending proposal, after which it can no longer be accepted", async () => {
+      const { companyId, adminToken } = await freshCompanyWithAdmin("Withdraw");
+      const proposed = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyId }).expect(201);
+
+      // Only the proposer may withdraw; the other side's "no" is reject.
+      const notTheirs = await http.post(`/agreements/${proposed.body.id}/withdraw`).set("Authorization", `Bearer ${adminToken}`).expect(403);
+      expect(notTheirs.body.message).toBe("Somente quem propôs o contrato pode cancelar a proposta.");
+
+      const withdrawn = await http.post(`/agreements/${proposed.body.id}/withdraw`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(200);
+      expect(withdrawn.body.status).toBe("REVOKED");
+      await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`).expect(403);
+
+      const audit = await prisma.auditLog.findFirst({ where: { resourceId: proposed.body.id as string, action: "AGREEMENT_WITHDRAWN" } });
+      expect(audit?.tenantId).toBe(clinicId);
+
+      // And proposing again reopens the very same row.
+      const again = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyId }).expect(201);
+      expect(again.body.id).toBe(proposed.body.id);
+      expect(again.body.status).toBe("PENDING");
+    });
+
+    it("refuses the second of two simultaneous answers instead of letting the last write win", async () => {
+      const { companyId, adminToken } = await freshCompanyWithAdmin("Race");
+      const proposed = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyId }).expect(201);
+
+      const [accept, reject] = await Promise.all([
+        http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`),
+        http.post(`/agreements/${proposed.body.id}/reject`).set("Authorization", `Bearer ${adminToken}`),
+      ]);
+      const statuses = [accept.status, reject.status].sort();
+      // Exactly one lands. The loser is refused either by the entity check (403, it already saw the
+      // new status) or by the conditional write (409, it raced past that check).
+      expect(statuses[0]).toBe(201);
+      expect([403, 409]).toContain(statuses[1]);
+
+      const answers = await prisma.auditLog.count({
+        where: { resourceId: proposed.body.id as string, action: { in: ["AGREEMENT_ACCEPTED", "AGREEMENT_REJECTED"] } },
+      });
+      expect(answers).toBe(1);
+    });
+  });
 });

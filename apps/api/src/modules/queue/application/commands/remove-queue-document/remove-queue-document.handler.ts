@@ -21,7 +21,7 @@ export class RemoveQueueDocumentHandler implements ICommandHandler<RemoveQueueDo
     const entry = await this.queue.findById(command.queueEntryId);
     if (!entry) throw new NotFoundError("QueueEntry", command.queueEntryId);
     if (!entry.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
     entry.assertDetailsEditable();
 

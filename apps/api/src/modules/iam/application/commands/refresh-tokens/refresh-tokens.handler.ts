@@ -22,7 +22,7 @@ export class RefreshTokensHandler implements ICommandHandler<RefreshTokensComman
     const claims = this.tokens.verifyRefreshToken(command.refreshToken);
 
     if (await this.revocation.isRevoked(claims.jti)) {
-      throw new UnauthorizedError("Refresh token has been revoked");
+      throw new UnauthorizedError("Sua sessão foi encerrada. Faça login novamente.");
     }
 
     // Re-read the user rather than trusting the token's role claim: a role change or
@@ -34,7 +34,7 @@ export class RefreshTokensHandler implements ICommandHandler<RefreshTokensComman
     // actually takes effect (access tokens carry no lock state of their own -- see
     // LockUserHandler's docstring on the bounded-window tradeoff this implies).
     if (user.isLocked()) {
-      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+      throw new ForbiddenError("Esta conta está bloqueada. Entre em contato com o administrador.");
     }
 
     // `claims.tenantId` is this refresh token's own *active clinic* (see
@@ -45,12 +45,12 @@ export class RefreshTokensHandler implements ICommandHandler<RefreshTokensComman
     // Manager's already-issued refresh tokens until they individually expired.
     const isStillMember = claims.tenantId === user.tenantId || (await this.memberships.isMember(user.id, claims.tenantId));
     if (!isStillMember) {
-      throw new ForbiddenError("You are no longer linked to that clinic. Please switch clinics or log in again.");
+      throw new ForbiddenError("Você não está mais vinculado a essa clínica. Troque de clínica ou faça login novamente.");
     }
 
     const tenant = await this.tenants.findById(claims.tenantId);
     if (tenant?.isDeactivated()) {
-      throw new ForbiddenError("This organization's access has been deactivated. Contact your administrator.");
+      throw new ForbiddenError("O acesso desta organização foi desativado. Entre em contato com o administrador.");
     }
 
     // A self-service password reset (ResetPasswordHandler) revokes every session as of the
@@ -59,7 +59,7 @@ export class RefreshTokensHandler implements ICommandHandler<RefreshTokensComman
     // this token's own `iat` against `sessionsRevokedAt` catches all of them at once, the
     // same bounded-window shape as the lock/deactivation checks above.
     if (user.issuedBeforeSessionsRevoked(claims.iat)) {
-      throw new UnauthorizedError("Refresh token has been revoked");
+      throw new UnauthorizedError("Sua sessão foi encerrada. Faça login novamente.");
     }
 
     const accessToken = this.tokens.signAccessToken({

@@ -207,7 +207,7 @@ describe("Equipment registry: clinical identity and deactivation", () => {
 
       const attempt = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: id }).expect(409);
       expect(attempt.body.code).toBe("CONFLICT");
-      expect(attempt.body.message).toContain("deactivated");
+      expect(attempt.body.message).toContain("foi desativado");
 
       // And it becomes startable again once returned to service, proving the refusal came from
       // the deactivation and not from some unrelated state this test left behind.

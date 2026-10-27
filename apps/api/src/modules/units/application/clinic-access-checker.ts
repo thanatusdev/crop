@@ -52,10 +52,10 @@ export class ClinicAccessChecker {
     const clinic = await this.tenants.findById(clinicTenantId);
     if (!clinic) throw new NotFoundError("Tenant", clinicTenantId);
     if (clinic.type !== TenantType.CLINIC) {
-      throw new ForbiddenError(`Tenant ${clinicTenantId} is not a clinic`);
+      throw new ForbiddenError("A organização selecionada não é uma clínica.");
     }
     if (clinic.isDeactivated()) {
-      throw new ForbiddenError(`Clinic ${clinicTenantId} is deactivated`);
+      throw new ForbiddenError("Esta clínica foi desativada.");
     }
 
     if (actor === null || actor.role === UserRole.PLATFORM_ADMIN) return;
@@ -63,6 +63,6 @@ export class ClinicAccessChecker {
     if (await this.memberships.isMember(actor.userId, clinicTenantId)) return;
     if (await this.operatorAccess.hasActiveAgreement(actor.tenantId, clinicTenantId)) return;
 
-    throw new ForbiddenError(`You are not linked to clinic ${clinicTenantId}`);
+    throw new ForbiddenError("Você não está vinculado a esta clínica.");
   }
 }

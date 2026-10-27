@@ -6,6 +6,7 @@ import {
   AllergyStatus,
   RT_EVENTS,
   todayClinicDayString,
+  type ControlSuspendedEvent,
   type ControllerChangedEvent,
   type EquipmentDto,
   type ExamMessageDto,
@@ -114,7 +115,13 @@ export default function ExamPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const isController = session?.controllerUserId === user?.sub;
+  // Set when the API withdrew control from an operating company whose contract stopped covering
+  // this equipment (see SuspendOutsideControlHandler). The session row still names its user as
+  // controller -- the exam keeps running for the clinic -- so `isController` must also consult
+  // this, or the page would keep offering input the server now refuses.
+  const [suspension, setSuspension] = useState<ControlSuspendedEvent | null>(null);
+  const isSuspended = !!user && !!suspension?.suspendedUserIds.includes(user.sub);
+  const isController = session?.controllerUserId === user?.sub && !isSuspended;
   const isSupervisorEligible =
     user?.role === "OPERATIONAL_SUPERVISOR" ||
     user?.role === "CLINIC_ADMIN" ||
@@ -235,11 +242,18 @@ export default function ExamPage() {
       void loadEquipmentAndQueue();
     };
 
+    const onControlSuspended = (payload: ControlSuspendedEvent) => {
+      if (payload.sessionId === sessionId) setSuspension(payload);
+    };
+
     socket.on(RT_EVENTS.CONTROLLER_CHANGED, onControllerChanged);
+    socket.on(RT_EVENTS.CONTROL_SUSPENDED, onControlSuspended);
     socket.on(RT_EVENTS.SESSION_STATE, onSessionState);
     socket.on(RT_EVENTS.SESSION_ENDED, onSessionEnded);
     return () => {
       socket.off(RT_EVENTS.CONTROLLER_CHANGED, onControllerChanged);
+      socket.off(RT_EVENTS.CONTROL_SUSPENDED, onControlSuspended);
+      setSuspension(null);
       socket.off(RT_EVENTS.SESSION_STATE, onSessionState);
       socket.off(RT_EVENTS.SESSION_ENDED, onSessionEnded);
     };
@@ -464,6 +478,11 @@ export default function ExamPage() {
 
       <main className="mx-auto max-w-[1600px] p-5">
         <h1 className="sr-only">{t("exam:heading", { room: roomHeading })}</h1>
+        {suspension && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{suspension.message}</AlertDescription>
+          </Alert>
+        )}
         {actionError && (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{actionError}</AlertDescription>

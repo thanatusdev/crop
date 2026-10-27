@@ -17,6 +17,7 @@ import {
   RT_EVENTS,
   UserRole,
   type AccessTokenClaims,
+  type ControlSuspendedEvent,
   type ControllerChangedEvent,
   type EquipmentStatus,
   type ExamMessageDto,
@@ -174,11 +175,19 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     // separately (and unconditionally) by onHidInput/onPrintText below, so widening this
     // does not let a mere viewer act on the equipment.
     if (!session.isParticipant(data.user.sub) && !VIEW_ALLOWED_ROLES.includes(data.user.role)) {
-      client.emit(RT_EVENTS.ERROR, { message: "Not a participant of this session" });
+      client.emit(RT_EVENTS.ERROR, { message: "Você não participa desta sessão." });
       return;
     }
 
     await this.joinRoom(client, data, session.id, session.equipmentId, data.user.tenantId);
+
+    // A suspension happened while this socket was away (a reload, a dropped connection): tell it
+    // again, or the page would show its user as in control while every input is refused.
+    const suspension = this.runtime.getSuspension(session.id);
+    if (suspension) {
+      const payload: ControlSuspendedEvent = { sessionId: session.id, suspendedUserIds: [...suspension.userIds], message: suspension.message };
+      client.emit(RT_EVENTS.CONTROL_SUSPENDED, payload);
+    }
   }
 
   @SubscribeMessage(RT_EVENTS.HID_INPUT)
@@ -263,7 +272,7 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     try {
       await this.queryBus.execute(new CanAccessEquipmentChatQuery(parsed.data.equipmentId, data.user));
     } catch (err) {
-      client.emit(RT_EVENTS.ERROR, { message: err instanceof Error ? err.message : "Not authorized to join this room's chat" });
+      client.emit(RT_EVENTS.ERROR, { message: err instanceof Error ? err.message : "Você não tem permissão para entrar no chat desta sala." });
       return;
     }
     await client.join(equipmentChatRoom(parsed.data.equipmentId));
@@ -273,7 +282,7 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   async onTakeoverRequest(@ConnectedSocket() client: Socket, @MessageBody() body: { sessionId: string }): Promise<void> {
     const data = client.data as SocketData;
     const session = await this.commandBus.execute(
-      new ExecuteTakeoverCommand(body.sessionId, data.user.tenantId, data.user.sub, data.user.role)
+      new ExecuteTakeoverCommand(body.sessionId, data.user.tenantId, data.user.sub, data.user.role, data.user.homeTenantId)
     );
 
     // The incoming controller almost certainly wasn't a participant (and so never joined
@@ -348,6 +357,13 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
    * exists instead of QueueModule calling this directly. */
   broadcastQueueUpdated(tenantId: string, equipmentId: string): void {
     this.server.to(tenantRoom(tenantId)).emit(RT_EVENTS.QUEUE_UPDATED, { equipmentId });
+  }
+
+  /** Called by SuspendOutsideControlHandler -- see its docstring. To the session's room, so the
+   * outside operator, any watching supervisor and the clinic all learn control was withdrawn. */
+  broadcastControlSuspended(sessionId: string, suspendedUserIds: string[], message: string): void {
+    const payload: ControlSuspendedEvent = { sessionId, suspendedUserIds, message };
+    this.server.to(room(sessionId)).emit(RT_EVENTS.CONTROL_SUSPENDED, payload);
   }
 
   /** Same shape as broadcastQueueUpdated, reacting to EquipmentStatusChangedEvent. */

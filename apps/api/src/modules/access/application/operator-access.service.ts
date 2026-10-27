@@ -113,10 +113,10 @@ export class OperatorAccessService {
 
     const agreement = await this.agreements.findActiveForOperatorInClinic(actor.homeTenantId!, actor.tenantId);
     if (!agreement) {
-      throw new ForbiddenError("Your organisation has no active agreement with this clinic");
+      throw new ForbiddenError("Sua organização não possui um contrato ativo com esta clínica.");
     }
     if (!agreement.grantsAccessTo(equipment)) {
-      throw new ForbiddenError("This equipment is outside the scope of your organisation's agreement with this clinic");
+      throw new ForbiddenError("Este equipamento não está incluído no contrato da sua organização com esta clínica.");
     }
   }
 
@@ -133,7 +133,7 @@ export class OperatorAccessService {
     if (!this.isCrossTenantActor(actor)) return;
     const equipment = await this.agreements.findEquipmentForScopeCheck(equipmentId);
     if (!equipment) {
-      throw new ForbiddenError("This equipment is outside the scope of your organisation's agreement with this clinic");
+      throw new ForbiddenError("Este equipamento não está incluído no contrato da sua organização com esta clínica.");
     }
     await this.assertCanReachEquipment(actor, equipment);
   }
@@ -171,7 +171,7 @@ export class OperatorAccessService {
     if (!this.isCrossTenantActor(actor)) return;
     const reachable = await this.filterReachableUnits(actor, [unit]);
     if (reachable.length === 0) {
-      throw new ForbiddenError("This unit is outside the scope of your organisation's agreement with this clinic");
+      throw new ForbiddenError("Esta unidade não está incluída no contrato da sua organização com esta clínica.");
     }
   }
 

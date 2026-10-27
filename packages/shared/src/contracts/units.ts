@@ -92,7 +92,7 @@ export const CreateUnitRequestSchema = z.object({
   // only for rows that predate this (see the unit_registry migration).
   establishmentType: z.nativeEnum(EstablishmentType),
   technicalManagerId: z.string().uuid(),
-  declaredModalities: z.array(z.nativeEnum(ExamModality)).min(1, "Select at least one modality"),
+  declaredModalities: z.array(z.nativeEnum(ExamModality)).min(1, "Selecione ao menos uma modalidade"),
 
   zipCode: ZipCodeSchema,
   street: z.string().trim().min(1),

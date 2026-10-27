@@ -35,7 +35,7 @@ export class SetEquipmentDeactivatedHandler implements ICommandHandler<SetEquipm
     const existing = await this.equipment.findById(command.equipmentId);
     if (!existing) throw new NotFoundError("Equipment", command.equipmentId);
     if (!existing.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
 
     // Idempotent, and silently so: deactivating already-deactivated equipment is a no-op

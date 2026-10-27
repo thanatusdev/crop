@@ -3,6 +3,7 @@ import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction, TenantType, UserRole, canGrantRole, isRoleAllowedInTenantType, requiresClinicAssignment } from "@crop/shared";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../../../../../shared/domain/errors.js";
+import { ROLE_LABELS_PT_BR, TENANT_TYPE_LABELS_PT_BR, labelOf } from "../../../../../shared/domain/pt-br-labels.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../../../tenants/application/ports/tenant-repository.port.js";
 import { PASSWORD_HASHER, type PasswordHasherPort } from "../../ports/password-hasher.port.js";
@@ -28,7 +29,7 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
   async execute(command: RegisterUserCommand): Promise<RegisterUserResult> {
     const existing = await this.users.findByEmail(command.email);
     if (existing) {
-      throw new ConflictError(`A user with email ${command.email} already exists`);
+      throw new ConflictError(`Já existe um usuário com o e-mail ${command.email}.`);
     }
 
     // "The System Administrator registers users with the Clinic Manager, Supervisor, and
@@ -37,7 +38,11 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
     // `actingRole === null` is the seed/bootstrap exemption: those dispatch this command
     // directly through the CommandBus, bypassing HTTP (and this check) entirely.
     if (!canGrantRole(command.actingRole, command.role)) {
-      throw new ForbiddenError(`${command.actingRole ?? "this caller"} may not register a ${command.role} account`);
+      throw new ForbiddenError(
+        command.actingRole
+          ? `O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode cadastrar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)}.`
+          : `Você não pode cadastrar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)}.`
+      );
     }
 
     // The first (and, as of this handler, only) place a user's role is checked against their
@@ -52,7 +57,7 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
       throw new NotFoundError("Tenant", command.tenantId);
     }
     if (!isRoleAllowedInTenantType(command.role, homeTenant.type)) {
-      throw new ForbiddenError(`Role ${command.role} is not permitted in a ${homeTenant.type} tenant`);
+      throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)} não é permitido em uma ${labelOf(TENANT_TYPE_LABELS_PT_BR, homeTenant.type)}.`);
     }
 
     // Rule: "A Manager is linked to one or more clinics. A Supervisor is linked to the
@@ -62,17 +67,17 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
     const extraClinicIds = [...new Set(command.clinicTenantIds)].filter((id) => id !== command.tenantId);
     if (requiresClinicAssignment(command.role)) {
       if (command.clinicTenantIds.length === 0) {
-        throw new ValidationError(`role ${command.role} requires at least one clinicTenantId`);
+        throw new ValidationError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)} exige ao menos uma clínica vinculada.`);
       }
 
       for (const clinicId of extraClinicIds) {
         const clinic = await this.tenants.findById(clinicId);
         if (!clinic) throw new NotFoundError("Tenant", clinicId);
         if (clinic.type !== TenantType.CLINIC) {
-          throw new ForbiddenError(`Tenant ${clinicId} is not a clinic`);
+          throw new ForbiddenError("A organização selecionada não é uma clínica.");
         }
         if (clinic.isDeactivated()) {
-          throw new ForbiddenError(`Clinic ${clinicId} has been deactivated`);
+          throw new ForbiddenError("Esta clínica foi desativada.");
         }
       }
 
@@ -84,7 +89,7 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
         const actorClinicIds = new Set(await this.memberships.listClinicIdsForUser(command.actingUserId));
         for (const clinicId of [command.tenantId, ...extraClinicIds]) {
           if (!actorClinicIds.has(clinicId)) {
-            throw new ForbiddenError(`You are not linked to clinic ${clinicId}`);
+            throw new ForbiddenError("Você não está vinculado a esta clínica.");
           }
         }
       }
@@ -96,7 +101,7 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
         for (const clinicId of [command.tenantId, ...extraClinicIds]) {
           const hasManager = await this.memberships.hasMemberWithRole(clinicId, UserRole.CLINIC_ADMIN);
           if (!hasManager) {
-            throw new ForbiddenError(`Clinic ${clinicId} has no Clinic Manager yet -- a Supervisor cannot be linked to it`);
+            throw new ForbiddenError("Esta clínica ainda não tem um Gestor de Clínica. Não é possível vincular um Supervisor a ela.");
           }
         }
       }

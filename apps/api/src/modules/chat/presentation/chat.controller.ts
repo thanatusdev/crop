@@ -66,9 +66,9 @@ export class ChatController {
   // default rather than "everything".
   @Get("messages")
   async listMessages(@CurrentUser() user: AccessTokenClaims, @Query("equipmentId") equipmentId?: string, @Query("date") date?: string) {
-    if (!equipmentId) throw new ValidationError("equipmentId is required");
+    if (!equipmentId) throw new ValidationError("Informe o equipamento.");
     if (date !== undefined && !ClinicDayStringSchema.safeParse(date).success) {
-      throw new ValidationError("date must be YYYY-MM-DD");
+      throw new ValidationError("A data deve estar no formato AAAA-MM-DD.");
     }
     const day = date ?? todayClinicDayString();
     const messages: ExamMessage[] = await this.queryBus.execute(new ListExamMessagesQuery(equipmentId, user.tenantId, user, day));
@@ -93,19 +93,19 @@ export class ChatController {
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 25 * 1024 * 1024 } }))
   async sendMessage(@CurrentUser() user: AccessTokenClaims, @Body() body: unknown, @UploadedFile() file?: Express.Multer.File) {
     const parsed = SendExamMessageRequestSchema.safeParse(body);
-    if (!parsed.success) throw new ValidationError(parsed.error.message);
+    if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join("; "));
     if (!parsed.data.body.trim() && !file) {
-      throw new ValidationError("A message needs either text or an attachment");
+      throw new ValidationError("A mensagem precisa ter um texto ou um anexo.");
     }
 
     let attachment: { filename: string; mimeType: string; data: Buffer } | null = null;
     if (file) {
       const maxBytes = this.config.get<number>("CHAT_ATTACHMENT_MAX_BYTES", 10 * 1024 * 1024);
       if (file.size > maxBytes) {
-        throw new ValidationError(`Attachment exceeds the ${Math.floor(maxBytes / (1024 * 1024))}MB limit`);
+        throw new ValidationError(`O anexo excede o limite de ${Math.floor(maxBytes / (1024 * 1024))} MB.`);
       }
       if (!ALLOWED_ATTACHMENT_MIME_TYPES.has(file.mimetype)) {
-        throw new ValidationError(`Attachment type "${file.mimetype}" is not allowed`);
+        throw new ValidationError(`O tipo de anexo "${file.mimetype}" não é permitido.`);
       }
       attachment = { filename: file.originalname, mimeType: file.mimetype, data: file.buffer };
     }
@@ -119,7 +119,7 @@ export class ChatController {
   @Get("messages/:id/attachment")
   async getAttachment(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string, @Res() res: Response): Promise<void> {
     const message: ExamMessage = await this.queryBus.execute(new GetExamMessageQuery(id, user.tenantId, user));
-    if (!message.attachment) throw new ValidationError("This message has no attachment");
+    if (!message.attachment) throw new ValidationError("Esta mensagem não possui anexo.");
 
     const data = await this.attachments.read(message.attachment.path);
     res

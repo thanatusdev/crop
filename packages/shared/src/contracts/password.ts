@@ -17,6 +17,6 @@ import { PASSWORD_MIN_LENGTH } from "../password-policy.js";
 export const StrongPasswordSchema = z
   .string()
   .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
-  .refine((value) => /[A-Z]/.test(value) && /[a-z]/.test(value), "Password must contain both uppercase and lowercase letters")
-  .refine((value) => /\d/.test(value), "Password must contain at least one digit")
-  .refine((value) => /[^A-Za-z0-9]/.test(value), "Password must contain at least one special character");
+  .refine((value) => /[A-Z]/.test(value) && /[a-z]/.test(value), "A senha deve conter letras maiúsculas e minúsculas")
+  .refine((value) => /\d/.test(value), "A senha deve conter ao menos um dígito")
+  .refine((value) => /[^A-Za-z0-9]/.test(value), "A senha deve conter ao menos um caractere especial");

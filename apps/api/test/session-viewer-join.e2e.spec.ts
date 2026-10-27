@@ -151,7 +151,7 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
       });
       socket.emit(RT_EVENTS.JOIN_SESSION, { sessionId });
     });
-    expect(gatewayError).toEqual({ message: "Not a participant of this session" });
+    expect(gatewayError).toEqual({ message: "Você não participa desta sessão." });
 
     socket.disconnect();
     await http.post(`/sessions/${sessionId}/end`).set("Authorization", `Bearer ${operatorToken}`);

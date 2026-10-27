@@ -23,6 +23,7 @@ import { OperatorAgreement } from "../../access/domain/operator-agreement.entity
 import { ProposeAgreementCommand } from "../application/commands/propose-agreement/propose-agreement.command.js";
 import { RespondToAgreementCommand } from "../application/commands/respond-to-agreement/respond-to-agreement.command.js";
 import { RevokeAgreementCommand } from "../application/commands/revoke-agreement/revoke-agreement.command.js";
+import { WithdrawAgreementCommand } from "../application/commands/withdraw-agreement/withdraw-agreement.command.js";
 import { SetAgreementScopeCommand } from "../application/commands/set-agreement-scope/set-agreement-scope.command.js";
 import { GetAgreementQuery } from "../application/queries/get-agreement/get-agreement.query.js";
 import { ListAgreementsQuery } from "../application/queries/list-agreements/list-agreements.query.js";
@@ -64,15 +65,22 @@ export class AgreementsController {
     return user.homeTenantId ?? user.tenantId;
   }
 
+  /** Which agreements a read may cover: the caller's own home tenant's, or -- for `PLATFORM_ADMIN`,
+   * whose `PLATFORM` home tenant is party to none -- every one (`null`). Reads only: revoking and
+   * scope stay with the two parties, so those routes keep using `homeTenantOf`. */
+  private partyScopeOf(user: AccessTokenClaims): string | null {
+    return user.role === UserRole.PLATFORM_ADMIN ? null : this.homeTenantOf(user);
+  }
+
   @Get()
   async list(@CurrentUser() user: AccessTokenClaims, @Query("status") status?: string): Promise<OperatorAgreementDto[]> {
     // Validated rather than passed through: an unrecognised status would otherwise reach Prisma as a
     // bogus enum value and surface as a 500 instead of a 400.
     if (status && !(Object.values(AgreementStatus) as string[]).includes(status)) {
-      throw new ValidationError(`Unknown agreement status: ${status}`);
+      throw new ValidationError(`Status de contrato inválido: "${status}".`);
     }
     const agreements: OperatorAgreement[] = await this.queryBus.execute(
-      new ListAgreementsQuery(this.homeTenantOf(user), status as AgreementStatus | undefined)
+      new ListAgreementsQuery(this.partyScopeOf(user), status as AgreementStatus | undefined)
     );
     return toAgreementDtos(agreements, this.agreements);
   }
@@ -100,7 +108,7 @@ export class AgreementsController {
 
   @Get(":id")
   async getOne(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string): Promise<OperatorAgreementDto> {
-    const agreement: OperatorAgreement = await this.queryBus.execute(new GetAgreementQuery(id, this.homeTenantOf(user)));
+    const agreement: OperatorAgreement = await this.queryBus.execute(new GetAgreementQuery(id, this.partyScopeOf(user)));
     return this.toDto(agreement);
   }
 
@@ -135,6 +143,14 @@ export class AgreementsController {
   @HttpCode(HttpStatus.OK)
   async revoke(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string): Promise<OperatorAgreementDto> {
     const agreement: OperatorAgreement = await this.commandBus.execute(new RevokeAgreementCommand(user, id));
+    return this.toDto(agreement);
+  }
+
+  /** The proposer cancelling its own PENDING proposal -- see `WithdrawAgreementHandler`. */
+  @Post(":id/withdraw")
+  @HttpCode(HttpStatus.OK)
+  async withdraw(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string): Promise<OperatorAgreementDto> {
+    const agreement: OperatorAgreement = await this.commandBus.execute(new WithdrawAgreementCommand(user, id));
     return this.toDto(agreement);
   }
 

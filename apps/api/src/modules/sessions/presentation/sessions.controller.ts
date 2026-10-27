@@ -102,7 +102,7 @@ export class SessionsController {
   async issueStreamTicket(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string) {
     const session: Session = await this.queryBus.execute(new GetSessionQuery(id, user.tenantId));
     if (!session.isParticipant(user.sub)) {
-      throw new ForbiddenError("Only a participant of this session may view its video stream");
+      throw new ForbiddenError("Somente os participantes desta sessão podem ver o vídeo.");
     }
     return { ticket: this.ticketService.issue(user.sub, user.tenantId, id) };
   }
@@ -136,6 +136,6 @@ export class SessionsController {
   private async assertCanReplay(user: AccessTokenClaims, sessionId: string): Promise<void> {
     const session: Session = await this.queryBus.execute(new GetSessionQuery(sessionId, user.tenantId));
     if (session.isParticipant(user.sub) || REPLAY_ALLOWED_ROLES.includes(user.role)) return;
-    throw new ForbiddenError("Not authorized to view this session's replay data");
+    throw new ForbiddenError("Você não tem permissão para ver a gravação desta sessão.");
   }
 }

@@ -15,7 +15,7 @@ export class GetUserByIdHandler implements IQueryHandler<GetUserByIdQuery, User>
     // Same tenant-isolation pattern as GetEquipmentHandler: enforced here, not trusted to
     // the caller, so one tenant's admin can never look up another tenant's user by UUID.
     if (!user.belongsToTenant(query.requestingTenantId)) {
-      throw new ForbiddenError("User does not belong to your tenant");
+      throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
     return user;
   }

@@ -1,7 +1,7 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AccessTokenClaims, LoginResponse } from "@crop/shared";
 import { api } from "./api-client.js";
-import { tokenStore } from "./token-store.js";
+import { ACCESS_KEY, tokenStore } from "./token-store.js";
 import { decodeJwtPayload } from "./jwt.js";
 import { detectClientOs } from "./client-platform.js";
 
@@ -64,6 +64,29 @@ function readUserFromStorage(): AccessTokenClaims | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AccessTokenClaims | null>(readUserFromStorage);
+
+  // Tokens live in localStorage, shared by every tab, and `api-client` reads them on every
+  // request -- but `user` was read once, at mount. Signing in as someone else in a second tab
+  // therefore left this tab *displaying* one account while *sending* another's token: the
+  // Contracts page computed "whose turn is it" from the stale claims, offered Accept, and the
+  // request went out as the proposer. Keeping `user` in step with storage closes that gap.
+  useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      // `key === null` is `localStorage.clear()` in another tab.
+      if (event.key !== ACCESS_KEY && event.key !== null) return;
+      const next = readUserFromStorage();
+      // A different account (or a sign-out) invalidates everything this page already loaded
+      // under the old identity, not just the header -- a reload is the only reset that reaches
+      // every page's local state.
+      if (next?.sub !== user?.sub) {
+        window.location.reload();
+        return;
+      }
+      setUser(next);
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [user?.sub]);
 
   const value = useMemo<AuthState>(
     () => ({

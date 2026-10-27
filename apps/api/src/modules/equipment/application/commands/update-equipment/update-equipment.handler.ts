@@ -22,7 +22,7 @@ export class UpdateEquipmentHandler implements ICommandHandler<UpdateEquipmentCo
     const existing = await this.equipment.findById(command.equipmentId);
     if (!existing) throw new NotFoundError("Equipment", command.equipmentId);
     if (!existing.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
 
     // Same validation CreateEquipmentHandler applies to an explicit unitId -- reassigning
@@ -32,7 +32,7 @@ export class UpdateEquipmentHandler implements ICommandHandler<UpdateEquipmentCo
       const unit = await this.units.findById(command.changes.unitId);
       if (!unit) throw new NotFoundError("Unit", command.changes.unitId);
       if (unit.clinicTenantId !== existing.tenantId) {
-        throw new ForbiddenError(`Unit ${command.changes.unitId} does not belong to this tenant`);
+        throw new ForbiddenError("Esta unidade não pertence à sua organização.");
       }
     }
 

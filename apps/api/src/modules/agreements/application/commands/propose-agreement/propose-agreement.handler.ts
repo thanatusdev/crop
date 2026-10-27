@@ -48,13 +48,13 @@ export class ProposeAgreementHandler implements ICommandHandler<ProposeAgreement
       clinicTenantId = counterparty.id;
       operatorTenantId = proposer.id;
     } else {
-      throw new ForbiddenError("An agreement is always between one CLINIC and one OPERATOR_PROVIDER tenant");
+      throw new ForbiddenError("Um contrato deve ser firmado sempre entre uma clínica e uma empresa operadora.");
     }
 
     // A deactivated party cannot enter a contract. Checked for both sides, not just the clinic: a
     // shut-down operating company must not acquire new engagements either.
     if (proposer.isDeactivated() || counterparty.isDeactivated()) {
-      throw new ForbiddenError("A deactivated tenant cannot enter into an agreement");
+      throw new ForbiddenError("Uma organização desativada não pode firmar contratos.");
     }
 
     const existing = await this.agreements.findByPair(clinicTenantId, operatorTenantId);
@@ -70,9 +70,9 @@ export class ProposeAgreementHandler implements ICommandHandler<ProposeAgreement
       // Not an error worth inventing a second row for, and not silently "fine" either: someone is
       // waiting on a response that already exists, and telling them so is more useful than
       // resetting the clock on it.
-      throw new ConflictError("An agreement between these two tenants is already awaiting a response");
+      throw new ConflictError("Já existe um contrato entre estas duas organizações aguardando resposta.");
     } else if (existing.status === AgreementStatus.ACTIVE) {
-      throw new ConflictError("These two tenants already have an active agreement");
+      throw new ConflictError("Estas duas organizações já possuem um contrato ativo.");
     } else {
       // REJECTED or REVOKED -- re-opened on the same row rather than inserted again, which is what
       // keeps "has this company ever been contracted here" answerable from one place. See the

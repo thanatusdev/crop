@@ -39,7 +39,7 @@ export class VerifyMfaHandler implements ICommandHandler<VerifyMfaCommand, Verif
     const { allowed } = await this.rateLimiter.checkAndIncrement(rateLimitKey, MAX_ATTEMPTS, WINDOW_SECONDS);
     if (!allowed) {
       this.logger.warn(`Rate limit exceeded for MFA verification attempts by user ${userId}`);
-      throw new TooManyRequestsError("Too many MFA attempts. Try again later.");
+      throw new TooManyRequestsError("Muitas tentativas de verificação em duas etapas. Tente novamente mais tarde.");
     }
 
     const user = await this.users.findById(userId);
@@ -49,12 +49,12 @@ export class VerifyMfaHandler implements ICommandHandler<VerifyMfaCommand, Verif
     // step completing it -- re-checked here, not just in LoginHandler, so that window can't
     // be used to finish logging in on a since-locked account.
     if (user.isLocked()) {
-      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+      throw new ForbiddenError("Esta conta está bloqueada. Entre em contato com o administrador.");
     }
 
     if (!user.mfaSecret || !this.mfa.verifyCode(user.mfaSecret, command.code)) {
       await this.audit(user.tenantId, user.id, AuditAction.MFA_FAILURE, {});
-      throw new UnauthorizedError("Invalid MFA code");
+      throw new UnauthorizedError("Código de verificação inválido.");
     }
 
     await this.users.recordLogin(user.id);

@@ -1,4 +1,4 @@
-import { evaluatePassword } from "@crop/shared";
+import { evaluatePassword, PASSWORD_MIN_LENGTH, type PasswordRuleId } from "@crop/shared";
 import { PasswordPolicyError, PasswordReuseError } from "../../../shared/domain/errors.js";
 import type { PasswordHasherPort } from "./ports/password-hasher.port.js";
 import type { UserRepositoryPort } from "./ports/user-repository.port.js";
@@ -13,13 +13,27 @@ import type { UserRepositoryPort } from "./ports/user-repository.port.js";
  * these two exist for exactly the fifth rule and reuse, which that schema cannot express.
  */
 
+const RULE_PHRASES_PT_BR: Record<PasswordRuleId, string> = {
+  minLength: `ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres`,
+  mixedCase: "combinar letras maiúsculas e minúsculas",
+  digit: "incluir um número",
+  symbol: "incluir um caractere especial",
+  noPersonalInfo: "não conter seu nome, seu e-mail ou o nome do produto",
+};
+
+/** "a", "a e b", "a, b e c" -- how the rules read as one pt-BR sentence. */
+function joinPtBr(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+}
+
 export function assertPasswordPolicy(
   password: string,
   context: { email: string; firstName?: string | null; lastName?: string | null }
 ): void {
   const evaluation = evaluatePassword(password, context);
   if (!evaluation.ok) {
-    throw new PasswordPolicyError(`Password does not satisfy the required policy: ${evaluation.failed.join(", ")}`);
+    throw new PasswordPolicyError(`A senha deve ${joinPtBr(evaluation.failed.map((rule) => RULE_PHRASES_PT_BR[rule]))}.`);
   }
 }
 
@@ -38,7 +52,7 @@ export async function assertPasswordNotReused(
   const recentHashes = await deps.users.recentPasswordHashes(userId, historyDepth);
   for (const hash of recentHashes) {
     if (await deps.hasher.verify(hash, password)) {
-      throw new PasswordReuseError("This password was used recently on this account. Choose a different one.");
+      throw new PasswordReuseError("Esta senha foi usada recentemente nesta conta. Escolha uma senha diferente.");
     }
   }
 }

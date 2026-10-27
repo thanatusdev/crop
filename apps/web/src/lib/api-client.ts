@@ -51,17 +51,37 @@ function describeError(body: { message?: unknown; code?: unknown }, fallback: st
   return { message: fallback, fieldErrors: [] };
 }
 
+/** pt-BR text for a failed response that carried no usable `message` of its own -- an HTML error
+ * page from a proxy, an empty body, a gateway timeout. `res.statusText` used to fill this role,
+ * which put English ("Bad Gateway") or nothing at all (HTTP/2 has no status text) on screen. */
+function fallbackMessageFor(status: number): string {
+  if (status === 401) return "Sua sessão expirou. Entre novamente.";
+  if (status === 403) return "Você não tem permissão para realizar esta ação.";
+  if (status === 404) return "Recurso não encontrado.";
+  if (status === 413) return "O arquivo enviado excede o tamanho máximo permitido.";
+  if (status === 429) return "Muitas tentativas em pouco tempo. Aguarde um momento e tente novamente.";
+  if (status >= 500) return "O servidor não conseguiu concluir a requisição. Tente novamente em instantes.";
+  return "Não foi possível concluir a requisição.";
+}
+
+const NETWORK_ERROR_MESSAGE = "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.";
+
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function refreshTokens(): Promise<boolean> {
   const refreshToken = tokenStore.getRefreshToken();
   if (!refreshToken) return false;
 
-  const res = await fetch(`${API_URL}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+  } catch {
+    return false;
+  }
   if (!res.ok) return false;
 
   const body = (await res.json()) as { accessToken: string; refreshToken: string };
@@ -91,13 +111,22 @@ function authHeader(): Record<string, string> {
 async function request(path: string, options: RequestOptions = {}): Promise<Response> {
   const { method = "GET", body, auth = true, isFormData = false } = options;
 
-  const doFetch = (): Promise<Response> => {
+  const send = (): Promise<Response> => {
     const headers: Record<string, string> = { ...(auth ? authHeader() : {}) };
     if (isFormData) {
       return fetch(`${API_URL}${path}`, { method, headers, body: body as FormData });
     }
     headers["Content-Type"] = "application/json";
     return fetch(`${API_URL}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  };
+  // `fetch` rejects (rather than resolving with a status) when the server is unreachable, with a
+  // browser-specific English TypeError ("Failed to fetch"). Every caller renders `err.message`.
+  const doFetch = async (): Promise<Response> => {
+    try {
+      return await send();
+    } catch {
+      throw new ApiError(0, "NETWORK_ERROR", NETWORK_ERROR_MESSAGE);
+    }
   };
 
   let res = await doFetch();
@@ -113,8 +142,11 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
   }
 
   if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({ code: "UNKNOWN", message: res.statusText }));
-    const { message, fieldErrors } = describeError(errorBody, res.statusText);
+    const errorBody = await res.json().catch(() => ({ code: "UNKNOWN" }));
+    // A 5xx body is never shown as-is: it is either Nest's generic "Internal server error" or
+    // something an upstream proxy produced, and neither is meant for the person using the app.
+    const { message, fieldErrors } =
+      res.status >= 500 ? { message: fallbackMessageFor(res.status), fieldErrors: [] } : describeError(errorBody, fallbackMessageFor(res.status));
     throw new ApiError(res.status, errorBody.code ?? "UNKNOWN", message, fieldErrors);
   }
 

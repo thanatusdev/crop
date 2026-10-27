@@ -11,6 +11,8 @@ type AgreementLabelKey =
   | "agreements:statusPending"
   | "agreements:statusPendingYou"
   | "agreements:statusPendingOther"
+  | "agreements:statusPendingClinic"
+  | "agreements:statusPendingOperator"
   | "agreements:statusActive"
   | "agreements:statusRejected"
   | "agreements:statusRevoked";
@@ -57,8 +59,23 @@ export function counterpartyOf(agreement: OperatorAgreementDto, viewerIsOperator
  * offer an action the API refuses by design, which is the same mistake `SessionPage`'s "End session"
  * button already documents having made once.
  */
-export function isActionableBy(agreement: OperatorAgreementDto, tenantId: string): boolean {
-  return agreement.status === AgreementStatus.PENDING && agreement.proposedByTenantId !== tenantId;
+export function isActionableBy(agreement: OperatorAgreementDto, tenantId: string, isPlatformAdmin = false): boolean {
+  if (agreement.status !== AgreementStatus.PENDING) return false;
+  // A platform admin answers on behalf of whichever side the proposal waits on -- see
+  // `RespondToAgreementHandler` -- so every pending row is theirs to act on.
+  return isPlatformAdmin || agreement.proposedByTenantId !== tenantId;
+}
+
+/** Whether `tenantId` opened this still-unanswered proposal and so may take it back -- mirrors
+ * `OperatorAgreement.assertCanBeWithdrawnBy`. Exactly the rows `isActionableBy` excludes for a
+ * party, so a pending row always offers its viewer one way forward. */
+export function isWithdrawableBy(agreement: OperatorAgreementDto, tenantId: string): boolean {
+  return agreement.status === AgreementStatus.PENDING && agreement.proposedByTenantId === tenantId;
+}
+
+/** Whether `tenantId` is either party -- the precondition the API applies to revoking. */
+export function isPartyTo(agreement: OperatorAgreementDto, tenantId: string): boolean {
+  return agreement.clinicTenantId === tenantId || agreement.operatorTenantId === tenantId;
 }
 
 /**
@@ -67,7 +84,16 @@ export function isActionableBy(agreement: OperatorAgreementDto, tenantId: string
  * for the side that must respond and "the other party" for the proposer, using `isActionableBy`
  * so the label and the Accept button can never disagree.
  */
-export function agreementStatusLabelKeyFor(agreement: OperatorAgreementDto, viewerTenantId: string): AgreementLabelKey {
+export function agreementStatusLabelKeyFor(
+  agreement: OperatorAgreementDto,
+  viewerTenantId: string,
+  isPlatformAdmin = false
+): AgreementLabelKey {
   if (agreement.status !== AgreementStatus.PENDING) return agreementStatusLabelKeyOf(agreement.status);
+  // Neither "you" nor "the other party" means anything to a viewer who is party to neither side;
+  // name the side the proposal is waiting on instead.
+  if (isPlatformAdmin) {
+    return agreement.proposedByTenantId === agreement.clinicTenantId ? "agreements:statusPendingOperator" : "agreements:statusPendingClinic";
+  }
   return isActionableBy(agreement, viewerTenantId) ? "agreements:statusPendingYou" : "agreements:statusPendingOther";
 }

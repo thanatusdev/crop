@@ -50,14 +50,21 @@ export class ReturnControlToOperatorHandler implements ICommandHandler<ReturnCon
     // Same multi-tenant isolation fix as ExecuteTakeoverHandler, for the same reason: never
     // trust the gateway alone to have already checked this.
     if (session.tenantId !== command.tenantId) {
-      throw new ForbiddenError("Session does not belong to your tenant");
+      throw new ForbiddenError("Esta sessão não pertence à sua organização.");
     }
 
     if (!RETURN_CONTROL_ALLOWED_ROLES.includes(command.actingUserRole)) {
-      throw new ForbiddenError("Only a supervisor or admin may return control to the operator");
+      throw new ForbiddenError("Somente um supervisor ou administrador pode devolver o controle ao operador.");
     }
 
     session.assertControlCanBeReturnedToOperator();
+
+    // The operator belongs to a company whose agreement no longer covers this equipment -- see
+    // SuspendOutsideControlHandler. Handing control back would only hand it to nobody
+    // (`getController` refuses suspended users), so say why instead.
+    if (this.runtime.getSuspension(session.id)?.userIds.includes(session.operatorId)) {
+      throw new ForbiddenError("O contrato da empresa operadora não cobre mais este equipamento. Não é possível devolver o controle ao operador.");
+    }
 
     await this.pikvm.releaseAllInput(session.equipmentId);
 
@@ -74,7 +81,7 @@ export class ReturnControlToOperatorHandler implements ICommandHandler<ReturnCon
       session.controllerUserId
     );
     if (!applied) {
-      throw new ConflictError("This session's control just changed. Try again.");
+      throw new ConflictError("O controle desta sessão acabou de mudar. Tente novamente.");
     }
 
     this.runtime.setController(session.id, session.operatorId);

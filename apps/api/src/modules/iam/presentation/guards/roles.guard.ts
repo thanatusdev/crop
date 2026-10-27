@@ -5,6 +5,7 @@ import type { Request } from "express";
 import { AuditAction, type UserRole } from "@crop/shared";
 import type { AccessTokenClaims } from "@crop/shared";
 import { ForbiddenError } from "../../../../shared/domain/errors.js";
+import { ROLE_LABELS_PT_BR, labelOf } from "../../../../shared/domain/pt-br-labels.js";
 import { RecordAuditEventCommand } from "../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { ROLES_KEY } from "../decorators/roles.decorator.js";
 
@@ -41,7 +42,7 @@ export class RolesGuard implements CanActivate {
           details: { method: request.method, path: request.path, requiredRoles: required, actualRole: user.role },
         })
       );
-      throw new ForbiddenError(`Requires one of roles: ${required.join(", ")}`);
+      throw new ForbiddenError(`Esta ação é restrita aos perfis: ${required.map((role) => labelOf(ROLE_LABELS_PT_BR, role)).join(", ")}.`);
     }
     return true;
   }

@@ -24,7 +24,7 @@ export class DeactivateTenantHandler implements ICommandHandler<DeactivateTenant
     // have just disabled. Refuse outright rather than build a break-glass recovery path for
     // a self-inflicted problem this check prevents for free.
     if (tenant.type === TenantType.PLATFORM) {
-      throw new ForbiddenError("Cannot deactivate a PLATFORM-type tenant");
+      throw new ForbiddenError("Não é possível desativar a organização da plataforma.");
     }
 
     if (tenant.isDeactivated()) return; // idempotent

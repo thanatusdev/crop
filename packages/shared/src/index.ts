@@ -1,3 +1,5 @@
+import "./zod-pt-br.js";
+
 export * from "./enums.js";
 export * from "./roles.js";
 export * from "./role-capabilities.js";

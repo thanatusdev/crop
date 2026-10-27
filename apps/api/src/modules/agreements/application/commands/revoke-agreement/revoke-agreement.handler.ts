@@ -1,9 +1,10 @@
 import { Inject } from "@nestjs/common";
-import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
 import { NotFoundError } from "../../../../../shared/domain/errors.js";
 import { AGREEMENT_REPOSITORY, type AgreementRepositoryPort } from "../../../../access/application/ports/agreement-repository.port.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
+import { AgreementAccessReducedEvent } from "../../../../access/application/events/agreement-access-reduced.event.js";
 import { OperatorAgreement } from "../../../../access/domain/operator-agreement.entity.js";
 import { RevokeAgreementCommand } from "./revoke-agreement.command.js";
 
@@ -16,15 +17,17 @@ import { RevokeAgreementCommand } from "./revoke-agreement.command.js";
  * that touches the clinic's data re-reads the agreement (`ClinicAccessChecker`,
  * `OperatorAccessService` on all equipment reads), so an operator holding a clinic-scoped token
  * issued a second ago can no longer reach anything through it. Sessions already running are not
- * force-ended here -- that is a separate, deliberate decision: killing a session mid-scan because a
- * contract was revoked would be a clinical-safety hazard, and the clinic's own "End session" control
- * already exists for the case where they want it stopped now.
+ * force-ended -- killing a session mid-scan because a contract was revoked would be a
+ * clinical-safety hazard -- but the company's users do lose control of them at once:
+ * `AgreementAccessReducedEvent` → `SuspendOutsideControlHandler` releases held input and stops
+ * accepting theirs, leaving the exam up for the clinic's own staff to take over or end.
  */
 @CommandHandler(RevokeAgreementCommand)
 export class RevokeAgreementHandler implements ICommandHandler<RevokeAgreementCommand, OperatorAgreement> {
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus
   ) {}
 
   async execute(command: RevokeAgreementCommand): Promise<OperatorAgreement> {
@@ -54,6 +57,9 @@ export class RevokeAgreementHandler implements ICommandHandler<RevokeAgreementCo
         },
       })
     );
+
+    // After the audit row, so the trail reads "revoked" before any "control suspended" it causes.
+    this.eventBus.publish(new AgreementAccessReducedEvent(existing.clinicTenantId, existing.operatorTenantId, "agreement_revoked"));
 
     return agreement;
   }

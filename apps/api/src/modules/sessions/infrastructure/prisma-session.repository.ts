@@ -44,10 +44,10 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
           (typeof target === "string" && target.includes("queueEntryId"));
         if (violatedQueueEntryUniqueness) {
           throw new ConflictError(
-            "This patient's queue entry has already been used for a session. Add them to the queue again to retry."
+            "Este paciente da fila já foi usado em uma sessão. Adicione o paciente à fila novamente para tentar de novo."
           );
         }
-        throw new ConflictError("Equipment already has an active session");
+        throw new ConflictError("Este equipamento já possui uma sessão ativa.");
       }
       throw err;
     }
@@ -120,6 +120,27 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
       where: { id: sessionId },
       data: { status, endedAt: new Date() },
     });
+  }
+
+  async listActiveInClinicInvolvingTenant(
+    clinicTenantId: string,
+    outsideTenantId: string
+  ): Promise<{ session: Session; outsideUserIds: string[] }[]> {
+    const rows = await this.prisma.session.findMany({
+      where: {
+        status: { in: [SessionStatus.PENDING, SessionStatus.ACTIVE] },
+        equipment: { tenantId: clinicTenantId },
+        OR: [{ operator: { tenantId: outsideTenantId } }, { supervisor: { tenantId: outsideTenantId } }],
+      },
+      include: { ...WITH_TENANT, operator: { select: { tenantId: true } }, supervisor: { select: { tenantId: true } } },
+    });
+    return rows.map((row) => ({
+      session: this.toDomain(row),
+      outsideUserIds: [
+        ...(row.operator.tenantId === outsideTenantId ? [row.operatorId] : []),
+        ...(row.supervisorId && row.supervisor?.tenantId === outsideTenantId ? [row.supervisorId] : []),
+      ],
+    }));
   }
 
   private toDomain(row: {

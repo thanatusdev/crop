@@ -64,7 +64,7 @@ export class MessageShortcut {
    * raw Postgres unique-violation error leak through. */
   static assertCodeAvailable(existing: MessageShortcut | null, code: string): void {
     if (existing) {
-      throw new ConflictError(`A shortcut with code "${code}" already exists for this clinic`);
+      throw new ConflictError(`Já existe um atalho com o código "${code}" nesta clínica.`);
     }
   }
 }

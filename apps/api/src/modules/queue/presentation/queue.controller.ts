@@ -169,7 +169,7 @@ export class QueueController {
   @Get()
   async list(@CurrentUser() user: AccessTokenClaims, @Query("equipmentId") equipmentId: string, @Query("date") date?: string) {
     if (date !== undefined && !ClinicDayStringSchema.safeParse(date).success) {
-      throw new ValidationError("date must be YYYY-MM-DD");
+      throw new ValidationError("A data deve estar no formato AAAA-MM-DD.");
     }
     const entries: QueueEntry[] = await this.queryBus.execute(new ListQueueByEquipmentQuery(equipmentId, user.tenantId, date, user));
     const names = await resolveDetailsUpdatedByNames(this.users, entries);
@@ -304,20 +304,20 @@ export class QueueController {
     @Body() body: unknown,
     @UploadedFile() file?: Express.Multer.File
   ) {
-    if (!file) throw new ValidationError("A file is required");
+    if (!file) throw new ValidationError("Selecione um arquivo.");
 
     const maxBytes = this.config.get<number>("QUEUE_DOCUMENT_MAX_BYTES", 20 * 1024 * 1024);
     if (file.size > maxBytes) {
-      throw new ValidationError(`Document exceeds the ${Math.floor(maxBytes / (1024 * 1024))}MB limit`);
+      throw new ValidationError(`O documento excede o limite de ${Math.floor(maxBytes / (1024 * 1024))} MB.`);
     }
     if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(file.mimetype)) {
-      throw new ValidationError(`Document type "${file.mimetype}" is not allowed`);
+      throw new ValidationError(`O tipo de documento "${file.mimetype}" não é permitido.`);
     }
 
     // Multipart text fields arrive as strings, same reason ChatController's identical
     // `SendExamMessageRequestSchema.safeParse(body)` can't use ZodValidationPipe either.
     const parsed = UploadQueueDocumentRequestSchema.safeParse(body);
-    if (!parsed.success) throw new ValidationError(parsed.error.message);
+    if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join("; "));
 
     const document: QueueEntryDocument = await this.commandBus.execute(
       new UploadQueueDocumentCommand(

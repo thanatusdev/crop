@@ -59,7 +59,7 @@ export default function SessionReplayPage() {
           setAuditLogs(null);
         }
       } catch (err) {
-        setLoadError(err instanceof Error ? err.message : "Could not load this session's replay.");
+        setLoadError(err instanceof Error ? err.message : "Não foi possível carregar a gravação desta sessão.");
       } finally {
         setLoading(false);
       }

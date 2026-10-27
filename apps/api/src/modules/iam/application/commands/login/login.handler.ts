@@ -45,7 +45,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     const { allowed } = await this.rateLimiter.checkAndIncrement(rateLimitKey, MAX_ATTEMPTS, WINDOW_SECONDS);
     if (!allowed) {
       this.logger.warn(`Rate limit exceeded for login attempts against ${command.email}`);
-      throw new TooManyRequestsError("Too many login attempts. Try again later.");
+      throw new TooManyRequestsError("Muitas tentativas de login. Tente novamente mais tarde.");
     }
 
     const user = await this.users.findByEmail(command.email);
@@ -53,7 +53,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     // attacker enumerate valid emails. Only auditable when a user actually exists --
     // an unknown email has no tenant to attribute the record to, by design (see
     // docs/architecture.md: every audit row is tenant-scoped).
-    const invalidCredentials = () => new UnauthorizedError("Invalid credentials");
+    const invalidCredentials = () => new UnauthorizedError("E-mail ou senha inválidos.");
 
     if (!user) throw invalidCredentials();
 
@@ -66,7 +66,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     // useful, more specific thing to tell them.
     if (!user.isActivated()) {
       await this.audit(user.tenantId, user.id, AuditAction.LOGIN_FAILURE, { reason: "not_activated" });
-      throw new ForbiddenError("This account has not been activated yet. Check your inbox for the activation link.");
+      throw new ForbiddenError("Esta conta ainda não foi ativada. Procure o link de ativação na sua caixa de entrada.");
     }
 
     // Checked before the password: a locked account should be told plainly, not sent down
@@ -77,7 +77,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     // an attacker to correlate this against, not a public consumer app.
     if (user.isLocked()) {
       await this.audit(user.tenantId, user.id, AuditAction.LOGIN_FAILURE, { reason: "account_locked" });
-      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+      throw new ForbiddenError("Esta conta está bloqueada. Entre em contato com o administrador.");
     }
 
     // Same reasoning and same "checked before password" position as the lock check above --
@@ -87,7 +87,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     const tenant = await this.tenants.findById(user.tenantId);
     if (tenant?.isDeactivated()) {
       await this.audit(user.tenantId, user.id, AuditAction.LOGIN_FAILURE, { reason: "tenant_deactivated" });
-      throw new ForbiddenError("This organization's access has been deactivated. Contact your administrator.");
+      throw new ForbiddenError("O acesso desta organização foi desativado. Entre em contato com o administrador.");
     }
 
     const passwordOk = await this.hasher.verify(user.passwordHash, command.password);

@@ -1,4 +1,4 @@
-const ACCESS_KEY = "crop.accessToken";
+export const ACCESS_KEY = "crop.accessToken";
 const REFRESH_KEY = "crop.refreshToken";
 
 /**

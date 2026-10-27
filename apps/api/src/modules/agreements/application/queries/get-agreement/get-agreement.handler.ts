@@ -14,8 +14,8 @@ export class GetAgreementHandler implements IQueryHandler<GetAgreementQuery, Ope
     if (!agreement) throw new NotFoundError("OperatorAgreement", query.agreementId);
     // Load-then-check, the same shape GetEquipmentHandler/GetSessionHandler use: a tenant can never
     // read a contract it is not a party to by guessing its UUID.
-    if (!agreement.involves(query.tenantId)) {
-      throw new ForbiddenError("You are not a party to this agreement");
+    if (query.tenantId !== null && !agreement.involves(query.tenantId)) {
+      throw new ForbiddenError("Sua organização não é parte deste contrato.");
     }
     return agreement;
   }

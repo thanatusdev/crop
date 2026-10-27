@@ -36,7 +36,7 @@ export class CreateUnitHandler implements ICommandHandler<CreateUnitCommand, Enr
     // own docstring for why (the same precedent RegisterUserHandler.findByEmail sets).
     const existing = await this.units.findByClinicAndName(command.clinicTenantId, command.unit.name);
     if (existing) {
-      throw new ConflictError(`A unit named "${command.unit.name}" already exists in this clinic`);
+      throw new ConflictError(`Já existe uma unidade chamada "${command.unit.name}" nesta clínica.`);
     }
 
     const unit = await this.units.create({

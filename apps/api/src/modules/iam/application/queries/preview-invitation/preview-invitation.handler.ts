@@ -34,11 +34,11 @@ export class PreviewInvitationHandler implements IQueryHandler<PreviewInvitation
     const { allowed } = await this.rateLimiter.checkAndIncrement(rateLimitKey, MAX_ATTEMPTS, WINDOW_SECONDS);
     if (!allowed) {
       this.logger.warn(`Rate limit exceeded for invitation preview against user ${claims.sub}`);
-      throw new TooManyRequestsError("Too many attempts. Try again later.");
+      throw new TooManyRequestsError("Muitas tentativas. Tente novamente mais tarde.");
     }
 
     if (await this.revocation.isRevoked(claims.jti, "account_invitation")) {
-      throw new UnauthorizedError("This invitation link has already been used");
+      throw new UnauthorizedError("Este link de convite já foi utilizado.");
     }
 
     const user = await this.users.findById(claims.sub);

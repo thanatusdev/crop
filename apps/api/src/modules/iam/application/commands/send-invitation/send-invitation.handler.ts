@@ -1,29 +1,15 @@
 import { Inject, Logger } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { ConfigService } from "@nestjs/config";
-import { AuditAction, UserRole } from "@crop/shared";
+import { AuditAction } from "@crop/shared";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
+import { ROLE_LABELS_PT_BR } from "../../../../../shared/domain/pt-br-labels.js";
 import { MAILER, type MailerPort } from "../../../../../shared/infrastructure/mail/mailer.port.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { TOKEN_SERVICE, type TokenServicePort } from "../../ports/token-service.port.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
 import { buildInvitationEmail } from "../../../infrastructure/invitation-email.js";
 import { SendInvitationCommand } from "./send-invitation.command.js";
-
-/** pt-BR labels for the invitation email's body -- deliberately duplicated from the
- * frontend's `roles` i18n namespace rather than shared, since the API has no i18n layer of
- * its own and this is the one place it renders role-facing prose. */
-const ROLE_LABELS_PT_BR: Record<UserRole, string> = {
-  [UserRole.PLATFORM_ADMIN]: "Administrador da Plataforma",
-  [UserRole.CLINIC_ADMIN]: "Gestor de Clínica",
-  [UserRole.LOCAL_SUPERVISOR]: "Supervisor",
-  [UserRole.NURSING]: "Enfermagem",
-  [UserRole.LOCAL_IT]: "TI Local",
-  [UserRole.OPERATOR_ADMIN]: "Administrador da Operadora",
-  [UserRole.OPERATIONAL_SUPERVISOR]: "Supervisor Operacional",
-  [UserRole.OPERATOR]: "Operador Biomédico",
-  [UserRole.AUDITOR]: "Auditor",
-};
 
 /**
  * Sends (or resends) the "Enviar Convite Seguro" activation link -- the replacement for an
@@ -53,11 +39,11 @@ export class SendInvitationHandler implements ICommandHandler<SendInvitationComm
     // internally, right after RegisterUserCommand, where there is nothing to isolate
     // against (the caller just created this exact user in this exact tenant).
     if (command.actingAdminTenantId && !user.belongsToTenant(command.actingAdminTenantId)) {
-      throw new ForbiddenError("User does not belong to your tenant");
+      throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
 
     if (user.isActivated()) {
-      throw new ConflictError("This account has already been activated");
+      throw new ConflictError("Esta conta já foi ativada.");
     }
 
     const token = this.tokens.signInvitation(user.id);

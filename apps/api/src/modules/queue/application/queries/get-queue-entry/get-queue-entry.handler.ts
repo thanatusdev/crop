@@ -23,7 +23,7 @@ export class GetQueueEntryHandler implements IQueryHandler<GetQueueEntryQuery, Q
     const entry = await this.queue.findById(query.queueEntryId);
     if (!entry) throw new NotFoundError("QueueEntry", query.queueEntryId);
     if (!entry.belongsToTenant(query.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
     if (query.actor) await this.operatorAccess.assertCanReachEquipmentId(query.actor, entry.equipmentId);
     return entry;

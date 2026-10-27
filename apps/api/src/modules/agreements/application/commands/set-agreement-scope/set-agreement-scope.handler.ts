@@ -1,9 +1,10 @@
 import { Inject } from "@nestjs/common";
-import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
+import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
 import { NotFoundError } from "../../../../../shared/domain/errors.js";
 import { AGREEMENT_REPOSITORY, type AgreementRepositoryPort } from "../../../../access/application/ports/agreement-repository.port.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
+import { AgreementAccessReducedEvent } from "../../../../access/application/events/agreement-access-reduced.event.js";
 import { OperatorAgreement } from "../../../../access/domain/operator-agreement.entity.js";
 import { SetAgreementScopeCommand } from "./set-agreement-scope.command.js";
 
@@ -21,7 +22,8 @@ import { SetAgreementScopeCommand } from "./set-agreement-scope.command.js";
 export class SetAgreementScopeHandler implements ICommandHandler<SetAgreementScopeCommand, OperatorAgreement> {
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus
   ) {}
 
   async execute(command: SetAgreementScopeCommand): Promise<OperatorAgreement> {
@@ -60,6 +62,13 @@ export class SetAgreementScopeHandler implements ICommandHandler<SetAgreementSco
         },
       })
     );
+
+    // Published on every scope save, not only when something was removed: the handler re-checks
+    // each live session against the committed scope, and a save that removed nothing finds
+    // nothing to suspend. Diffing old against new here would duplicate `grantsAccessTo`.
+    if (existing.isActive()) {
+      this.eventBus.publish(new AgreementAccessReducedEvent(existing.clinicTenantId, existing.operatorTenantId, "agreement_scope_reduced"));
+    }
 
     return agreement;
   }

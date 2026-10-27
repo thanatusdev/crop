@@ -27,7 +27,7 @@ export function CctvPip({ whepUrl }: { whepUrl: string | null }) {
         <video ref={videoRef} autoPlay playsInline muted className="size-full object-cover" aria-label="Room camera feed" />
       ) : (
         <div className="flex h-full items-center justify-center p-1 text-center text-[10px] text-gray-400" role="status">
-          {status === "error" ? "CCTV unavailable" : "Connecting to room camera..."}
+          {status === "error" ? "Câmera indisponível" : "Conectando à câmera da sala..."}
         </div>
       )}
       <div className="absolute top-0.5 left-1 text-[10px] text-gray-200 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">Room camera</div>

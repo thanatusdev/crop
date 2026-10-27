@@ -33,6 +33,11 @@ export const RT_EVENTS = {
   // `BroadcastExamMessageHandler` after `POST /chat/messages` persists a message -- see that
   // handler's own docstring.
   EXAM_MESSAGE_CREATED: "exam:message:created",
+  // To `session:<id>`, when the outside company running a session loses the contract (or the
+  // scope) that covered its equipment: its user stops holding control, but the session -- and
+  // the exam in progress -- stays up for the clinic's own staff to take over. See
+  // `ControlSuspendedEventSchema`.
+  CONTROL_SUSPENDED: "session:control_suspended",
   ERROR: "error",
 } as const;
 

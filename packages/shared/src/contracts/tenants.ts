@@ -13,7 +13,7 @@ const CnpjSchema = z
   .string()
   .trim()
   .transform((value) => normalizeCnpj(value))
-  .refine((digits) => isValidCnpj(digits), "CNPJ is not valid (check digits do not match)");
+  .refine((digits) => isValidCnpj(digits), "CNPJ inválido: os dígitos verificadores não conferem");
 
 /**
  * A clinic's own responsible manager -- denormalized onto the tenant DTO the same way
@@ -136,7 +136,7 @@ const INSTITUTIONAL_REQUIRED_FIELDS = ["cnpj", "institutionalEmail", "phone", "z
 export const CreateTenantRequestSchema = BaseCreateTenantRequestSchema.superRefine((data, ctx) => {
   for (const field of INSTITUTIONAL_REQUIRED_FIELDS) {
     if (data[field] === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required` });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: "Campo obrigatório" });
     }
   }
 });

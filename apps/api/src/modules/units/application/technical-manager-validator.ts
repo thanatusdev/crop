@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ForbiddenError, NotFoundError, ValidationError } from "../../../shared/domain/errors.js";
+import { ROLE_LABELS_PT_BR, labelOf } from "../../../shared/domain/pt-br-labels.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../iam/application/ports/user-repository.port.js";
 import { isEligibleTechnicalManager, TECHNICAL_MANAGER_ELIGIBLE_ROLES } from "./technical-manager-eligibility.js";
 
@@ -26,18 +27,18 @@ export class TechnicalManagerValidator {
     if (!user) throw new NotFoundError("User", userId);
 
     if (user.tenantId !== clinicTenantId) {
-      throw new ForbiddenError(`User ${userId} does not belong to clinic ${clinicTenantId}`);
+      throw new ForbiddenError("O usuário selecionado não pertence a esta clínica.");
     }
     if (!isEligibleTechnicalManager(user)) {
       throw new ValidationError(
-        `User ${userId} does not hold an eligible role for technical manager (${TECHNICAL_MANAGER_ELIGIBLE_ROLES.join(", ")})`
+        `O gestor técnico precisa ter um dos perfis: ${TECHNICAL_MANAGER_ELIGIBLE_ROLES.map((role) => labelOf(ROLE_LABELS_PT_BR, role)).join(", ")}.`
       );
     }
     if (!user.isActivated()) {
-      throw new ValidationError(`User ${userId} has not activated their account yet`);
+      throw new ValidationError("O usuário selecionado ainda não ativou a conta.");
     }
     if (user.isLocked()) {
-      throw new ValidationError(`User ${userId}'s account is locked`);
+      throw new ValidationError("A conta do usuário selecionado está bloqueada.");
     }
   }
 }

@@ -377,7 +377,7 @@ describe("Units registry", () => {
 
       const blocked = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: equipment.body.id }).expect(409);
       expect(blocked.body.code).toBe("CONFLICT");
-      expect(blocked.body.message).toContain("unit");
+      expect(blocked.body.message).toContain("A unidade do equipamento");
 
       await http.post(`/units/${unit.id as string}/reactivate`).set("Authorization", `Bearer ${adminToken}`).expect(201);
       await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: equipment.body.id }).expect(201);

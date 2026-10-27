@@ -29,7 +29,7 @@ export class UpdateTeleoperationNotesHandler implements ICommandHandler<UpdateTe
     const entry = await this.queue.findById(command.queueEntryId);
     if (!entry) throw new NotFoundError("QueueEntry", command.queueEntryId);
     if (!entry.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
     // Same agreement-scope check every other operator-side queue write already applies (see
     // UpdateQueueStatusHandler) -- a contracted operator writing a note on a room their

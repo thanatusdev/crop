@@ -69,20 +69,20 @@ export class MediaStreamServer implements OnApplicationBootstrap {
   private async handleConnection(browserSocket: RawWs, requestUrl: string): Promise<void> {
     const ticket = new URL(requestUrl, "http://internal").searchParams.get("ticket");
     if (!ticket) {
-      browserSocket.close(4401, "Missing ticket");
+      browserSocket.close(4401, "Acesso ao vídeo não informado.");
       return;
     }
 
     const claims = this.ticketService.verify(ticket); // throws UnauthorizedError -> caught by caller
     const session = await this.queryBus.execute(new GetSessionQuery(claims.sessionId, claims.tenantId));
     if (!session.isParticipant(claims.sub)) {
-      browserSocket.close(4403, "Not a participant");
+      browserSocket.close(4403, "Você não participa desta sessão.");
       return;
     }
 
     const relay = this.pikvm.createMediaRelay(session.equipmentId);
     if (!relay) {
-      browserSocket.close(1011, "Device not connected");
+      browserSocket.close(1011, "Equipamento não conectado.");
       return;
     }
 

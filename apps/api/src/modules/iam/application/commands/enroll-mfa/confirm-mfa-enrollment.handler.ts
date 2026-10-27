@@ -22,7 +22,7 @@ export class ConfirmMfaEnrollmentHandler implements ICommandHandler<ConfirmMfaEn
 
     const secret = user.mfaSecret;
     if (!secret || !this.mfa.verifyCode(secret, command.code)) {
-      throw new UnauthorizedError("Invalid enrollment code");
+      throw new UnauthorizedError("Código de verificação inválido.");
     }
 
     await this.users.activateMfa(userId);

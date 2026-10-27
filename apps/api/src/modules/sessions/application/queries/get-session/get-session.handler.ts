@@ -18,7 +18,7 @@ export class GetSessionHandler implements IQueryHandler<GetSessionQuery, Session
     // supervisor, status) across tenants to any authenticated user who knew or guessed a
     // session UUID.
     if (session.tenantId !== query.tenantId) {
-      throw new ForbiddenError("Session does not belong to your tenant");
+      throw new ForbiddenError("Esta sessão não pertence à sua organização.");
     }
     return session;
   }

@@ -3,7 +3,7 @@ import { AllergyStatus, PatientSex, PreparationStatus, QueueDocumentKind, QueueS
 
 /** `YYYY-MM-DD`, always interpreted as a calendar day in the clinic's configured timezone
  * (see `clinic-day.ts`) -- the shape of `GET /queue`'s optional `date` query param. */
-export const ClinicDayStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+export const ClinicDayStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato AAAA-MM-DD");
 
 export const CreateQueueEntryRequestSchema = z.object({
   equipmentId: z.string().uuid(),
@@ -130,7 +130,7 @@ export const ReorderQueueRequestSchema = z
   })
   .superRefine((value, ctx) => {
     if (new Set(value.orderedIds).size !== value.orderedIds.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["orderedIds"], message: "orderedIds must not contain duplicates" });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["orderedIds"], message: "A ordem da fila não pode conter pacientes repetidos" });
     }
   });
 export type ReorderQueueRequest = z.infer<typeof ReorderQueueRequestSchema>;
@@ -166,7 +166,7 @@ export const UpdateQueueEntryDetailsRequestSchema = z
   })
   .superRefine((value, ctx) => {
     if (Object.keys(value).length === 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [], message: "At least one field must be provided" });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [], message: "Informe ao menos um campo" });
     }
   });
 export type UpdateQueueEntryDetailsRequest = z.infer<typeof UpdateQueueEntryDetailsRequestSchema>;

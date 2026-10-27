@@ -18,7 +18,7 @@ export class UnlockUserHandler implements ICommandHandler<UnlockUserCommand, voi
     if (!target) throw new NotFoundError("User", command.targetUserId);
 
     if (!target.belongsToTenant(command.actingAdminTenantId)) {
-      throw new ForbiddenError("User does not belong to your tenant");
+      throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
 
     if (!target.isLocked()) return; // idempotent

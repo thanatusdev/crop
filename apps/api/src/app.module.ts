@@ -9,6 +9,7 @@ import { PrismaModule } from "./shared/infrastructure/prisma/prisma.module.js";
 import { RedisModule } from "./shared/infrastructure/redis/redis.module.js";
 import { MetricsModule } from "./shared/infrastructure/metrics/metrics.module.js";
 import { DomainExceptionFilter } from "./shared/infrastructure/http/domain-exception.filter.js";
+import { HttpExceptionFilter } from "./shared/infrastructure/http/http-exception.filter.js";
 import { RequestIdMiddleware } from "./shared/infrastructure/logging/request-id.middleware.js";
 
 import { IamModule } from "./modules/iam/iam.module.js";
@@ -47,7 +48,10 @@ import { ChatModule } from "./modules/chat/chat.module.js";
     AgreementsModule,
     ChatModule,
   ],
-  providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
+  providers: [
+    { provide: APP_FILTER, useClass: DomainExceptionFilter },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

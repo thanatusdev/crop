@@ -1,6 +1,6 @@
 import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
-import { AgreementStatus, AuditAction } from "@crop/shared";
+import { AgreementStatus, AuditAction, UserRole } from "@crop/shared";
 import { NotFoundError } from "../../../../../shared/domain/errors.js";
 import { AGREEMENT_REPOSITORY, type AgreementRepositoryPort } from "../../../../access/application/ports/agreement-repository.port.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
@@ -27,8 +27,18 @@ export class RespondToAgreementHandler implements ICommandHandler<RespondToAgree
     const existing = await this.agreements.findById(command.agreementId);
     if (!existing) throw new NotFoundError("OperatorAgreement", command.agreementId);
 
-    const responderTenantId = command.actor.homeTenantId ?? command.actor.tenantId;
-    existing.assertCanBeRespondedToBy(responderTenantId);
+    // A platform admin is party to no contract; it answers on behalf of the side the proposal is
+    // waiting on. Everyone else answers for their own home tenant, and the entity refuses the
+    // proposer.
+    const onBehalf = command.actor.role === UserRole.PLATFORM_ADMIN;
+    let responderTenantId: string;
+    if (onBehalf) {
+      existing.assertCanBeRespondedToOnBehalf();
+      responderTenantId = existing.respondingSideTenantId();
+    } else {
+      responderTenantId = command.actor.homeTenantId ?? command.actor.tenantId;
+      existing.assertCanBeRespondedToBy(responderTenantId);
+    }
 
     const nextStatus = command.accept ? AgreementStatus.ACTIVE : AgreementStatus.REJECTED;
     const agreement = await this.agreements.recordResponse(existing.id, nextStatus, command.actor.sub);
@@ -45,6 +55,8 @@ export class RespondToAgreementHandler implements ICommandHandler<RespondToAgree
           clinicTenantId: existing.clinicTenantId,
           operatorTenantId: existing.operatorTenantId,
           respondedByTenantId: responderTenantId,
+          // True when the platform answered for that party rather than the party itself.
+          onBehalf,
           // How much the acceptance actually granted. An agreement accepted with no scope grants
           // nothing (see the model's comment), and a reviewer asking "what did we agree to" should
           // not have to reconstruct that from a later scope-change event.

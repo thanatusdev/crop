@@ -58,14 +58,22 @@ export class ExecuteTakeoverHandler implements ICommandHandler<ExecuteTakeoverCo
     // clinical equipment, and (worse) with no earlier bug in this project, doing so silently,
     // since PiKVM itself has no per-tenant concept to reject it at the device either.
     if (session.tenantId !== command.tenantId) {
-      throw new ForbiddenError("Session does not belong to your tenant");
+      throw new ForbiddenError("Esta sessão não pertence à sua organização.");
     }
 
     if (!TAKEOVER_ALLOWED_ROLES.includes(command.supervisorRole)) {
-      throw new ForbiddenError("Only a supervisor or admin may take over a session");
+      throw new ForbiddenError("Somente um supervisor ou administrador pode assumir o controle de uma sessão.");
     }
 
     session.assertCanBeTakenOverBy(command.supervisorId);
+
+    // Once an operating company's control is suspended (its agreement stopped covering this
+    // equipment -- see SuspendOutsideControlHandler), only the clinic's own staff may take over:
+    // otherwise that company's supervisor could simply take back what the clinic just withdrew.
+    const suspension = this.runtime.getSuspension(session.id);
+    if (suspension && (command.supervisorHomeTenantId ?? command.tenantId) === suspension.outsideTenantId) {
+      throw new ForbiddenError(suspension.message);
+    }
 
     await this.pikvm.releaseAllInput(session.equipmentId);
 
@@ -81,7 +89,7 @@ export class ExecuteTakeoverHandler implements ICommandHandler<ExecuteTakeoverCo
       session.controllerUserId
     );
     if (!applied) {
-      throw new ConflictError("This session was just taken over by someone else. Try again.");
+      throw new ConflictError("Outra pessoa acabou de assumir o controle desta sessão. Tente novamente.");
     }
 
     this.runtime.setController(session.id, command.supervisorId);

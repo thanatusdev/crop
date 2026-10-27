@@ -11,8 +11,8 @@ import { ReorderQueueCommand } from "./reorder-queue.command.js";
 
 const REORDER_ERROR_MESSAGE: Record<"INCLUDES_NON_WAITING" | "STALE_SET", string> = {
   INCLUDES_NON_WAITING:
-    "One of these patients is no longer waiting (already in the room or their exam is finished) -- reload the queue.",
-  STALE_SET: "This room's queue changed since you loaded it -- reload and try reordering again.",
+    "Um destes pacientes não está mais aguardando (já está na sala ou o exame foi concluído). Recarregue a fila.",
+  STALE_SET: "A fila desta sala mudou desde que você a carregou. Recarregue e tente reordenar novamente.",
 };
 
 @CommandHandler(ReorderQueueCommand)
@@ -30,7 +30,7 @@ export class ReorderQueueHandler implements ICommandHandler<ReorderQueueCommand,
     // Same tenant-isolation shape as every other queue handler -- see
     // CreateQueueEntryHandler's own comment for the history of why this check exists at all.
     if (!equipment.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
 
     const entries = await this.queue.listByEquipment(command.equipmentId);

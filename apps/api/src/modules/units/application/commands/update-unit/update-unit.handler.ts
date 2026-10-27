@@ -38,7 +38,7 @@ export class UpdateUnitHandler implements ICommandHandler<UpdateUnitCommand, Enr
     if (command.changes.name) {
       const collision = await this.units.findByClinicAndName(existing.clinicTenantId, command.changes.name);
       if (collision && collision.id !== existing.id) {
-        throw new ConflictError(`A unit named "${command.changes.name}" already exists in this clinic`);
+        throw new ConflictError(`Já existe uma unidade chamada "${command.changes.name}" nesta clínica.`);
       }
     }
 

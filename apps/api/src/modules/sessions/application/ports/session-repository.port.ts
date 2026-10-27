@@ -26,6 +26,13 @@ export interface SessionRepositoryPort {
   /** Every active session regardless of tenant -- used only by cross-tenant system crons
    * (snapshot capture, idle-timeout sweep), matching EquipmentRepositoryPort.listAll(). */
   listAllActive(): Promise<Session[]>;
+  /**
+   * Active + pending sessions on `clinicTenantId`'s equipment in which a user of
+   * `outsideTenantId` (an operating company) takes part, as operator or as supervisor, with the
+   * ids of those users. Backs `SuspendOutsideControlHandler`: when that company's agreement
+   * stops covering a device, these are the people who must stop controlling it.
+   */
+  listActiveInClinicInvolvingTenant(clinicTenantId: string, outsideTenantId: string): Promise<{ session: Session; outsideUserIds: string[] }[]>;
   countActiveByOperator(operatorId: string): Promise<number>;
   /**
    * Compare-and-swap, not an unconditional write: only applies if the row's current

@@ -29,6 +29,8 @@ import {
   agreementStatusLabelKeyOf,
   counterpartyOf,
   isActionableBy,
+  isPartyTo,
+  isWithdrawableBy,
 } from "../lib/agreement-display.js";
 
 const ALL = "__all__";
@@ -84,12 +86,13 @@ export default function AgreementsPage() {
   //
   // `PLATFORM_ADMIN` is not offered this button: `ProposeAgreementHandler` derives the proposer's
   // side from `actor.homeTenantId`, which for a platform admin is the `PLATFORM` tenant, neither
-  // `CLINIC` nor `OPERATOR_PROVIDER` -- so `POST /agreements` would always reject it with "An
-  // agreement is always between one CLINIC and one OPERATOR_PROVIDER tenant". A structural dead
-  // end for that role, closed by removing the button rather than by chasing a proposer identity a
-  // platform admin does not have.
+  // `CLINIC` nor `OPERATOR_PROVIDER`, so it has no side to propose from. It does see every
+  // contract (`AgreementsController.partyScopeOf`) and may accept or reject a pending one on
+  // behalf of the side it waits on (`RespondToAgreementHandler`) -- e.g. a company the platform
+  // just created, which has no OPERATOR_ADMIN of its own yet. Revoke and scope stay with the parties.
   const isOperatorSide = user?.role === UserRole.OPERATOR_ADMIN;
   const isClinicSide = user?.role === UserRole.CLINIC_ADMIN || user?.role === UserRole.LOCAL_SUPERVISOR;
+  const isPlatformAdmin = user?.role === UserRole.PLATFORM_ADMIN;
   const canPropose = isOperatorSide || isClinicSide;
   // The viewer's own organisation for per-row decisions (who answers, who owns scope) -- the home
   // tenant, matching the API, so an operator admin switched into a client clinic still acts for
@@ -172,7 +175,7 @@ export default function AgreementsPage() {
     }
   }
 
-  async function act(agreement: OperatorAgreementDto, action: "accept" | "reject" | "revoke") {
+  async function act(agreement: OperatorAgreementDto, action: "accept" | "reject" | "revoke" | "withdraw") {
     setPendingId(agreement.id);
     setActionError(null);
     try {
@@ -256,7 +259,13 @@ export default function AgreementsPage() {
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="mt-0 mb-1 text-xl font-semibold">{t("agreements:heading")}</h1>
-          <p className="text-muted-foreground">{isOperatorSide ? t("agreements:subtitleOperator") : t("agreements:subtitleClinic")}</p>
+          <p className="text-muted-foreground">
+            {isPlatformAdmin
+              ? t("agreements:subtitlePlatform")
+              : isOperatorSide
+                ? t("agreements:subtitleOperator")
+                : t("agreements:subtitleClinic")}
+          </p>
         </div>
         {canPropose && (
           <Button onClick={openPropose}>
@@ -320,7 +329,13 @@ export default function AgreementsPage() {
               <TableCaption className="sr-only">{t("agreements:tableCaption")}</TableCaption>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{isOperatorSide ? t("agreements:colClinic") : t("agreements:colOperator")}</TableHead>
+                  <TableHead>
+                    {isPlatformAdmin
+                      ? t("agreements:colParties")
+                      : isOperatorSide
+                        ? t("agreements:colClinic")
+                        : t("agreements:colOperator")}
+                  </TableHead>
                   <TableHead>{t("agreements:colStatus")}</TableHead>
                   <TableHead>{t("agreements:colScope")}</TableHead>
                   <TableHead>{t("agreements:colActions")}</TableHead>
@@ -337,18 +352,22 @@ export default function AgreementsPage() {
                   const viewerIsOperatorSide = agreement.operatorTenantId === viewerTenantId;
                   // Scope is the clinic's to set regardless of which role within it is viewing.
                   const viewerOwnsScope = agreement.clinicTenantId === viewerTenantId;
-                  const canRespond = isActionableBy(agreement, viewerTenantId);
+                  const canRespond = isActionableBy(agreement, viewerTenantId, isPlatformAdmin);
                   return (
                     <TableRow key={agreement.id}>
                       <TableCell>
-                        <div className="font-medium">{counterpartyOf(agreement, viewerIsOperatorSide)}</div>
+                        <div className="font-medium">
+                          {isPlatformAdmin
+                            ? `${agreement.clinicName} → ${agreement.operatorName}`
+                            : counterpartyOf(agreement, viewerIsOperatorSide)}
+                        </div>
                         <div className="text-xs text-muted-foreground">{new Date(agreement.createdAt).toLocaleDateString("pt-BR")}</div>
                       </TableCell>
                       <TableCell>
                         <Badge
                           className={cn("border-transparent", tailwindBadgeClassOf(agreementStatusBadgeClassOf(agreement.status) as DisplayStatus))}
                         >
-                          {t(agreementStatusLabelKeyFor(agreement, viewerTenantId))}
+                          {t(agreementStatusLabelKeyFor(agreement, viewerTenantId, isPlatformAdmin))}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -378,12 +397,22 @@ export default function AgreementsPage() {
                               </Button>
                             </>
                           )}
+                          {isWithdrawableBy(agreement, viewerTenantId) && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={pendingId === agreement.id}
+                              onClick={() => void act(agreement, "withdraw")}
+                            >
+                              {t("agreements:withdraw")}
+                            </Button>
+                          )}
                           {viewerOwnsScope && agreement.status !== "REJECTED" && agreement.status !== "REVOKED" && (
                             <Button variant="secondary" size="sm" onClick={() => void openScope(agreement)}>
                               {t("agreements:editScope")}
                             </Button>
                           )}
-                          {agreement.status === "ACTIVE" && (
+                          {agreement.status === "ACTIVE" && isPartyTo(agreement, viewerTenantId) && (
                             <Button
                               variant="destructive"
                               size="sm"

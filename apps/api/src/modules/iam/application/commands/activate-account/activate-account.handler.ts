@@ -43,29 +43,29 @@ export class ActivateAccountHandler implements ICommandHandler<ActivateAccountCo
     const { allowed } = await this.rateLimiter.checkAndIncrement(rateLimitKey, MAX_ATTEMPTS, WINDOW_SECONDS);
     if (!allowed) {
       this.logger.warn(`Rate limit exceeded for invitation confirmation against user ${claims.sub}`);
-      throw new TooManyRequestsError("Too many attempts. Try again later.");
+      throw new TooManyRequestsError("Muitas tentativas. Tente novamente mais tarde.");
     }
 
     if (await this.revocation.isRevoked(claims.jti, "account_invitation")) {
-      throw new UnauthorizedError("This invitation link has already been used");
+      throw new UnauthorizedError("Este link de convite já foi utilizado.");
     }
 
     const user = await this.users.findById(claims.sub);
     if (!user) throw new NotFoundError("User", claims.sub);
 
     if (user.isActivated()) {
-      throw new UnauthorizedError("This invitation link has already been used");
+      throw new UnauthorizedError("Este link de convite já foi utilizado.");
     }
 
     // An admin could lock the account, or a Platform Admin deactivate its tenant, in the
     // window between the invitation being sent and this link being clicked -- same
     // bounded-window reasoning ResetPasswordHandler documents for its own checks.
     if (user.isLocked()) {
-      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+      throw new ForbiddenError("Esta conta está bloqueada. Entre em contato com o administrador.");
     }
     const tenant = await this.tenants.findById(user.tenantId);
     if (tenant?.isDeactivated()) {
-      throw new ForbiddenError("This organization's access has been deactivated. Contact your administrator.");
+      throw new ForbiddenError("O acesso desta organização foi desativado. Entre em contato com o administrador.");
     }
 
     assertPasswordPolicy(command.newPassword, { email: user.email, firstName: user.firstName, lastName: user.lastName });

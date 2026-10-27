@@ -19,7 +19,7 @@ export class GetExamMessageHandler implements IQueryHandler<GetExamMessageQuery,
     const message = await this.messages.findById(query.messageId);
     if (!message) throw new NotFoundError("ExamMessage", query.messageId);
     if (!message.belongsToTenant(query.tenantId)) {
-      throw new ForbiddenError("This message does not belong to your tenant");
+      throw new ForbiddenError("Esta mensagem não pertence à sua organização.");
     }
 
     const equipment = await this.equipment.findById(message.equipmentId);

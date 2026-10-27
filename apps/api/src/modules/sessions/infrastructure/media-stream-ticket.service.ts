@@ -38,7 +38,7 @@ export class MediaStreamTicketService {
     try {
       return this.jwt.verify<MediaStreamTicketClaims>(ticket, { secret: this.secret });
     } catch {
-      throw new UnauthorizedError("Invalid or expired media stream ticket");
+      throw new UnauthorizedError("O acesso ao vídeo é inválido ou expirou. Recarregue a página.");
     }
   }
 }

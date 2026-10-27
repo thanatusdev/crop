@@ -1,5 +1,6 @@
 import { AgreementStatus } from "@crop/shared";
 import { ForbiddenError } from "../../../shared/domain/errors.js";
+import { AGREEMENT_STATUS_LABELS_PT_BR, labelOf } from "../../../shared/domain/pt-br-labels.js";
 
 /**
  * One grant inside an agreement: a unit, or a single piece of equipment, never both.
@@ -137,13 +138,44 @@ export class OperatorAgreement {
    */
   assertCanBeRespondedToBy(tenantId: string): void {
     if (this.props.status !== AgreementStatus.PENDING) {
-      throw new ForbiddenError(`This agreement is ${this.props.status}, not pending a response`);
+      throw new ForbiddenError(`Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`);
     }
     if (!this.involves(tenantId)) {
-      throw new ForbiddenError("You are not a party to this agreement");
+      throw new ForbiddenError("Sua organização não é parte deste contrato.");
     }
     if (this.props.proposedByTenantId === tenantId) {
-      throw new ForbiddenError("You proposed this agreement -- the other party must respond to it");
+      throw new ForbiddenError("Você propôs este contrato — a outra parte é quem deve respondê-lo.");
+    }
+  }
+
+  /** The party whose answer a PENDING proposal is waiting on -- whichever side did not open it. */
+  respondingSideTenantId(): string {
+    return this.props.proposedByTenantId === this.props.clinicTenantId ? this.props.operatorTenantId : this.props.clinicTenantId;
+  }
+
+  /**
+   * A platform admin answering *for* the side that must respond (e.g. an operating company the
+   * platform just created, which has no OPERATOR_ADMIN yet). Only the status matters: the
+   * platform is party to no contract, and the side it answers for is by construction never the
+   * proposer, so the handshake still has two distinct parties.
+   */
+  assertCanBeRespondedToOnBehalf(): void {
+    if (this.props.status !== AgreementStatus.PENDING) {
+      throw new ForbiddenError(`Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`);
+    }
+  }
+
+  /**
+   * Only the side that opened a PENDING proposal may take it back -- the other side's way of
+   * saying no is rejecting it. Without this, a proposer who changed their mind had no exit at
+   * all: revoking needs ACTIVE, and re-proposing is refused while one is already pending.
+   */
+  assertCanBeWithdrawnBy(tenantId: string): void {
+    if (this.props.status !== AgreementStatus.PENDING) {
+      throw new ForbiddenError(`Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`);
+    }
+    if (this.props.proposedByTenantId !== tenantId) {
+      throw new ForbiddenError("Somente quem propôs o contrato pode cancelar a proposta.");
     }
   }
 
@@ -155,10 +187,10 @@ export class OperatorAgreement {
    */
   assertCanBeRevokedBy(tenantId: string): void {
     if (this.props.status !== AgreementStatus.ACTIVE) {
-      throw new ForbiddenError(`Only an active agreement can be revoked; this one is ${this.props.status}`);
+      throw new ForbiddenError(`Somente um contrato ativo pode ser encerrado. Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)}.`);
     }
     if (!this.involves(tenantId)) {
-      throw new ForbiddenError("You are not a party to this agreement");
+      throw new ForbiddenError("Sua organização não é parte deste contrato.");
     }
   }
 
@@ -170,10 +202,10 @@ export class OperatorAgreement {
    */
   assertScopeCanBeSetBy(tenantId: string): void {
     if (this.props.clinicTenantId !== tenantId) {
-      throw new ForbiddenError("Only the clinic can change what an agreement covers");
+      throw new ForbiddenError("Somente a clínica pode alterar o que o contrato abrange.");
     }
     if (this.props.status === AgreementStatus.REJECTED || this.props.status === AgreementStatus.REVOKED) {
-      throw new ForbiddenError(`Cannot change the scope of a ${this.props.status} agreement`);
+      throw new ForbiddenError(`Não é possível alterar a abrangência de um contrato ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)}.`);
     }
   }
 }

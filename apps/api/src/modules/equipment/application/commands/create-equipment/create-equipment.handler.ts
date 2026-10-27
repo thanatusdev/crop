@@ -91,7 +91,7 @@ export class CreateEquipmentHandler implements ICommandHandler<CreateEquipmentCo
       const unit = await this.units.findById(requestedUnitId);
       if (!unit) throw new NotFoundError("Unit", requestedUnitId);
       if (unit.clinicTenantId !== tenantId) {
-        throw new ForbiddenError(`Unit ${requestedUnitId} does not belong to this tenant`);
+        throw new ForbiddenError("Esta unidade não pertence à sua organização.");
       }
       return unit.id;
     }

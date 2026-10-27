@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { responsibleManagerRoleFor } from "@crop/shared";
 import { ForbiddenError, NotFoundError, ValidationError } from "../../../shared/domain/errors.js";
+import { ROLE_LABELS_PT_BR, TENANT_TYPE_LABELS_PT_BR, labelOf } from "../../../shared/domain/pt-br-labels.js";
 import { TENANT_REPOSITORY, type TenantRepositoryPort } from "./ports/tenant-repository.port.js";
 
 /**
@@ -32,23 +33,23 @@ export class ResponsibleManagerValidator {
     if (!tenant) throw new NotFoundError("Tenant", tenantId);
     const expectedRole = responsibleManagerRoleFor(tenant.type);
     if (!expectedRole) {
-      throw new ValidationError(`Tenant ${tenantId} of type ${tenant.type} has no responsible-manager concept`);
+      throw new ValidationError(`Organizações do tipo ${labelOf(TENANT_TYPE_LABELS_PT_BR, tenant.type)} não têm Gestor Responsável.`);
     }
 
     const candidate = await this.tenants.findResponsibleManagerCandidate(userId);
     if (!candidate) throw new NotFoundError("User", userId);
 
     if (candidate.tenantId !== tenantId) {
-      throw new ForbiddenError(`User ${userId} does not belong to tenant ${tenantId}`);
+      throw new ForbiddenError("O usuário selecionado não pertence a esta organização.");
     }
     if (candidate.role !== expectedRole) {
-      throw new ValidationError(`User ${userId} does not hold an eligible role for responsible manager (${expectedRole})`);
+      throw new ValidationError(`O Gestor Responsável precisa ter o perfil ${labelOf(ROLE_LABELS_PT_BR, expectedRole)}.`);
     }
     if (!candidate.activatedAt) {
-      throw new ValidationError(`User ${userId} has not activated their account yet`);
+      throw new ValidationError("O usuário selecionado ainda não ativou a conta.");
     }
     if (candidate.lockedAt) {
-      throw new ValidationError(`User ${userId}'s account is locked`);
+      throw new ValidationError("A conta do usuário selecionado está bloqueada.");
     }
   }
 }

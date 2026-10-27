@@ -34,7 +34,7 @@ export class UpdatePreparationStatusHandler implements ICommandHandler<UpdatePre
     if (!entry) throw new NotFoundError("QueueEntry", command.queueEntryId);
     // Same tenant-isolation shape as UpdateQueueStatusHandler.
     if (!entry.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
 
     const previousPreparationStatus = entry.preparationStatus;
@@ -54,7 +54,7 @@ export class UpdatePreparationStatusHandler implements ICommandHandler<UpdatePre
     // before the operator started one) still has to be let go of the screen.
     if (command.status === PreparationStatus.RELEASED && session?.isActive()) {
       throw new ConflictError(
-        "Cannot release the patient while the exam is still in progress. Wait for the Biomedical to end the session."
+        "Não é possível liberar o paciente enquanto o exame está em andamento. Aguarde o Operador Biomédico encerrar a sessão."
       );
     }
 

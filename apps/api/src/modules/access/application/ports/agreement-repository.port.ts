@@ -33,6 +33,10 @@ export interface AgreementRepositoryPort {
    * is the same question from both directions. */
   listForTenant(tenantId: string, status?: AgreementStatus): Promise<OperatorAgreement[]>;
 
+  /** Every agreement on the platform, newest first -- the `PLATFORM_ADMIN` overview, whose home
+   * tenant is party to none of them. */
+  listAll(status?: AgreementStatus): Promise<OperatorAgreement[]>;
+
   /** Clinics this operating company may currently reach. Deliberately narrower than
    * `listForTenant`: this is the hot authorization path (every clinic switch, every equipment
    * read by operator-side staff), so it returns ids only and filters to ACTIVE in SQL. */
@@ -51,8 +55,12 @@ export interface AgreementRepositoryPort {
   revoke(id: string, revokedByUserId: string | null): Promise<OperatorAgreement>;
 
   /** Re-opens an existing row for a fresh negotiation -- see the model's own comment on why
-   * re-proposing reuses the row rather than inserting a second one per pair. */
+   * re-proposing reuses the row rather than inserting a second one per pair. Clears the previous
+   * round's scope. */
   reopenAsPending(id: string, proposedByTenantId: string, proposedByUserId: string | null): Promise<OperatorAgreement>;
+
+  /** Moves a PENDING proposal to REVOKED at its proposer's request -- see `assertCanBeWithdrawnBy`. */
+  withdraw(id: string, withdrawnByUserId: string | null): Promise<OperatorAgreement>;
 
   /** Replaces the agreement's scope wholesale, in one transaction. A partial add/remove API
    * would need conflict semantics for two admins editing at once; full replacement is idempotent.

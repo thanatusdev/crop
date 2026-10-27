@@ -29,7 +29,7 @@ export class LockUserHandler implements ICommandHandler<LockUserCommand, void> {
     // Same tenant-isolation pattern used throughout (GetEquipmentHandler, GetUserByIdHandler):
     // a CLINIC_ADMIN can never lock another tenant's user, even by guessing a UUID.
     if (!target.belongsToTenant(command.actingAdminTenantId)) {
-      throw new ForbiddenError("User does not belong to your tenant");
+      throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
 
     if (target.isLocked()) return; // idempotent: locking an already-locked account is a no-op

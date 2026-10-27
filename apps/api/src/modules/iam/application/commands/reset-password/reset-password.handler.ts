@@ -53,11 +53,11 @@ export class ResetPasswordHandler implements ICommandHandler<ResetPasswordComman
     const { allowed } = await this.rateLimiter.checkAndIncrement(rateLimitKey, MAX_ATTEMPTS, WINDOW_SECONDS);
     if (!allowed) {
       this.logger.warn(`Rate limit exceeded for password reset confirmation against user ${claims.sub}`);
-      throw new TooManyRequestsError("Too many attempts. Try again later.");
+      throw new TooManyRequestsError("Muitas tentativas. Tente novamente mais tarde.");
     }
 
     if (await this.revocation.isRevoked(claims.jti, "password_reset")) {
-      throw new UnauthorizedError("This password reset link has already been used");
+      throw new UnauthorizedError("Este link de redefinição de senha já foi utilizado.");
     }
 
     const user = await this.users.findById(claims.sub);
@@ -68,11 +68,11 @@ export class ResetPasswordHandler implements ICommandHandler<ResetPasswordComman
     // being clicked -- same bounded-window reasoning RefreshTokensHandler documents for its
     // own lock/deactivation checks.
     if (user.isLocked()) {
-      throw new ForbiddenError("This account has been locked. Contact your administrator.");
+      throw new ForbiddenError("Esta conta está bloqueada. Entre em contato com o administrador.");
     }
     const tenant = await this.tenants.findById(user.tenantId);
     if (tenant?.isDeactivated()) {
-      throw new ForbiddenError("This organization's access has been deactivated. Contact your administrator.");
+      throw new ForbiddenError("O acesso desta organização foi desativado. Entre em contato com o administrador.");
     }
 
     // Both checks every password-setting path enforces -- see enforce-password-policy.ts.

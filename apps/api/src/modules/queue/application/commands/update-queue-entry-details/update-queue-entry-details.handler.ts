@@ -20,7 +20,7 @@ export class UpdateQueueEntryDetailsHandler implements ICommandHandler<UpdateQue
     if (!entry) throw new NotFoundError("QueueEntry", command.queueEntryId);
     // Same tenant-isolation shape as every other queue handler.
     if (!entry.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
     // Editing a DONE/CANCELLED entry's clinical prep details would rewrite history rather
     // than record it -- see QueueEntry.assertDetailsEditable's own docstring.

@@ -42,7 +42,7 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     // status forever and would have passed a status-only check indefinitely.
     if (!equipment.isAvailableForSession()) {
       throw new ConflictError(
-        equipment.isDeactivated() ? `Equipment ${equipment.name} has been deactivated` : `Equipment ${equipment.name} is not online`
+        equipment.isDeactivated() ? `O equipamento ${equipment.name} foi desativado.` : `O equipamento ${equipment.name} não está online.`
       );
     }
 
@@ -59,7 +59,7 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     if (equipment.unitId) {
       const unit = await this.units.findById(equipment.unitId);
       if (unit?.isDeactivated()) {
-        throw new ConflictError(`Equipment ${equipment.name}'s unit has been deactivated`);
+        throw new ConflictError(`A unidade do equipamento ${equipment.name} foi desativada.`);
       }
     }
 
@@ -71,13 +71,13 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     // the race is ever actually hit.
     const existingSession = await this.sessions.findActiveByEquipment(command.equipmentId);
     if (existingSession) {
-      throw new ConflictError(`Equipment ${equipment.name} already has an active session`);
+      throw new ConflictError(`O equipamento ${equipment.name} já possui uma sessão ativa.`);
     }
 
     const maxConcurrent = this.config.get<number>("MAX_CONCURRENT_SESSIONS_PER_OPERATOR", 3);
     const activeCount = await this.sessions.countActiveByOperator(command.operatorId);
     if (activeCount >= maxConcurrent) {
-      throw new ForbiddenError(`Operator already has ${maxConcurrent} active sessions`);
+      throw new ForbiddenError(`Você já possui ${maxConcurrent} sessões ativas, o limite permitido.`);
     }
 
     const secrets = await this.queryBus.execute(new GetEquipmentConnectionSecretsQuery(command.equipmentId));

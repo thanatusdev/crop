@@ -2,6 +2,7 @@ import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction, TenantType, UserRole, canGrantRole, isRoleAllowedInTenantType, requiresClinicAssignment, responsibleManagerRoleFor } from "@crop/shared";
 import { ForbiddenError, NotFoundError, ValidationError } from "../../../../../shared/domain/errors.js";
+import { ROLE_LABELS_PT_BR, TENANT_TYPE_LABELS_PT_BR, labelOf } from "../../../../../shared/domain/pt-br-labels.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../../../tenants/application/ports/tenant-repository.port.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
@@ -29,7 +30,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
     // the PLATFORM one. See UsersController's own docstring on the "tenant-scoped" rule this
     // mirrors.
     if (!target.belongsToTenant(command.actingAdminTenantId)) {
-      throw new ForbiddenError("User does not belong to your tenant");
+      throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
 
     // Gates whether the acting admin may touch this user AT ALL, independent of which
@@ -40,7 +41,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
     // documents does not apply here: every HTTP caller reaching this handler has a real,
     // non-null role (UsersController's own @Roles guard already guarantees that).
     if (!canGrantRole(command.actingRole, target.role)) {
-      throw new ForbiddenError(`${command.actingRole} may not edit a ${target.role} account`);
+      throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode editar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, target.role)}.`);
     }
 
     const effectiveRole = command.changes.role ?? target.role;
@@ -51,13 +52,13 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
       // tenant-type boundary without this handler knowing it: `isRoleAllowedInTenantType`
       // below rejects that regardless, since home tenant itself never changes here.
       if (!canGrantRole(command.actingRole, command.changes.role)) {
-        throw new ForbiddenError(`${command.actingRole} may not grant the ${command.changes.role} role`);
+        throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode atribuir o perfil ${labelOf(ROLE_LABELS_PT_BR, command.changes.role)}.`);
       }
 
       const homeTenant = await this.tenants.findById(target.tenantId);
       if (!homeTenant) throw new NotFoundError("Tenant", target.tenantId);
       if (!isRoleAllowedInTenantType(command.changes.role, homeTenant.type)) {
-        throw new ForbiddenError(`Role ${command.changes.role} is not permitted in a ${homeTenant.type} tenant`);
+        throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.changes.role)} não é permitido em uma ${labelOf(TENANT_TYPE_LABELS_PT_BR, homeTenant.type)}.`);
       }
 
       // FK guard: a role change that would leave some tenant's "Gestor Responsável"
@@ -70,7 +71,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
       const responsibleFor = await this.tenants.findByResponsibleManagerId(target.id);
       if (responsibleFor && responsibleManagerRoleFor(responsibleFor.type) !== command.changes.role) {
         throw new ForbiddenError(
-          `User ${target.id} is the responsible manager for tenant ${responsibleFor.id} -- unassign them there before changing their role`
+          `Este usuário é o Gestor Responsável de ${responsibleFor.name}. Remova essa atribuição antes de alterar o perfil dele.`
         );
       }
     }
@@ -84,10 +85,10 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
         const clinic = await this.tenants.findById(clinicId);
         if (!clinic) throw new NotFoundError("Tenant", clinicId);
         if (clinic.type !== TenantType.CLINIC) {
-          throw new ForbiddenError(`Tenant ${clinicId} is not a clinic`);
+          throw new ForbiddenError("A organização selecionada não é uma clínica.");
         }
         if (clinic.isDeactivated()) {
-          throw new ForbiddenError(`Clinic ${clinicId} has been deactivated`);
+          throw new ForbiddenError("Esta clínica foi desativada.");
         }
       }
 
@@ -107,7 +108,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
         const actorClinicIds = new Set(await this.memberships.listClinicIdsForUser(command.actingAdminId));
         for (const clinicId of [target.tenantId, ...extraClinicIds]) {
           if (!actorClinicIds.has(clinicId)) {
-            throw new ForbiddenError(`You are not linked to clinic ${clinicId}`);
+            throw new ForbiddenError("Você não está vinculado a esta clínica.");
           }
         }
       }
@@ -118,7 +119,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
         for (const clinicId of [target.tenantId, ...extraClinicIds]) {
           const hasManager = await this.memberships.hasMemberWithRole(clinicId, UserRole.CLINIC_ADMIN);
           if (!hasManager) {
-            throw new ForbiddenError(`Clinic ${clinicId} has no Clinic Manager yet -- a Supervisor cannot be linked to it`);
+            throw new ForbiddenError("Esta clínica ainda não tem um Gestor de Clínica. Não é possível vincular um Supervisor a ela.");
           }
         }
       }

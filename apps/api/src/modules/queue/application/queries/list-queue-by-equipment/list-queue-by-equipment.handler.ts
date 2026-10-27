@@ -25,7 +25,7 @@ export class ListQueueByEquipmentHandler implements IQueryHandler<ListQueueByEqu
     // any authenticated user could list another tenant's patient queue (first names
     // included) just by passing a foreign equipmentId as a query parameter.
     if (!equipment.belongsToTenant(query.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
 
     // Tenant scoping alone no longer settles this: a contracted operator acts inside the clinic's

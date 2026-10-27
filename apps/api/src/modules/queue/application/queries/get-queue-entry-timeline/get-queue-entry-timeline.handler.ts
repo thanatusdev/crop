@@ -22,7 +22,7 @@ export class GetQueueEntryTimelineHandler implements IQueryHandler<GetQueueEntry
     if (!entry) throw new NotFoundError("QueueEntry", query.queueEntryId);
     // Same tenant-isolation shape as every other queue handler.
     if (!entry.belongsToTenant(query.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
     if (query.actor) await this.operatorAccess.assertCanReachEquipmentId(query.actor, entry.equipmentId);
 

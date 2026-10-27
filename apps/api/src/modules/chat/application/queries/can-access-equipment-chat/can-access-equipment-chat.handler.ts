@@ -20,12 +20,12 @@ export class CanAccessEquipmentChatHandler implements IQueryHandler<CanAccessEqu
 
   async execute(query: CanAccessEquipmentChatQuery): Promise<void> {
     if (!CHAT_ALLOWED_ROLES.includes(query.actor.role)) {
-      throw new ForbiddenError("This role may not use the exam-support chat");
+      throw new ForbiddenError("Seu perfil não tem acesso ao chat de apoio ao exame.");
     }
     const equipment = await this.equipment.findById(query.equipmentId);
     if (!equipment) throw new NotFoundError("Equipment", query.equipmentId);
     if (!equipment.belongsToTenant(query.actor.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
     await this.operatorAccess.assertCanReachEquipment(query.actor, {
       id: equipment.id,

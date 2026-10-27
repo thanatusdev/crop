@@ -40,7 +40,7 @@ export class AdminResetPasswordHandler implements ICommandHandler<AdminResetPass
     if (!target) throw new NotFoundError("User", command.targetUserId);
 
     if (!target.belongsToTenant(command.actingAdminTenantId)) {
-      throw new ForbiddenError("User does not belong to your tenant");
+      throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
 
     // Same two checks every other password-setting path enforces -- see

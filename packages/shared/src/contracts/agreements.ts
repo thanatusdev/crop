@@ -86,7 +86,7 @@ export const ProposeAgreementRequestSchema = z
     equipmentIds: z.array(z.string().uuid()).optional(),
   })
   .refine((body) => (body.clinicTenantId ? 1 : 0) + (body.operatorTenantId ? 1 : 0) === 1, {
-    message: "Name exactly one counterparty: clinicTenantId or operatorTenantId",
+    message: "Informe exatamente uma contraparte: uma clínica ou uma empresa operadora",
   });
 export type ProposeAgreementRequest = z.infer<typeof ProposeAgreementRequestSchema>;
 

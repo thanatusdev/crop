@@ -30,7 +30,7 @@ export class ProcessHidInputHandler implements ICommandHandler<ProcessHidInputCo
     // must never trust a caller that skipped that check (e.g. a future internal API).
     const controller = this.runtime.getController(command.sessionId);
     if (controller !== command.userId) {
-      throw new ForbiddenError("Only the current controller may send input for this session");
+      throw new ForbiddenError("Somente quem está com o controle desta sessão pode enviar comandos.");
     }
 
     const startedAt = performance.now();

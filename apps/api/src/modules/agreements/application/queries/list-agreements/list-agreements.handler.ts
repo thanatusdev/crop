@@ -17,6 +17,7 @@ export class ListAgreementsHandler implements IQueryHandler<ListAgreementsQuery,
   constructor(@Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort) {}
 
   async execute(query: ListAgreementsQuery): Promise<OperatorAgreement[]> {
+    if (query.tenantId === null) return this.agreements.listAll(query.status);
     return this.agreements.listForTenant(query.tenantId, query.status);
   }
 }

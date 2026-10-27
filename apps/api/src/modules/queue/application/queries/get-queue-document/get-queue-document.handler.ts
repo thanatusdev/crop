@@ -31,7 +31,7 @@ export class GetQueueDocumentHandler implements IQueryHandler<GetQueueDocumentQu
       throw new NotFoundError("QueueEntryDocument", query.documentId);
     }
     if (!document.belongsToTenant(query.tenantId)) {
-      throw new ForbiddenError("Document does not belong to your tenant");
+      throw new ForbiddenError("Este documento não pertence à sua organização.");
     }
     if (query.actor) await this.operatorAccess.assertCanReachEquipmentId(query.actor, document.equipmentId);
     return document;

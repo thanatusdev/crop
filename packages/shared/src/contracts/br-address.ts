@@ -11,7 +11,7 @@ import { z } from "zod";
 export const ZipCodeSchema = z
   .string()
   .trim()
-  .regex(/^\d{5}-?\d{3}$/, "CEP must be 8 digits, optionally formatted as NNNNN-NNN")
+  .regex(/^\d{5}-?\d{3}$/, "O CEP deve ter 8 dígitos (formato NNNNN-NNN)")
   .transform((value) => {
     const digits = value.replace(/\D/g, "");
     return `${digits.slice(0, 5)}-${digits.slice(5)}`;
@@ -27,4 +27,4 @@ export const ZipCodeSchema = z
 export const PhoneSchema = z
   .string()
   .trim()
-  .regex(/^[+()\d\s-]{8,20}$/, "Phone must be 8-20 characters using only digits, spaces, (), + or -");
+  .regex(/^[+()\d\s-]{8,20}$/, "O telefone deve ter de 8 a 20 caracteres, usando apenas dígitos, espaços, (), + ou -");

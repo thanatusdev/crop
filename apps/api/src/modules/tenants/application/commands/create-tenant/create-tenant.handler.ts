@@ -25,7 +25,7 @@ export class CreateTenantHandler implements ICommandHandler<CreateTenantCommand,
     if (command.tenantDetails?.cnpj) {
       const existing = await this.tenants.findByCnpj(command.tenantDetails.cnpj);
       if (existing) {
-        throw new ConflictError(`A tenant with CNPJ ${command.tenantDetails.cnpj} already exists`);
+        throw new ConflictError(`Já existe uma organização com o CNPJ ${command.tenantDetails.cnpj}.`);
       }
     }
 

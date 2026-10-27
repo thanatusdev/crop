@@ -22,7 +22,7 @@ export class UpdateQueueStatusHandler implements ICommandHandler<UpdateQueueStat
     if (!entry) throw new NotFoundError("QueueEntry", command.queueEntryId);
     // Same tenant-isolation gap as CreateQueueEntryHandler -- see its comment.
     if (!entry.belongsToTenant(command.tenantId)) {
-      throw new ForbiddenError("Queue entry does not belong to your tenant");
+      throw new ForbiddenError("Este paciente da fila não pertence à sua organização.");
     }
     if (command.actor) await this.operatorAccess.assertCanReachEquipmentId(command.actor, entry.equipmentId);
 

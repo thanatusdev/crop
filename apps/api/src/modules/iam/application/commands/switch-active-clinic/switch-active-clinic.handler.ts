@@ -60,10 +60,10 @@ export class SwitchActiveClinicHandler implements ICommandHandler<SwitchActiveCl
     const clinic = await this.tenants.findById(command.targetClinicTenantId);
     if (!clinic) throw new NotFoundError("Tenant", command.targetClinicTenantId);
     if (clinic.type !== TenantType.CLINIC) {
-      throw new ForbiddenError("Target is not a clinic");
+      throw new ForbiddenError("A organização selecionada não é uma clínica.");
     }
     if (clinic.isDeactivated()) {
-      throw new ForbiddenError("This clinic's access has been deactivated. Contact your administrator.");
+      throw new ForbiddenError("O acesso desta clínica foi desativado. Entre em contato com o administrador.");
     }
 
     const isLinked =
@@ -71,7 +71,7 @@ export class SwitchActiveClinicHandler implements ICommandHandler<SwitchActiveCl
       (await this.memberships.isMember(command.userId, command.targetClinicTenantId)) ||
       (await this.operatorAccess.hasActiveAgreement(user.tenantId, command.targetClinicTenantId));
     if (!isLinked) {
-      throw new ForbiddenError("You are not linked to that clinic");
+      throw new ForbiddenError("Você não está vinculado a essa clínica.");
     }
 
     const accessToken = this.tokens.signAccessToken({

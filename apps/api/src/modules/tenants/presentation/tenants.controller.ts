@@ -71,7 +71,7 @@ export class TenantsController {
     // legal filter value here -- there is exactly one such tenant and no screen lists it.
     if (type !== undefined) {
       if (!(Object.values(TenantType) as string[]).includes(type) || type === TenantType.PLATFORM) {
-        throw new ValidationError(`Unknown tenant type: ${type}`);
+        throw new ValidationError("Tipo de organização inválido.");
       }
     }
     const enriched = await this.queryBus.execute(new ListTenantsQuery(type as TenantType | undefined));

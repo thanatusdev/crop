@@ -305,6 +305,12 @@ export enum AuditAction {
   AGREEMENT_ACCEPTED = "AGREEMENT_ACCEPTED",
   AGREEMENT_REJECTED = "AGREEMENT_REJECTED",
   AGREEMENT_REVOKED = "AGREEMENT_REVOKED",
+  // The proposer taking back a PENDING proposal before the other side answered. Distinct from
+  // REVOKED: nothing was ever in force, so no access ended.
+  AGREEMENT_WITHDRAWN = "AGREEMENT_WITHDRAWN",
+  // An outside company's user lost control of a live session because the agreement stopped
+  // covering its equipment (revoked, or scope narrowed). The session itself keeps running.
+  SESSION_CONTROL_SUSPENDED = "SESSION_CONTROL_SUSPENDED",
   // A change to *which* units/equipment an active contract covers -- the narrowing that makes
   // an agreement mean something less than "all of this clinic". Separate from ACCEPTED
   // because scope is edited over the contract's life, long after it was agreed.

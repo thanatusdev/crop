@@ -25,7 +25,7 @@ export class PrintTextHandler implements ICommandHandler<PrintTextCommand, void>
 
   async execute(command: PrintTextCommand): Promise<void> {
     if (this.runtime.getController(command.sessionId) !== command.userId) {
-      throw new ForbiddenError("Only the current controller may type text for this session");
+      throw new ForbiddenError("Somente quem está com o controle desta sessão pode digitar texto.");
     }
 
     // `pikvm.printText` is a REST call (unlike sendKey/sendMouseMove, which are fire-and-

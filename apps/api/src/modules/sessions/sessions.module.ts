@@ -38,6 +38,7 @@ import { BroadcastQueueUpdatedHandler } from "./application/events/broadcast-que
 import { BroadcastPatientPreparationUpdatedHandler } from "./application/events/broadcast-patient-preparation-updated.handler.js";
 import { BroadcastEquipmentStatusChangedHandler } from "./application/events/broadcast-equipment-status-changed.handler.js";
 import { BroadcastExamMessageHandler } from "./application/events/broadcast-exam-message.handler.js";
+import { SuspendOutsideControlHandler } from "./application/events/suspend-outside-control.handler.js";
 import { SessionParticipantNameService } from "./application/session-participant-name.service.js";
 
 import { IamModule } from "../iam/iam.module.js";
@@ -45,6 +46,7 @@ import { EquipmentModule } from "../equipment/equipment.module.js";
 import { AuditModule } from "../audit/audit.module.js";
 import { QueueModule } from "../queue/queue.module.js";
 import { UnitsModule } from "../units/units.module.js";
+import { AccessModule } from "../access/access.module.js";
 
 const COMMAND_AND_QUERY_HANDLERS = [
   StartSessionHandler,
@@ -64,13 +66,14 @@ const COMMAND_AND_QUERY_HANDLERS = [
   BroadcastPatientPreparationUpdatedHandler,
   BroadcastEquipmentStatusChangedHandler,
   BroadcastExamMessageHandler,
+  SuspendOutsideControlHandler,
 ];
 
 @Module({
   // UnitsModule: UNIT_REPOSITORY, so StartSessionHandler can check whether the equipment's
   // own unit has been deactivated -- no cycle (UnitsModule has no dependency on
   // SessionsModule; EquipmentModule already imports UnitsModule the same way).
-  imports: [CqrsModule, JwtModule.register({}), IamModule, EquipmentModule, AuditModule, QueueModule, UnitsModule],
+  imports: [CqrsModule, JwtModule.register({}), IamModule, EquipmentModule, AuditModule, QueueModule, UnitsModule, AccessModule],
   controllers: [SessionsController],
   providers: [
     { provide: SESSION_REPOSITORY, useClass: PrismaSessionRepository },

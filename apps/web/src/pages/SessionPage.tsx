@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { Socket } from "socket.io-client";
 import {
   RT_EVENTS,
+  type ControlSuspendedEvent,
   type ControllerChangedEvent,
   type EquipmentDto,
   type PatientPreparationUpdatedEvent,
@@ -42,7 +43,13 @@ export default function SessionPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const printSentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isController = session?.controllerUserId === user?.sub;
+  // Set when the API withdrew control from an operating company whose contract stopped covering
+  // this equipment (see SuspendOutsideControlHandler). The session row still names its user as
+  // controller -- the exam keeps running for the clinic -- so `isController` must also consult
+  // this, or the page would keep offering input the server now refuses.
+  const [suspension, setSuspension] = useState<ControlSuspendedEvent | null>(null);
+  const isSuspended = !!user && !!suspension?.suspendedUserIds.includes(user.sub);
+  const isController = session?.controllerUserId === user?.sub && !isSuspended;
   // Mirrors TAKEOVER_ALLOWED_ROLES/RETURN_CONTROL_ALLOWED_ROLES.
   const isSupervisorEligible =
     user?.role === "OPERATIONAL_SUPERVISOR" ||
@@ -68,7 +75,7 @@ export default function SessionPage() {
         setEquipment(await api.get<EquipmentDto>(`/equipment/${s.equipmentId}`));
       })
       .catch((err) => {
-        setLoadError(err instanceof Error ? err.message : "Could not load this session.");
+        setLoadError(err instanceof Error ? err.message : "Não foi possível carregar esta sessão.");
       });
   }, [sessionId]);
 
@@ -104,6 +111,9 @@ export default function SessionPage() {
       setSession((prev) => (prev ? { ...prev, controllerUserId: payload.controllerUserId } : prev));
     });
     sock.on(RT_EVENTS.SESSION_STATE, (payload: SessionState) => setSession(payload));
+    sock.on(RT_EVENTS.CONTROL_SUSPENDED, (payload: ControlSuspendedEvent) => {
+      if (payload.sessionId === sessionId) setSuspension(payload);
+    });
     sock.on(RT_EVENTS.SESSION_ENDED, () => navigate("/"));
     // Pushed by the nurse's "Ações Rápidas" quick-action buttons (see NursingPage) --
     // reflects this session's patient-preparation status live, with zero refetch, exactly
@@ -166,7 +176,7 @@ export default function SessionPage() {
       await api.post(`/sessions/${sessionId}/end`);
       navigate("/");
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Could not end the session.");
+      setActionError(err instanceof Error ? err.message : "Não foi possível encerrar a sessão.");
     } finally {
       setEnding(false);
     }
@@ -179,7 +189,7 @@ export default function SessionPage() {
     try {
       await api.post(`/sessions/${sessionId}/release-all`);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Could not release input. Try again.");
+      setActionError(err instanceof Error ? err.message : "Não foi possível liberar o controle. Tente novamente.");
     } finally {
       setReleasing(false);
     }
@@ -234,6 +244,11 @@ export default function SessionPage() {
 
       <main className="p-5">
         <h1 className="sr-only">{equipment.name} session</h1>
+        {suspension && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertDescription>{suspension.message}</AlertDescription>
+          </Alert>
+        )}
         {actionError && (
           <Alert variant="destructive" className="mb-3">
             <AlertDescription>{actionError}</AlertDescription>
@@ -241,7 +256,7 @@ export default function SessionPage() {
         )}
         {!isController && (
           <div className="mb-3 rounded-md bg-destructive px-4 py-2.5 font-semibold text-white" role="status">
-            You are not in control of this session. Input is disabled.
+            Você não está com o controle desta sessão. Os comandos estão desativados.
           </div>
         )}
 

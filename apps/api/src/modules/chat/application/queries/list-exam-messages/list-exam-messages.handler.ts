@@ -29,7 +29,7 @@ export class ListExamMessagesHandler implements IQueryHandler<ListExamMessagesQu
     const equipment = await this.equipment.findById(query.equipmentId);
     if (!equipment) throw new NotFoundError("Equipment", query.equipmentId);
     if (!equipment.belongsToTenant(query.tenantId)) {
-      throw new ForbiddenError("Equipment does not belong to your tenant");
+      throw new ForbiddenError("Este equipamento não pertence à sua organização.");
     }
     if (query.actor) {
       await this.operatorAccess.assertCanReachEquipment(query.actor, {

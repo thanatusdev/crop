@@ -79,10 +79,10 @@ export class Session {
   /** Only an active session can change hands, and never to whoever already holds it. */
   assertCanBeTakenOverBy(supervisorId: string): void {
     if (!this.isActive()) {
-      throw new ForbiddenError("Cannot take over a session that is not active");
+      throw new ForbiddenError("Não é possível assumir o controle de uma sessão que não está ativa.");
     }
     if (this.props.controllerUserId === supervisorId) {
-      throw new ForbiddenError("This user is already in control of the session");
+      throw new ForbiddenError("Você já está com o controle desta sessão.");
     }
   }
 
@@ -96,10 +96,10 @@ export class Session {
    */
   assertControlCanBeReturnedToOperator(): void {
     if (!this.isActive()) {
-      throw new ForbiddenError("Cannot change control on a session that is not active");
+      throw new ForbiddenError("Não é possível alterar o controle de uma sessão que não está ativa.");
     }
     if (this.props.controllerUserId === this.props.operatorId) {
-      throw new ForbiddenError("The operator is already in control of this session");
+      throw new ForbiddenError("O operador já está com o controle desta sessão.");
     }
   }
 }

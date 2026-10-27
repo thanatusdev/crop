@@ -29,7 +29,7 @@ export class EndSessionHandler implements ICommandHandler<EndSessionCommand, voi
     const session = await this.sessions.findById(command.sessionId);
     if (!session) throw new NotFoundError("Session", command.sessionId);
     if (!session.isParticipant(command.requestedByUserId)) {
-      throw new ForbiddenError("Only the operator or supervisor of this session may end it");
+      throw new ForbiddenError("Somente o operador ou o supervisor desta sessão pode encerrá-la.");
     }
 
     // Safety first, always: `release()` tears the connection down via `PiKvmDevice.disconnect()`,
