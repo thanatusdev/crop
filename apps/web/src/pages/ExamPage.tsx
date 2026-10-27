@@ -33,7 +33,7 @@ import { Badge } from "../components/ui/badge.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.js";
 import { cn } from "cn";
-import { Download, FileText, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Download, FileText, PanelRightClose, PanelRightOpen, ShieldAlert, ShieldCheck } from "lucide-react";
 import { MODALITY_ABBREVIATION } from "../lib/equipment-display.js";
 import { humanFileSize } from "../lib/file-display.js";
 import {
@@ -75,6 +75,17 @@ import {
  * it) was removed outright, not merely hidden -- see that feature's own removal note on
  * `AuditAction.INTERCOM_PTT`.
  */
+/** Per-viewer UI preference only -- storage can be missing or throw (private mode), in which
+ * case the panel simply starts expanded. */
+const RIGHT_PANEL_PREF_KEY = "exam:rightPanelCollapsed";
+function readRightPanelCollapsed(): boolean {
+  try {
+    return localStorage.getItem(RIGHT_PANEL_PREF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function ExamPage() {
   const { t } = useTranslation(["exam", "nursing"]);
   const { user } = useAuth();
@@ -94,6 +105,19 @@ export default function ExamPage() {
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [ending, setEnding] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(readRightPanelCollapsed);
+
+  function toggleRightPanel() {
+    setRightCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(RIGHT_PANEL_PREF_KEY, next ? "1" : "0");
+      } catch {
+        // Preference just won't survive a reload.
+      }
+      return next;
+    });
+  }
   const [releasing, setReleasing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [printText, setPrintText] = useState("");
@@ -476,7 +500,7 @@ export default function ExamPage() {
         )}
       </header>
 
-      <main className="mx-auto max-w-[1600px] p-5">
+      <main className="mx-auto max-w-[1920px] p-5">
         <h1 className="sr-only">{t("exam:heading", { room: roomHeading })}</h1>
         {suspension && (
           <Alert variant="destructive" className="mb-4">
@@ -538,7 +562,12 @@ export default function ExamPage() {
               </div>
             </Card>
 
-            <div className="grid grid-cols-[380px_minmax(0,1fr)_400px] items-start gap-4 max-[1300px]:grid-cols-1">
+            <div
+              className={cn(
+                "grid items-start gap-4 max-[1300px]:grid-cols-1",
+                rightCollapsed ? "grid-cols-[380px_minmax(0,1fr)_auto]" : "grid-cols-[380px_minmax(0,1fr)_400px]"
+              )}
+            >
               {/* LEFT: room camera (full-width in its column, bigger than the old sidebar
                   card) + the room's own chat, given the rest of the column's height. */}
               <div className="flex h-full flex-col gap-4">
@@ -602,210 +631,239 @@ export default function ExamPage() {
               </div>
 
               {/* RIGHT: the active patient's record, then every action button -- the mock's
-                  own "Ficha do Paciente Ativo" / "Alertas Clínicos" / "Ações" stack. */}
-              <div className="flex flex-col gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-[1.1em]">{t("exam:patientCardHeading")}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {!selectedEntry ? (
-                      <p className="text-sm text-muted-foreground">{t("exam:patientCardEmpty")}</p>
-                    ) : (
-                      <>
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                          <span className="text-[15px] font-semibold">{selectedEntry.patientFirstName}</span>
-                          <Badge className={cn("border-transparent", preparationStatusBadgeClass(selectedEntry.preparationStatus))}>
-                            {t(preparationStatusLabelKeyOf(selectedEntry.preparationStatus))}
-                          </Badge>
-                        </div>
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
-                          {selectedEntry.examDescription && (
-                            <>
-                              <dt className="font-semibold text-muted-foreground">{t("exam:patientExamLabel")}</dt>
-                              <dd className="m-0">{selectedEntry.examDescription}</dd>
-                            </>
+                  own "Ficha do Paciente Ativo" / "Alertas Clínicos" / "Ações" stack. Collapsible
+                  to a thin rail so the console can take the width; "Finalizar Exame" stays in
+                  the header either way. */}
+              {rightCollapsed ? (
+                <div className="flex justify-center rounded-lg border bg-card p-1 max-[1300px]:justify-end">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleRightPanel}
+                    aria-expanded={false}
+                    aria-label={t("exam:expandPanel")}
+                    title={t("exam:expandPanel")}
+                  >
+                    <PanelRightOpen />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={toggleRightPanel}
+                      aria-expanded={true}
+                      aria-label={t("exam:collapsePanel")}
+                      title={t("exam:collapsePanel")}
+                    >
+                      <PanelRightClose />
+                    </Button>
+                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-[1.1em]">{t("exam:patientCardHeading")}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {!selectedEntry ? (
+                        <p className="text-sm text-muted-foreground">{t("exam:patientCardEmpty")}</p>
+                      ) : (
+                        <>
+                          <div className="mb-3 flex items-center justify-between gap-2">
+                            <span className="text-[15px] font-semibold">{selectedEntry.patientFirstName}</span>
+                            <Badge className={cn("border-transparent", preparationStatusBadgeClass(selectedEntry.preparationStatus))}>
+                              {t(preparationStatusLabelKeyOf(selectedEntry.preparationStatus))}
+                            </Badge>
+                          </div>
+                          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
+                            {selectedEntry.examDescription && (
+                              <>
+                                <dt className="font-semibold text-muted-foreground">{t("exam:patientExamLabel")}</dt>
+                                <dd className="m-0">{selectedEntry.examDescription}</dd>
+                              </>
+                            )}
+                            {selectedEntry.patientSex && (
+                              <>
+                                <dt className="font-semibold text-muted-foreground">{t("exam:patientSexLabel")}</dt>
+                                <dd className="m-0">{t(patientSexLabelKeyOf(selectedEntry.patientSex))}</dd>
+                              </>
+                            )}
+                            {selectedEntry.patientWeightKg != null && (
+                              <>
+                                <dt className="font-semibold text-muted-foreground">{t("exam:patientWeightLabel")}</dt>
+                                <dd className="m-0">{selectedEntry.patientWeightKg} kg</dd>
+                              </>
+                            )}
+                            {selectedEntry.contrastRequired && (
+                              <>
+                                <dt className="font-semibold text-muted-foreground">{t("exam:contrastLabel")}</dt>
+                                <dd className="m-0">
+                                  {selectedEntry.contrastVolumeMl != null ? `${selectedEntry.contrastVolumeMl} ml` : t("exam:contrastYes")}
+                                </dd>
+                              </>
+                            )}
+                          </dl>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+  
+                  {selectedEntry &&
+                    (selectedEntry.allergyStatus ||
+                      selectedEntry.fastingConfirmed ||
+                      selectedEntry.creatinineMgDl != null ||
+                      selectedEntry.metforminUse === true ||
+                      selectedEntry.anticoagulantUse === true) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-[1.1em]">{t("exam:alertsCardHeading")}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col gap-2 text-[13px]">
+                          {selectedEntry.allergyStatus && (
+                            <div className="flex items-center gap-1.5">
+                              {selectedEntry.allergyStatus === AllergyStatus.PRESENT ? (
+                                <ShieldAlert className="size-3.5 text-destructive" />
+                              ) : (
+                                <ShieldCheck className="size-3.5 text-[#5fdc8a]" />
+                              )}
+                              <span>
+                                {t(allergyStatusLabelKeyOf(selectedEntry.allergyStatus))}
+                                {selectedEntry.allergyStatus === AllergyStatus.PRESENT && selectedEntry.allergyNotes
+                                  ? ` — ${selectedEntry.allergyNotes}`
+                                  : ""}
+                              </span>
+                            </div>
                           )}
-                          {selectedEntry.patientSex && (
-                            <>
-                              <dt className="font-semibold text-muted-foreground">{t("exam:patientSexLabel")}</dt>
-                              <dd className="m-0">{t(patientSexLabelKeyOf(selectedEntry.patientSex))}</dd>
-                            </>
+                          {selectedEntry.fastingConfirmed && (
+                            <div>
+                              {t("exam:fastingLabel")}: {selectedEntry.fastingHours != null ? `${selectedEntry.fastingHours} h` : t("exam:fastingYes")}
+                            </div>
                           )}
-                          {selectedEntry.patientWeightKg != null && (
-                            <>
-                              <dt className="font-semibold text-muted-foreground">{t("exam:patientWeightLabel")}</dt>
-                              <dd className="m-0">{selectedEntry.patientWeightKg} kg</dd>
-                            </>
+                          {selectedEntry.creatinineMgDl != null && (
+                            <div>
+                              {t("exam:creatinineLabel")}: {selectedEntry.creatinineMgDl} mg/dL
+                            </div>
                           )}
-                          {selectedEntry.contrastRequired && (
-                            <>
-                              <dt className="font-semibold text-muted-foreground">{t("exam:contrastLabel")}</dt>
-                              <dd className="m-0">
-                                {selectedEntry.contrastVolumeMl != null ? `${selectedEntry.contrastVolumeMl} ml` : t("exam:contrastYes")}
-                              </dd>
-                            </>
+                          {/* Shown only when `true` -- same "noteworthy facts only" posture as
+                              fastingConfirmed above; `false`/`null` have nothing an operator
+                              needs flagged. */}
+                          {selectedEntry.metforminUse === true && (
+                            <div className="flex items-center gap-1.5">
+                              <ShieldAlert className="size-3.5 text-destructive" />
+                              <span>{t("exam:metforminUseAlert")}</span>
+                            </div>
                           )}
-                        </dl>
-                      </>
+                          {selectedEntry.anticoagulantUse === true && (
+                            <div className="flex items-center gap-1.5">
+                              <ShieldAlert className="size-3.5 text-destructive" />
+                              <span>{t("exam:anticoagulantUseAlert")}</span>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     )}
-                  </CardContent>
-                </Card>
-
-                {selectedEntry &&
-                  (selectedEntry.allergyStatus ||
-                    selectedEntry.fastingConfirmed ||
-                    selectedEntry.creatinineMgDl != null ||
-                    selectedEntry.metforminUse === true ||
-                    selectedEntry.anticoagulantUse === true) && (
+  
+                  {selectedEntry && selectedEntry.documents.length > 0 && (
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-[1.1em]">{t("exam:alertsCardHeading")}</CardTitle>
+                        <CardTitle className="text-[1.1em]">{t("exam:documentsCardHeading")}</CardTitle>
                       </CardHeader>
-                      <CardContent className="flex flex-col gap-2 text-[13px]">
-                        {selectedEntry.allergyStatus && (
-                          <div className="flex items-center gap-1.5">
-                            {selectedEntry.allergyStatus === AllergyStatus.PRESENT ? (
-                              <ShieldAlert className="size-3.5 text-destructive" />
-                            ) : (
-                              <ShieldCheck className="size-3.5 text-[#5fdc8a]" />
-                            )}
-                            <span>
-                              {t(allergyStatusLabelKeyOf(selectedEntry.allergyStatus))}
-                              {selectedEntry.allergyStatus === AllergyStatus.PRESENT && selectedEntry.allergyNotes
-                                ? ` — ${selectedEntry.allergyNotes}`
-                                : ""}
-                            </span>
-                          </div>
-                        )}
-                        {selectedEntry.fastingConfirmed && (
-                          <div>
-                            {t("exam:fastingLabel")}: {selectedEntry.fastingHours != null ? `${selectedEntry.fastingHours} h` : t("exam:fastingYes")}
-                          </div>
-                        )}
-                        {selectedEntry.creatinineMgDl != null && (
-                          <div>
-                            {t("exam:creatinineLabel")}: {selectedEntry.creatinineMgDl} mg/dL
-                          </div>
-                        )}
-                        {/* Shown only when `true` -- same "noteworthy facts only" posture as
-                            fastingConfirmed above; `false`/`null` have nothing an operator
-                            needs flagged. */}
-                        {selectedEntry.metforminUse === true && (
-                          <div className="flex items-center gap-1.5">
-                            <ShieldAlert className="size-3.5 text-destructive" />
-                            <span>{t("exam:metforminUseAlert")}</span>
-                          </div>
-                        )}
-                        {selectedEntry.anticoagulantUse === true && (
-                          <div className="flex items-center gap-1.5">
-                            <ShieldAlert className="size-3.5 text-destructive" />
-                            <span>{t("exam:anticoagulantUseAlert")}</span>
-                          </div>
-                        )}
+                      <CardContent className="flex flex-col gap-1.5">
+                        {selectedEntry.documents.map((document) => (
+                          <ExamDocumentRow key={document.id} queueEntryId={selectedEntry.id} document={document} />
+                        ))}
                       </CardContent>
                     </Card>
                   )}
-
-                {selectedEntry && selectedEntry.documents.length > 0 && (
+  
+  
+                  {selectedEntry?.preparationNotes && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-[1.1em]">{t("exam:nursingNotesLabel")}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-[13px] whitespace-pre-wrap">{selectedEntry.preparationNotes}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+  
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-[1.1em]">{t("exam:documentsCardHeading")}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-1.5">
-                      {selectedEntry.documents.map((document) => (
-                        <ExamDocumentRow key={document.id} queueEntryId={selectedEntry.id} document={document} />
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
-
-
-                {selectedEntry?.preparationNotes && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-[1.1em]">{t("exam:nursingNotesLabel")}</CardTitle>
+                      <CardTitle className="text-[1.1em]">{t("exam:teleoperationNotesLabel")}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-[13px] whitespace-pre-wrap">{selectedEntry.preparationNotes}</p>
+                      <Textarea
+                        aria-label={t("exam:teleoperationNotesLabel")}
+                        rows={3}
+                        value={notesDraft}
+                        disabled={!selectedEntry || !notesEditable || notesSaving}
+                        onChange={(e) => setNotesDraft(e.target.value)}
+                      />
+                      {selectedEntry && !notesEditable && <p className="mt-1.5 text-sm text-destructive">{t("exam:notesLockedNote")}</p>}
+                      {notesError && (
+                        <Alert variant="destructive" className="mt-2">
+                          <AlertDescription>{notesError}</AlertDescription>
+                        </Alert>
+                      )}
+                      <Button
+                        className="mt-2.5"
+                        onClick={() => void saveTeleoperationNotes()}
+                        disabled={!selectedEntry || !notesEditable || notesSaving || notesDraft === (selectedEntry?.teleoperationNotes ?? "")}
+                      >
+                        {notesSaving ? t("exam:saving") : t("exam:save")}
+                      </Button>
                     </CardContent>
                   </Card>
-                )}
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-[1.1em]">{t("exam:teleoperationNotesLabel")}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Textarea
-                      aria-label={t("exam:teleoperationNotesLabel")}
-                      rows={3}
-                      value={notesDraft}
-                      disabled={!selectedEntry || !notesEditable || notesSaving}
-                      onChange={(e) => setNotesDraft(e.target.value)}
-                    />
-                    {selectedEntry && !notesEditable && <p className="mt-1.5 text-sm text-destructive">{t("exam:notesLockedNote")}</p>}
-                    {notesError && (
-                      <Alert variant="destructive" className="mt-2">
-                        <AlertDescription>{notesError}</AlertDescription>
-                      </Alert>
-                    )}
-                    <Button
-                      className="mt-2.5"
-                      onClick={() => void saveTeleoperationNotes()}
-                      disabled={!selectedEntry || !notesEditable || notesSaving || notesDraft === (selectedEntry?.teleoperationNotes ?? "")}
-                    >
-                      {notesSaving ? t("exam:saving") : t("exam:save")}
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-[1.1em]" id="exam-type-text-heading">
-                      {t("exam:typeTextHeading")}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={submitPrintText}>
-                      <div className="mb-3.5 flex flex-col gap-1.5">
-                        <Label htmlFor="exam-print-text" className="sr-only">
-                          {t("exam:typeTextInputLabel")}
-                        </Label>
-                        <Input
-                          id="exam-print-text"
-                          aria-describedby="exam-type-text-heading"
-                          value={printText}
-                          onChange={(e) => setPrintText(e.target.value)}
-                          disabled={!isController}
-                          placeholder={t("exam:typeTextPlaceholder")}
-                        />
-                      </div>
-                      <Button type="submit" disabled={!isController || !printText}>
-                        {t("exam:typeTextSend")}
+  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-[1.1em]" id="exam-type-text-heading">
+                        {t("exam:typeTextHeading")}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={submitPrintText}>
+                        <div className="mb-3.5 flex flex-col gap-1.5">
+                          <Label htmlFor="exam-print-text" className="sr-only">
+                            {t("exam:typeTextInputLabel")}
+                          </Label>
+                          <Input
+                            id="exam-print-text"
+                            aria-describedby="exam-type-text-heading"
+                            value={printText}
+                            onChange={(e) => setPrintText(e.target.value)}
+                            disabled={!isController}
+                            placeholder={t("exam:typeTextPlaceholder")}
+                          />
+                        </div>
+                        <Button type="submit" disabled={!isController || !printText}>
+                          {t("exam:typeTextSend")}
+                        </Button>
+                        {printSent && (
+                          <p role="status" className="mt-2 text-[13px] text-[#166534]">
+                            {t("exam:typeTextSent")}
+                          </p>
+                        )}
+                      </form>
+                    </CardContent>
+                  </Card>
+  
+                  <Card>
+                    <CardContent className="flex flex-col gap-2.5">
+                      <Button variant="secondary" onClick={emergencyReleaseAll} disabled={releasing} className="w-full">
+                        {releasing ? t("exam:releasing") : t("exam:emergencyRelease")}
                       </Button>
-                      {printSent && (
-                        <p role="status" className="mt-2 text-[13px] text-[#166534]">
-                          {t("exam:typeTextSent")}
-                        </p>
+                      {isParticipant && (
+                        <Button onClick={endSession} disabled={ending} className="w-full">
+                          {ending ? t("exam:ending") : t("exam:endExamAndReleaseRoom")}
+                        </Button>
                       )}
-                    </form>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="flex flex-col gap-2.5">
-                    <Button variant="secondary" onClick={emergencyReleaseAll} disabled={releasing} className="w-full">
-                      {releasing ? t("exam:releasing") : t("exam:emergencyRelease")}
-                    </Button>
-                    {isParticipant && (
-                      <Button onClick={endSession} disabled={ending} className="w-full">
-                        {ending ? t("exam:ending") : t("exam:endExamAndReleaseRoom")}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </div>
           </>
         )}

@@ -1488,6 +1488,8 @@ const ptBR = {
     viewReplay: "Ver replay",
     endExam: "Finalizar Exame",
     ending: "Finalizando...",
+    collapsePanel: "Recolher painel",
+    expandPanel: "Expandir painel",
     endError: "Não foi possível finalizar o exame.",
     // The right column's own bottom action button -- deliberately worded differently from
     // the header's "Finalizar Exame" (see the mock's own "Finalizar Exame & Liberar Sala")
