@@ -29,6 +29,11 @@ export class PiKvmRestClient {
     await this.post(`/api/hid/print?keymap=${encodeURIComponent(keymap)}`, text);
   }
 
+  /** Switches the emulated USB mouse between absolute (`usb`) and relative (`usb_rel`). */
+  async setMouseOutput(output: "usb" | "usb_rel"): Promise<void> {
+    await this.post(`/api/hid/set_params?mouse_output=${output}`);
+  }
+
   /**
    * Confirmed against real hardware (a PiKVM Mini, kvmd 4.61): `/api/info` has no `hid` key
    * at all, filtered or not -- `?fields=hid` is itself rejected with a `ValidatorError`. HID

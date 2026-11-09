@@ -36,6 +36,10 @@ export class PiKvmDevice {
     return this.rest.getInfo();
   }
 
+  async setMouseOutput(output: "usb" | "usb_rel"): Promise<void> {
+    await this.rest.setMouseOutput(output);
+  }
+
   async captureSnapshot(): Promise<Buffer> {
     return this.rest.getSnapshotJpeg();
   }

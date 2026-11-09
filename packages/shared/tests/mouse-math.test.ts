@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { remap, toAbsoluteHidCoordinates, clampRelativeDelta, toScrollStep } from "../src/hid/mouse-math.js";
+import { remap, toAbsoluteHidCoordinates, clampAbsoluteHid, clampRelativeDelta, toScrollStep } from "../src/hid/mouse-math.js";
 
 describe("remap", () => {
   it("maps the centre of the input range to the centre of the output range", () => {
@@ -30,6 +30,19 @@ describe("toAbsoluteHidCoordinates", () => {
     // proving the offset subtraction actually ran instead of being skipped.
     const clickInPadding = toAbsoluteHidCoordinates({ x: 50, y: 0 }, geo);
     expect(clickInPadding.x).toBeLessThan(-32768);
+  });
+});
+
+describe("clampAbsoluteHid", () => {
+  it("clamps a pointer on the canvas's last fractional pixel back into range", () => {
+    const geo = { x: 0, y: 0, width: 1920.5, height: 1080.5 };
+    const raw = toAbsoluteHidCoordinates({ x: 1920.4, y: 1080.4 }, geo);
+    expect(raw.x).toBeGreaterThan(32767);
+    expect(clampAbsoluteHid(raw)).toEqual({ x: 32767, y: 32767 });
+  });
+
+  it("leaves in-range points untouched", () => {
+    expect(clampAbsoluteHid({ x: -100, y: 200 })).toEqual({ x: -100, y: 200 });
   });
 });
 

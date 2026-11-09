@@ -1,4 +1,5 @@
 import type { PiKvmMediaRelay } from "@crop/pikvm";
+import type { HidStatusEvent, MouseMode } from "@crop/shared";
 
 export const PIKVM_GATEWAY = Symbol("PIKVM_GATEWAY");
 
@@ -16,8 +17,9 @@ export interface EquipmentConnectionSecrets {
  * application layer cares about, so no handler imports `@crop/pikvm` directly.
  */
 export interface PiKvmGatewayPort {
-  /** Idempotent: opens the device connection on first use, reuses it on subsequent calls. */
-  acquire(equipmentId: string, secrets: EquipmentConnectionSecrets): Promise<void>;
+  /** Idempotent: opens the device connection on first use, reuses it on subsequent calls.
+   * `mouseMode` is applied to the device's emulated mouse once it reports its HID state. */
+  acquire(equipmentId: string, secrets: EquipmentConnectionSecrets, mouseMode: MouseMode): Promise<void>;
   /** Called when a session ends; disconnects the device once nothing references it anymore. */
   release(equipmentId: string): Promise<void>;
 
@@ -37,4 +39,9 @@ export interface PiKvmGatewayPort {
 
   /** A single JPEG snapshot of the current console frame, for session-replay evidence. */
   captureSnapshot(equipmentId: string): Promise<Buffer | null>;
+
+  /** Latest HID state for an acquired device; `connected: false` when none is acquired. */
+  getHidStatus(equipmentId: string): HidStatusEvent;
+  /** Called on every HID state change of any acquired device. One listener (the gateway). */
+  onHidStatus(listener: (status: HidStatusEvent) => void): void;
 }

@@ -38,6 +38,9 @@ export const RT_EVENTS = {
   // the exam in progress -- stays up for the clinic's own staff to take over. See
   // `ControlSuspendedEventSchema`.
   CONTROL_SUSPENDED: "session:control_suspended",
+  // To `session:<id>` whenever the equipment's PiKVM HID state changes, and to a socket when
+  // it joins. See `HidStatusEventSchema`.
+  HID_STATUS: "hid:status",
   ERROR: "error",
 } as const;
 

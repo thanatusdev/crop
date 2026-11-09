@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { describeError, PiKvmDevice, PiKvmMediaRelay, type MouseButton, type PiKvmCredentials } from "@crop/pikvm";
+import { MouseMode, type HidStatusEvent } from "@crop/shared";
 import { MetricsService } from "../../../shared/infrastructure/metrics/metrics.service.js";
 import type {
   EquipmentConnectionSecrets,
@@ -11,6 +12,11 @@ interface RegistryEntry {
   credentials: PiKvmCredentials;
   /** Number of active sessions currently using this equipment. Disconnects at zero. */
   refCount: number;
+  hidStatus: HidStatusEvent;
+}
+
+function offlineStatus(equipmentId: string): HidStatusEvent {
+  return { equipmentId, connected: false, keyboardOnline: false, mouseOnline: false, mouseAbsolute: false };
 }
 
 /**
@@ -25,10 +31,11 @@ interface RegistryEntry {
 export class PiKvmConnectionRegistry implements PiKvmGatewayPort {
   private readonly logger = new Logger(PiKvmConnectionRegistry.name);
   private readonly entries = new Map<string, RegistryEntry>();
+  private hidStatusListener: ((status: HidStatusEvent) => void) | null = null;
 
   constructor(private readonly metrics: MetricsService) {}
 
-  async acquire(equipmentId: string, secrets: EquipmentConnectionSecrets): Promise<void> {
+  async acquire(equipmentId: string, secrets: EquipmentConnectionSecrets, mouseMode: MouseMode): Promise<void> {
     const existing = this.entries.get(equipmentId);
     if (existing) {
       existing.refCount += 1;
@@ -50,8 +57,40 @@ export class PiKvmConnectionRegistry implements PiKvmGatewayPort {
       this.logger.warn(`HID connection issue for equipment ${equipmentId}: ${describeError(err)}`);
       this.metrics.pikvmConnectionErrorsTotal.inc({ equipment_id: equipmentId });
     });
+    const entry: RegistryEntry = { device, credentials, refCount: 1, hidStatus: offlineStatus(equipmentId) };
+    device.hid.on("open", () => this.setHidStatus(entry, { ...entry.hidStatus, connected: true }));
+    // This app only ever sends absolute moves, which a PiKVM left in relative mode (`usb_rel`,
+    // e.g. by someone using its own web UI) silently ignores -- so apply the equipment's
+    // configured mode instead of trusting the device's. Once per HID connection.
+    let mouseOutputApplied = false;
+    device.hid.on("close", () => {
+      mouseOutputApplied = false;
+      this.setHidStatus(entry, offlineStatus(equipmentId));
+    });
+    device.hid.on("state", (state) => {
+      this.setHidStatus(entry, {
+        equipmentId,
+        connected: true,
+        keyboardOnline: state.online && state.keyboard.online,
+        mouseOnline: state.online && state.mouse.online,
+        mouseAbsolute: state.mouse.absolute,
+      });
+      const outputs = state.mouse.outputs;
+      if (
+        !mouseOutputApplied &&
+        mouseMode === MouseMode.ABSOLUTE &&
+        !state.mouse.absolute &&
+        outputs?.available.includes("usb")
+      ) {
+        mouseOutputApplied = true;
+        this.logger.log(`Switching equipment ${equipmentId}'s PiKVM mouse from ${outputs.active} to absolute (usb)`);
+        device.setMouseOutput("usb").catch((err: Error) => {
+          this.logger.warn(`Could not switch equipment ${equipmentId}'s PiKVM mouse to absolute: ${describeError(err)}`);
+        });
+      }
+    });
     device.connect();
-    this.entries.set(equipmentId, { device, credentials, refCount: 1 });
+    this.entries.set(equipmentId, entry);
     this.logger.log(`Acquired PiKVM connection for equipment ${equipmentId}`);
   }
 
@@ -100,6 +139,35 @@ export class PiKvmConnectionRegistry implements PiKvmGatewayPort {
       this.metrics.pikvmConnectionErrorsTotal.inc({ equipment_id: equipmentId });
     });
     return relay;
+  }
+
+  getHidStatus(equipmentId: string): HidStatusEvent {
+    return this.entries.get(equipmentId)?.hidStatus ?? offlineStatus(equipmentId);
+  }
+
+  onHidStatus(listener: (status: HidStatusEvent) => void): void {
+    this.hidStatusListener = listener;
+  }
+
+  private setHidStatus(entry: RegistryEntry, next: HidStatusEvent): void {
+    const prev = entry.hidStatus;
+    entry.hidStatus = next;
+    if (
+      prev.connected === next.connected &&
+      prev.keyboardOnline === next.keyboardOnline &&
+      prev.mouseOnline === next.mouseOnline &&
+      prev.mouseAbsolute === next.mouseAbsolute
+    ) {
+      return;
+    }
+    // Logged on change only: this is the one place a dead USB gadget or a relative-mode mouse
+    // shows up server-side -- PiKVM accepts the input either way and nothing else errors.
+    this.logger.log(
+      `HID status for equipment ${next.equipmentId}: connected=${next.connected} keyboard=${next.keyboardOnline} mouse=${next.mouseOnline} absolute=${next.mouseAbsolute}`
+    );
+    // Only broadcast while the entry is still registered -- a released device's final "close"
+    // must not tell a newer session on the same equipment that its input is offline.
+    if (this.entries.get(next.equipmentId) === entry) this.hidStatusListener?.(next);
   }
 
   async captureSnapshot(equipmentId: string): Promise<Buffer | null> {

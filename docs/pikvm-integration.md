@@ -82,9 +82,10 @@ codebase. Mitigations, all present:
   pressing them -- useful on an unstable link, wrong for anything meant to be *held* (a
   continuously-scrolled arrow key, a drag). Left `false` in normal operation; `releaseAll()`
   is the actual safety net, not `finish`.
-- `apps/web`'s `useHidInput` mirrors `pikvm/pikvm#1653`: a mouse button released outside the
-  browser window never fires `mouseup`. Releasing everything on `mouseleave` if the tracked
-  button state doesn't match avoids a stuck button for the rest of the session.
+- `apps/web`'s `useHidInput` covers `pikvm/pikvm#1653` (a mouse button released off the
+  console never fires `mouseup` there): while a button is held, `mousemove`/`mouseup` are
+  tracked on `window`, so the release is seen wherever it happens, and a window `blur`
+  (released outside the browser entirely, or a tab switch) releases every held button.
 
 ### Coordinates are computed client-side, not server-side
 
@@ -96,9 +97,13 @@ changes on every window resize, and PiKVM's own web UI does the same conversion 
 for the same reason. The backend only checks *who* is allowed to send the event; it never
 recomputes the coordinates.
 
-`useHidInput` also flushes any pending mouse-move before every button event
-(`flushPendingMove()` inside `onMouseDown`) -- PiKVM's own client does this because a click
-must land where the cursor actually is, not wherever it was at the last 16ms tick.
+Unlike PiKVM's own client, `useHidInput` does not stream hover moves: the mouse is
+click-driven. Each `mousedown` first sends a `mouse_move` to the clicked point, then the
+button press, so the click lands exactly where it was clicked. While a button is held, moves
+are streamed (one per 16ms at most, flushed before the release) so click-and-drag works. Hover-driving was dropped
+because, with a PiKVM plugged back into the operator's own computer, every hover move dragged
+the operator's own cursor away. Absolute moves need the PiKVM in absolute mouse mode, which
+`PiKvmConnectionRegistry` applies from the equipment's `mouseMode` when a session starts.
 
 ### Keyboard edge cases
 
