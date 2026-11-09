@@ -1,5 +1,6 @@
 import { Controller, Get, Header } from "@nestjs/common";
 import { MetricsService } from "./metrics.service.js";
+import { Public } from "../http/public.decorator.js";
 
 /**
  * Deliberately unauthenticated, matching near-universal Prometheus convention: the scrape
@@ -8,6 +9,7 @@ import { MetricsService } from "./metrics.service.js";
  * standard way to carry a JWT that would fit this platform's auth model. Production
  * deployments must not expose this endpoint publicly -- see docs/architecture.md.
  */
+@Public()
 @Controller("metrics")
 export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}
