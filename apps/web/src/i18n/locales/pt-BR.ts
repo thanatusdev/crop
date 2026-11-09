@@ -1580,6 +1580,21 @@ const ptBR = {
     statsUsersLabel: "Usuários",
     statsAgreementsLabel: "Contratos Ativos",
     statsAgreementsNote: "{{count}} pendentes",
+    // PlatformDashboard.tsx -- the PLATFORM_ADMIN's own landing page, platform-wide totals
+    // from `GET /platform/stats`. Reuses statsEquipmentNote/statsAgreements* above for the
+    // cards that read the same either way.
+    platformHeading: "Visão Geral da Plataforma",
+    platformSubheading: "Números gerais de todas as clínicas e operadoras da plataforma.",
+    platformLoadError: "Não foi possível carregar os números da plataforma.",
+    platformUsersLabel: "Usuários",
+    platformUsersNote: "{{count}} ativos nos últimos 30 dias",
+    platformClinicsLabel: "Clínicas",
+    platformOperatorsLabel: "Operadoras",
+    platformDeactivatedNote: "{{count}} desativadas",
+    platformEquipmentLabel: "Equipamentos",
+    platformSessionsLabel: "Sessões Ativas",
+    platformSessionsNote: "Em andamento agora",
+    platformViewAll: "Ver todas",
   },
 
   // AuditPage.tsx -- the append-only hash-chain log, reachable from ConsoleShell's own
