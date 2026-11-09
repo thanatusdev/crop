@@ -138,13 +138,13 @@ export class UsersController {
   @Post(":id/lock")
   @HttpCode(HttpStatus.NO_CONTENT)
   async lock(@CurrentUser() admin: AccessTokenClaims, @Param("id") id: string): Promise<void> {
-    await this.commandBus.execute(new LockUserCommand(id, admin.sub, admin.tenantId));
+    await this.commandBus.execute(new LockUserCommand(id, admin.sub, admin.tenantId, admin.role));
   }
 
   @Post(":id/unlock")
   @HttpCode(HttpStatus.NO_CONTENT)
   async unlock(@CurrentUser() admin: AccessTokenClaims, @Param("id") id: string): Promise<void> {
-    await this.commandBus.execute(new UnlockUserCommand(id, admin.sub, admin.tenantId));
+    await this.commandBus.execute(new UnlockUserCommand(id, admin.sub, admin.tenantId, admin.role));
   }
 
   @Post(":id/reset-password")
@@ -154,7 +154,7 @@ export class UsersController {
     @Param("id") id: string,
     @Body(new ZodValidationPipe(AdminResetPasswordRequestSchema)) body: AdminResetPasswordRequest
   ): Promise<void> {
-    await this.commandBus.execute(new AdminResetPasswordCommand(id, body.newPassword, admin.sub, admin.tenantId));
+    await this.commandBus.execute(new AdminResetPasswordCommand(id, body.newPassword, admin.sub, admin.tenantId, admin.role));
   }
 
   // Re-sends the "Enviar Convite Seguro" link -- for a lost/expired email, or one an admin
