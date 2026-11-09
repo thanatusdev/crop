@@ -1,6 +1,6 @@
 // Flat config for the whole monorepo, run from the root (`pnpm lint`). Deliberately the
 // recommended presets plus the few rules this codebase's own patterns need tuned -- not a
-// style guide; formatting is not enforced yet.
+// style guide; formatting is Prettier's job (`pnpm format:check`).
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
