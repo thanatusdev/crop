@@ -9,6 +9,8 @@ export interface CreateSessionData {
 }
 
 export interface SessionRepositoryPort {
+  /** With a `queueEntryId`, also moves that entry to IN_PROGRESS in the same transaction --
+   * a session is never linked to a patient the queue still shows as waiting. */
   create(data: CreateSessionData): Promise<Session>;
   findById(id: string): Promise<Session | null>;
   /** The equipment's current active/pending session, if any -- see StartSessionHandler,
@@ -51,5 +53,10 @@ export interface SessionRepositoryPort {
     supervisorId: string | null,
     expectedCurrentControllerUserId: string
   ): Promise<boolean>;
+  /** Sets the patient on an active session that has none yet, and moves that entry from
+   * WAITING to IN_PROGRESS, in one transaction. Returns false when the session is no longer
+   * active or already has a patient (a concurrent assignment won); throws ConflictError,
+   * writing nothing, when the entry is no longer WAITING. */
+  assignQueueEntry(sessionId: string, queueEntryId: string): Promise<boolean>;
   end(sessionId: string, status: "ENDED" | "ABORTED"): Promise<void>;
 }

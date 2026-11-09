@@ -7,6 +7,12 @@ export const StartSessionRequestSchema = z.object({
 });
 export type StartSessionRequest = z.infer<typeof StartSessionRequestSchema>;
 
+/** Attaches a waiting patient to a session that was started without one. */
+export const AssignSessionPatientRequestSchema = z.object({
+  queueEntryId: z.string().uuid(),
+});
+export type AssignSessionPatientRequest = z.infer<typeof AssignSessionPatientRequestSchema>;
+
 export const SessionStateSchema = z.object({
   id: z.string().uuid(),
   equipmentId: z.string().uuid(),

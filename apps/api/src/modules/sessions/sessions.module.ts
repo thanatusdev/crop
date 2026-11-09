@@ -30,6 +30,7 @@ import { PrintTextHandler } from "./application/commands/print-text/print-text.h
 import { CaptureSessionSnapshotHandler } from "./application/commands/capture-session-snapshot/capture-session-snapshot.handler.js";
 import { AbortIdleSessionHandler } from "./application/commands/abort-idle-session/abort-idle-session.handler.js";
 import { ReleaseAllInputHandler } from "./application/commands/release-all-input/release-all-input.handler.js";
+import { AssignSessionPatientHandler } from "./application/commands/assign-session-patient/assign-session-patient.handler.js";
 import { GetActiveSessionsHandler } from "./application/queries/get-active-sessions/get-active-sessions.handler.js";
 import { GetSessionHandler } from "./application/queries/get-session/get-session.handler.js";
 import { GetSessionByQueueEntryHandler } from "./application/queries/get-session-by-queue-entry/get-session-by-queue-entry.handler.js";
@@ -58,6 +59,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
   CaptureSessionSnapshotHandler,
   AbortIdleSessionHandler,
   ReleaseAllInputHandler,
+  AssignSessionPatientHandler,
   GetActiveSessionsHandler,
   GetSessionHandler,
   GetSessionByQueueEntryHandler,

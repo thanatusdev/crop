@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { SessionStatus } from "@crop/shared";
+import { QueueStatus, SessionStatus } from "@crop/shared";
 import { PrismaService } from "../../../shared/infrastructure/prisma/prisma.service.js";
 import { ConflictError } from "../../../shared/domain/errors.js";
 import { Session } from "../domain/session.entity.js";
@@ -14,16 +14,22 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
 
   async create(data: CreateSessionData): Promise<Session> {
     try {
-      const row = await this.prisma.session.create({
-        data: {
-          equipmentId: data.equipmentId,
-          operatorId: data.operatorId,
-          controllerUserId: data.operatorId,
-          queueEntryId: data.queueEntryId,
-          status: SessionStatus.ACTIVE,
-          startedAt: new Date(),
-        },
-        include: WITH_TENANT,
+      const row = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.session.create({
+          data: {
+            equipmentId: data.equipmentId,
+            operatorId: data.operatorId,
+            controllerUserId: data.operatorId,
+            queueEntryId: data.queueEntryId,
+            status: SessionStatus.ACTIVE,
+            startedAt: new Date(),
+          },
+          include: WITH_TENANT,
+        });
+        if (data.queueEntryId) {
+          await tx.queueEntry.update({ where: { id: data.queueEntryId }, data: { status: QueueStatus.IN_PROGRESS } });
+        }
+        return created;
       });
       return this.toDomain(row);
     } catch (err) {
@@ -113,6 +119,33 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
       data: { controllerUserId, supervisorId },
     });
     return result.count === 1;
+  }
+
+  async assignQueueEntry(sessionId: string, queueEntryId: string): Promise<boolean> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Conditional update, not read-then-write: two participants clicking at once must not
+        // both "win" and overwrite each other's patient.
+        const { count } = await tx.session.updateMany({
+          where: { id: sessionId, queueEntryId: null, status: SessionStatus.ACTIVE },
+          data: { queueEntryId },
+        });
+        if (count !== 1) return false;
+        // Same transaction, and conditional too: if the nurse cancelled the patient a moment
+        // ago, the session must not end up linked to them either.
+        const moved = await tx.queueEntry.updateMany({
+          where: { id: queueEntryId, status: QueueStatus.WAITING },
+          data: { status: QueueStatus.IN_PROGRESS },
+        });
+        if (moved.count !== 1) throw new ConflictError("Este paciente não está mais aguardando na fila.");
+        return true;
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictError("Este paciente da fila já foi usado em uma sessão.");
+      }
+      throw err;
+    }
   }
 
   async end(sessionId: string, status: "ENDED" | "ABORTED"): Promise<void> {

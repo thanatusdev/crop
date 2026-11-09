@@ -116,6 +116,8 @@ export default function DashboardPage() {
   // nav-permissions.ts). No nav-permissions flag already matches this read permission because
   // nothing else in the sidebar needed it before now.
   const canViewPatientsToday = user?.role !== UserRole.LOCAL_IT;
+  // Supervisors only join sessions an operator already started -- they never start one.
+  const isSupervisor = user?.role === UserRole.OPERATIONAL_SUPERVISOR || user?.role === UserRole.LOCAL_SUPERVISOR;
   const [todayQueueByEquipmentId, setTodayQueueByEquipmentId] = useState<Map<string, QueueEntryDto[]>>(new Map());
   const [statsUsers, setStatsUsers] = useState<UserDto[] | undefined>(undefined);
   const [statsAgreements, setStatsAgreements] = useState<OperatorAgreementDto[] | undefined>(undefined);
@@ -450,8 +452,10 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4">
           {equipment.map((item) => {
             const activeSession = activeSessionFor(item.id);
-            const nextPatient = item.queue.find((q) => q.status === "WAITING");
             const status = displayStatusOf(item);
+            // Per-row "Iniciar Exame": lets the starter pick any waiting patient, not just the
+            // next in line the header button uses.
+            const canStartFromQueue = !isSupervisor && !activeSession && item.status === "ONLINE";
             return (
               <Card key={item.id}>
                 <CardContent>
@@ -463,13 +467,21 @@ export default function DashboardPage() {
                         {item.targetOs} · {t("dashboard:keymapWord")} {item.keymap} · {item.screenWidth}x{item.screenHeight}
                       </div>
                     </div>
-                    {activeSession ? (
+                    {isSupervisor ? (
+                      <Button
+                        disabled={!activeSession}
+                        title={activeSession ? undefined : t("dashboard:noActiveSessionTitle")}
+                        onClick={() => activeSession && navigate(`/exame?equipmentId=${activeSession.equipmentId}`)}
+                      >
+                        {t("dashboard:superviseSession")}
+                      </Button>
+                    ) : activeSession ? (
                       <Button onClick={() => navigate(`/exame?equipmentId=${activeSession.equipmentId}`)}>{t("dashboard:rejoinSession")}</Button>
                     ) : (
                       <Button
                         disabled={item.status !== "ONLINE" || startingId === item.id}
                         title={item.status !== "ONLINE" ? t("dashboard:equipmentOfflineTitle", { status: t(statusLabelKeyOf(status)) }) : undefined}
-                        onClick={() => startSession(item.id, nextPatient?.id)}
+                        onClick={() => startSession(item.id)}
                       >
                         {startingId === item.id && <Loader2 className="animate-spin" />}
                         {startingId === item.id ? t("dashboard:starting") : t("dashboard:startSession")}
@@ -505,7 +517,16 @@ export default function DashboardPage() {
                                 {t(queueStatusLabelKeyOf(q.status))}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="space-x-3">
+                              {q.status === "WAITING" && canStartFromQueue && (
+                                <button
+                                  className="text-primary underline disabled:pointer-events-none disabled:opacity-50"
+                                  disabled={startingId === item.id}
+                                  onClick={() => startSession(item.id, q.id)}
+                                >
+                                  {t("dashboard:startExamForPatient")}
+                                </button>
+                              )}
                               {q.status === "WAITING" && (
                                 <button
                                   className="text-primary underline disabled:pointer-events-none disabled:opacity-50"
