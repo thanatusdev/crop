@@ -2,6 +2,7 @@ import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction, UserRole } from "@crop/shared";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
+import { assertCanManageUser } from "../../assert-can-manage-user.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
 import { LockUserCommand } from "./lock-user.command.js";
@@ -35,6 +36,8 @@ export class LockUserHandler implements ICommandHandler<LockUserCommand, void> {
     if (!target.belongsToTenant(command.actingAdminTenantId)) {
       throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
+
+    assertCanManageUser(command.actingRole, target.role);
 
     if (target.id === command.actingAdminId) {
       throw new ForbiddenError("Você não pode bloquear a sua própria conta.");
