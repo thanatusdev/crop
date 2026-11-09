@@ -579,7 +579,7 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
           .send(equipmentPayload({ name: "ScopeOpts-Direct", unitId: unitDirect }))
           .expect(201)
       ).body.id;
-      const eViaUnit = (
+      const _eViaUnit = (
         await http
           .post("/equipment")
           .set("Authorization", `Bearer ${clinic2Admin.accessToken}`)

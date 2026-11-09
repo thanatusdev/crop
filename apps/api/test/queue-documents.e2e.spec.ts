@@ -44,7 +44,6 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
   let http: ReturnType<typeof request>;
   let prisma: ReturnType<typeof testPrisma>;
 
-  let clinicId: string;
   let adminToken: string;
   let nurseToken: string;
   let contractedOperatorToken: string;
@@ -58,7 +57,6 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
     prisma = testPrisma();
 
     const tenant = await createTenant(prisma, `QueueDocs-${crypto.randomUUID()}`);
-    clinicId = tenant.id;
     const otherTenant = await createTenant(prisma, `QueueDocsOther-${crypto.randomUUID()}`);
     const uncontractedCompany = await createTenant(prisma, `QueueDocsUncontracted-${crypto.randomUUID()}`, "OPERATOR_PROVIDER");
 

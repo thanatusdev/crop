@@ -12,6 +12,8 @@ import {
   ValidationError,
 } from "../../domain/errors.js";
 
+// Keyed by error class, looked up via `exception.constructor` (typed `Function`).
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 const STATUS_BY_ERROR = new WeakMap<Function, HttpStatus>([
   [NotFoundError, HttpStatus.NOT_FOUND],
   [ConflictError, HttpStatus.CONFLICT],

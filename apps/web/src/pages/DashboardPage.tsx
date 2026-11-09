@@ -13,7 +13,7 @@ import {
   type UnitDto,
   type UserDto,
 } from "@crop/shared";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "cn";
 import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";

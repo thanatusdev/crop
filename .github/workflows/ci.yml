@@ -63,6 +63,12 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # One flat config at the root (eslint.config.mjs) for every package. Errors fail the
+      # build; react-hooks/exhaustive-deps is a warning, since most of today's hits are
+      # deliberate one-shot effects.
+      - name: Lint
+        run: pnpm lint
+
       - name: Build
         run: pnpm build
 
