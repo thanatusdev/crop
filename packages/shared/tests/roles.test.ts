@@ -68,16 +68,16 @@ describe("canGrantRole", () => {
   });
 
   /**
-   * `CLINIC_ADMIN` is the *only* role permitted to grant its own kind, so a clinic can
-   * appoint a second manager without calling the platform operator. Any other self-grant is
-   * an accident: this pins the exception to exactly one role rather than just allowing
-   * self-grants generally.
+   * `CLINIC_ADMIN` grants its own kind so a clinic can appoint a second manager without
+   * calling the platform operator, and `PLATFORM_ADMIN` so the platform is not stuck with
+   * the one account bootstrap-superadmin.ts created. Any other self-grant is an accident:
+   * this pins the exception to exactly those two rather than allowing self-grants generally.
    */
-  it("permits exactly one self-granting role (CLINIC_ADMIN) and no others", () => {
+  it("permits exactly two self-granting roles (PLATFORM_ADMIN, CLINIC_ADMIN) and no others", () => {
     const selfGranting = Object.entries(ROLE_GRANTS)
       .filter(([actor, targets]) => targets.includes(actor as UserRole))
       .map(([actor]) => actor);
-    expect(selfGranting).toEqual([UserRole.CLINIC_ADMIN]);
+    expect(selfGranting).toEqual([UserRole.PLATFORM_ADMIN, UserRole.CLINIC_ADMIN]);
   });
 });
 

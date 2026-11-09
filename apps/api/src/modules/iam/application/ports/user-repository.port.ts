@@ -52,6 +52,13 @@ export interface UserRepositoryPort {
   activateMfa(userId: string): Promise<void>;
   recordLogin(userId: string): Promise<void>;
   lock(userId: string): Promise<void>;
+  /**
+   * Locks `userId` only if at least one *other* user of `role` in `tenantId` stays able to
+   * sign in (activated and not locked); returns false, writing nothing, when it would not.
+   * Serializable, so two admins locking each other at the same moment cannot both pass the
+   * check -- the loser gets a ConflictError instead of leaving the tenant with nobody.
+   */
+  lockUnlessLastActive(userId: string, tenantId: string, role: User["role"]): Promise<boolean>;
   unlock(userId: string): Promise<void>;
   /**
    * The one write path for changing a password, used by every setting flow (self-service

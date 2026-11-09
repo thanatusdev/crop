@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ROLE_GRANTS, UserRole, requiresClinicAssignment, type MyClinic, type TenantDto, type UserDto } from "@crop/shared";
+import { ASSIGNABLE_ROLES, ROLE_GRANTS, UserRole, requiresClinicAssignment, type MyClinic, type TenantDto, type UserDto } from "@crop/shared";
 import { Loader2 } from "lucide-react";
 import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
@@ -50,7 +50,12 @@ export default function UserFormPage() {
   const mode: Mode = !id ? "create" : routeMode === "edit" ? "edit" : "view";
   const readOnly = mode === "view";
   const isSuperadmin = actingUser?.role === "PLATFORM_ADMIN";
-  const grantableRoles = useMemo(() => (actingUser ? ROLE_GRANTS[actingUser.role] : []), [actingUser]);
+  // Only what `POST /users` accepts: a PLATFORM_ADMIN may also grant its own role, but that
+  // goes through the Platform Admins screen (`POST /platform/admins`), never this form.
+  const grantableRoles = useMemo(
+    () => (actingUser ? ROLE_GRANTS[actingUser.role].filter((r) => ASSIGNABLE_ROLES.includes(r)) : []),
+    [actingUser]
+  );
 
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");

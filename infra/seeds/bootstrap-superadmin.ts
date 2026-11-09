@@ -1,9 +1,12 @@
 /**
- * Creates the one "Platform Operations" tenant (TenantType.PLATFORM) and one PLATFORM_ADMIN
- * account, the only way either has ever existed in this codebase -- there is deliberately no
- * HTTP endpoint for this (a "create a god-mode account" route is a security surface this
- * platform shouldn't have at all, let alone unauthenticated or self-service). Run this once,
- * locally or against a deployed instance (see DEPLOY.md for the `railway ssh` equivalent).
+ * Creates the one "Platform Operations" tenant (TenantType.PLATFORM) and its *first*
+ * PLATFORM_ADMIN account. There is deliberately no unauthenticated or self-service way to do
+ * this; every later platform admin is invited by an existing one from the panel
+ * (`POST /platform/admins`). Run this once, locally or against a deployed instance (see
+ * DEPLOY.md for the `railway ssh` equivalent).
+ *
+ * The demo password default is for local use only: with NODE_ENV=production this refuses to
+ * run unless SUPERADMIN_PASSWORD is set to something else.
  *
  * Idempotent: if a PLATFORM-type tenant already exists, this prints its id and exits without
  * creating a second one or a second superadmin -- safe to re-run, e.g. after a redeploy, by
@@ -22,6 +25,8 @@ import { RegisterUserCommand } from "../../apps/api/dist/modules/iam/application
 import { ConfirmMfaEnrollmentCommand } from "../../apps/api/dist/modules/iam/application/commands/enroll-mfa/confirm-mfa-enrollment.command.js";
 import { CreateTenantCommand } from "../../apps/api/dist/modules/tenants/application/commands/create-tenant/create-tenant.command.js";
 import { ListTenantsQuery } from "../../apps/api/dist/modules/tenants/application/queries/list-tenants/list-tenants.query.js";
+
+const DEMO_PASSWORD = "SenhaForte123!";
 
 function extractSecret(provisioningUri: string): string {
   const match = provisioningUri.match(/secret=([A-Z0-9]+)/i);
@@ -50,7 +55,13 @@ async function main(): Promise<void> {
   }
 
   const email = process.env.SUPERADMIN_EMAIL ?? "superadmin@crop.health";
-  const password = process.env.SUPERADMIN_PASSWORD ?? "SenhaForte123!";
+  const password = process.env.SUPERADMIN_PASSWORD ?? DEMO_PASSWORD;
+  if (process.env.NODE_ENV === "production" && password === DEMO_PASSWORD) {
+    console.error("Refusing to create the superadmin with the demo password in production. Set SUPERADMIN_PASSWORD.");
+    process.exitCode = 1;
+    await app.close();
+    return;
+  }
 
   console.log("Creating the Platform Operations tenant...");
   // `CommandBus.execute` for `CreateTenantCommand` resolves to an `EnrichedTenant`

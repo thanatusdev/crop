@@ -81,8 +81,8 @@ export const OPERATOR_PROVIDER_ROLES: readonly UserRole[] = [
 
 /**
  * Every role assignable through `POST /users` -- i.e. everything except `PLATFORM_ADMIN`,
- * which is bootstrap-script-only (see `CreateUserRequestSchema`'s own docstring for why a
- * tenant-scoped PLATFORM_ADMIN is a contradiction in terms).
+ * which is created by bootstrap-superadmin.ts (the first one) or by another platform admin
+ * through `POST /platform/admins` (see `CreatePlatformAdminRequestSchema`).
  */
 export const ASSIGNABLE_ROLES: readonly UserRole[] = [
   UserRole.CLINIC_ADMIN,
@@ -130,14 +130,17 @@ export function responsibleManagerRoleFor(tenantType: TenantType): UserRole | nu
  * ("the Clinic Manager registers users with the Nursing profile", which had
  * `CLINIC_ADMIN: [NURSING]` and `LOCAL_SUPERVISOR: []`).
  *
- * Note `CLINIC_ADMIN` may now grant `CLINIC_ADMIN` -- the one role in this matrix that can
- * grant its own kind. That is intentional ("can do everything", and a clinic needs to be
- * able to appoint a second manager without calling the platform operator), but it is also
- * the matrix's only privilege-escalation-adjacent edge, so it is called out here rather than
- * left to be discovered. `LOCAL_SUPERVISOR` deliberately cannot grant its own kind, which is
+ * Note `CLINIC_ADMIN` may now grant `CLINIC_ADMIN` -- one of the two roles in this matrix
+ * that can grant its own kind (`PLATFORM_ADMIN`, below, is the other). That is intentional
+ * ("can do everything", and a clinic needs to be able to appoint a second manager without
+ * calling the platform operator), but it is also a privilege-escalation-adjacent edge, so it
+ * is called out here rather than left to be discovered. `LOCAL_SUPERVISOR` deliberately cannot grant its own kind, which is
  * the precise difference rule #6 draws between the two.
  *
- * `PLATFORM_ADMIN` keeps every assignable role. The operator-side grants are unchanged and
+ * `PLATFORM_ADMIN` keeps every assignable role, plus its own: only a platform admin can
+ * appoint another one, and never through `POST /users` (whose schema still takes only
+ * `ASSIGNABLE_ROLES`) -- that goes through `POST /platform/admins`, which pins the new
+ * account to the caller's own PLATFORM tenant. The operator-side grants are unchanged and
  * unaffected by the clinic-side rule: `OPERATOR_ADMIN` creates its own company's operators
  * and operational supervisors, and nothing clinic-side.
  *
@@ -148,6 +151,7 @@ export function responsibleManagerRoleFor(tenantType: TenantType): UserRole | nu
  */
 export const ROLE_GRANTS: Record<UserRole, readonly UserRole[]> = {
   [UserRole.PLATFORM_ADMIN]: [
+    UserRole.PLATFORM_ADMIN,
     UserRole.CLINIC_ADMIN,
     UserRole.LOCAL_SUPERVISOR,
     UserRole.NURSING,

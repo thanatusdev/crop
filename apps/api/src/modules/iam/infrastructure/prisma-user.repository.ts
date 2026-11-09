@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Prisma } from "@prisma/client";
 import type { UserRole } from "@crop/shared";
 import { PrismaService } from "../../../shared/infrastructure/prisma/prisma.service.js";
 import { User } from "../domain/user.entity.js";
+import { ConflictError } from "../../../shared/domain/errors.js";
 import type { CreateUserData, UpdateUserData, UserRepositoryPort } from "../application/ports/user-repository.port.js";
 
 @Injectable()
@@ -75,6 +77,27 @@ export class PrismaUserRepository implements UserRepositoryPort {
 
   async lock(userId: string): Promise<void> {
     await this.prisma.user.update({ where: { id: userId }, data: { lockedAt: new Date() } });
+  }
+
+  async lockUnlessLastActive(userId: string, tenantId: string, role: UserRole): Promise<boolean> {
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const othersActive = await tx.user.count({
+            where: { tenantId, role, id: { not: userId }, lockedAt: null, activatedAt: { not: null } },
+          });
+          if (othersActive === 0) return false;
+          await tx.user.update({ where: { id: userId }, data: { lockedAt: new Date() } });
+          return true;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034") {
+        throw new ConflictError("Outro bloqueio foi feito ao mesmo tempo. Tente novamente.");
+      }
+      throw err;
+    }
   }
 
   async unlock(userId: string): Promise<void> {
