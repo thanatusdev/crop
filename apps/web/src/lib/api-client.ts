@@ -68,6 +68,10 @@ const NETWORK_ERROR_MESSAGE = "Não foi possível conectar ao servidor. Verifiqu
 
 let refreshInFlight: Promise<boolean> | null = null;
 
+/** Fired on `window` when a signed-in user's tokens can no longer be refreshed -- AuthProvider
+ * listens for it, signs the user out locally and the route guards send them to /login. */
+export const SESSION_EXPIRED_EVENT = "crop:session-expired";
+
 async function refreshTokens(): Promise<boolean> {
   const refreshToken = tokenStore.getRefreshToken();
   if (!refreshToken) return false;
@@ -138,6 +142,12 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
     const refreshed = await refreshInFlight;
     if (refreshed) {
       res = await doFetch();
+    } else if (tokenStore.getAccessToken()) {
+      // The refresh token itself is expired or revoked: nothing this tab can do will
+      // authenticate again without a fresh login. (A 401 that survives a *successful* refresh
+      // -- e.g. a wrong MFA code -- is a normal error, not an expired session.)
+      tokenStore.clear();
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
   }
 

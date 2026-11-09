@@ -20,7 +20,7 @@ type Step =
 
 export default function LoginPage() {
   const { t } = useTranslation(["auth", "common"]);
-  const { login, verifyMfa, confirmEnrollment } = useAuth();
+  const { login, verifyMfa, confirmEnrollment, sessionExpired } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>({ name: "credentials" });
@@ -111,6 +111,11 @@ export default function LoginPage() {
     >
       {step.name === "credentials" && (
         <form onSubmit={handleCredentialsSubmit}>
+          {sessionExpired && !error && (
+            <Alert className="mb-4">
+              <AlertDescription>{t("auth:sessionExpired")}</AlertDescription>
+            </Alert>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="login-email">{t("auth:emailLabel")}</Label>
             <Input id="login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />

@@ -15,6 +15,7 @@ const ptBR = {
   common: {},
   auth: {
     brand: "RadLink",
+    sessionExpired: "Sua sessão expirou. Entre novamente para continuar.",
     tagline: "Acesso ao Sistema Clínico",
     emailLabel: "E-mail",
     passwordLabel: "Senha",
