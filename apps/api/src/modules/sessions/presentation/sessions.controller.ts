@@ -1,7 +1,14 @@
 import { Body, Controller, Get, Inject, Param, Post, Res, UseGuards } from "@nestjs/common";
 import { CommandBus, QueryBus } from "@nestjs/cqrs";
 import type { Response } from "express";
-import { StartSessionRequestSchema, UserRole, type AccessTokenClaims, type StartSessionRequest } from "@crop/shared";
+import {
+  AssignSessionPatientRequestSchema,
+  StartSessionRequestSchema,
+  UserRole,
+  type AccessTokenClaims,
+  type AssignSessionPatientRequest,
+  type StartSessionRequest,
+} from "@crop/shared";
 import { ZodValidationPipe } from "../../../shared/infrastructure/http/zod-validation.pipe.js";
 import { JwtAuthGuard } from "../../iam/presentation/guards/jwt-auth.guard.js";
 import { RolesGuard } from "../../iam/presentation/guards/roles.guard.js";
@@ -11,6 +18,7 @@ import { ForbiddenError, NotFoundError } from "../../../shared/domain/errors.js"
 import { StartSessionCommand } from "../application/commands/start-session/start-session.command.js";
 import { EndSessionCommand } from "../application/commands/end-session/end-session.command.js";
 import { ReleaseAllInputCommand } from "../application/commands/release-all-input/release-all-input.command.js";
+import { AssignSessionPatientCommand } from "../application/commands/assign-session-patient/assign-session-patient.command.js";
 import { GetActiveSessionsQuery } from "../application/queries/get-active-sessions/get-active-sessions.query.js";
 import { GetSessionQuery } from "../application/queries/get-session/get-session.query.js";
 import { ListSessionSnapshotsQuery } from "../application/queries/list-session-snapshots/list-session-snapshots.query.js";
@@ -76,6 +84,21 @@ export class SessionsController {
   async end(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string) {
     await this.commandBus.execute(new EndSessionCommand(id, user.tenantId, user.sub));
     await this.gateway.broadcastSessionEnded(id);
+  }
+
+  /** Starts a waiting patient's exam inside a session that was opened without one. Same
+   * roles as starting a session; AssignSessionPatientHandler also requires a participant. */
+  @Post(":id/patient")
+  @Roles(UserRole.OPERATOR, UserRole.OPERATIONAL_SUPERVISOR, UserRole.OPERATOR_ADMIN, UserRole.PLATFORM_ADMIN)
+  async assignPatient(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(AssignSessionPatientRequestSchema)) body: AssignSessionPatientRequest
+  ) {
+    const session: Session = await this.commandBus.execute(new AssignSessionPatientCommand(id, user.tenantId, user.sub, body.queueEntryId));
+    const dto = toSessionDto(session, await this.participantNames.resolveOperatorProfile(session));
+    this.gateway.broadcastSessionState(dto);
+    return dto;
   }
 
   /** Emergency escape hatch: releases stuck input without ending the session. See ReleaseAllInputHandler. */

@@ -216,6 +216,44 @@ describe("Session lifecycle", () => {
     await http.post(`/sessions/${secondSessionRes.body.id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
   });
 
+  it("attaches a waiting patient to a session started without one, exactly once", async () => {
+    const dedicatedEquipmentId = await createOnlineEquipment(http, adminToken, prisma, `Assign-Patient-${crypto.randomUUID()}`);
+    const otherEquipmentId = await createOnlineEquipment(http, adminToken, prisma, `Assign-Patient-Other-${crypto.randomUUID()}`);
+    const addPatient = async (equipmentId: string, patientFirstName: string) =>
+      (await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201)).body.id as string;
+    const firstId = await addPatient(dedicatedEquipmentId, "Ana");
+    const secondId = await addPatient(dedicatedEquipmentId, "Bruno");
+    const otherRoomId = await addPatient(otherEquipmentId, "Clara");
+
+    const sessionRes = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: dedicatedEquipmentId }).expect(201);
+    const sessionId = sessionRes.body.id;
+    expect(sessionRes.body.queueEntryId).toBeNull();
+
+    // A patient from another room is not this session's to take.
+    await http.post(`/sessions/${sessionId}/patient`).set("Authorization", `Bearer ${operatorToken}`).send({ queueEntryId: otherRoomId }).expect(404);
+    // Only a participant may attach one.
+    await http
+      .post(`/sessions/${sessionId}/patient`)
+      .set("Authorization", `Bearer ${otherOperatorInSameTenantToken}`)
+      .send({ queueEntryId: secondId })
+      .expect(403);
+
+    const assigned = await http.post(`/sessions/${sessionId}/patient`).set("Authorization", `Bearer ${operatorToken}`).send({ queueEntryId: secondId }).expect(201);
+    expect(assigned.body.queueEntryId).toBe(secondId);
+
+    // Already has a patient -- a second assignment is refused rather than overwriting it.
+    await http.post(`/sessions/${sessionId}/patient`).set("Authorization", `Bearer ${operatorToken}`).send({ queueEntryId: firstId }).expect(409);
+
+    const queue = await http.get(`/queue?equipmentId=${dedicatedEquipmentId}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+    const statusOf = (id: string) => queue.body.find((e: { id: string }) => e.id === id).status;
+    expect(statusOf(secondId)).toBe("IN_PROGRESS");
+    expect(statusOf(firstId)).toBe("WAITING");
+
+    await http.post(`/sessions/${sessionId}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
+    const afterEnd = await http.get(`/queue?equipmentId=${dedicatedEquipmentId}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+    expect(afterEnd.body.find((e: { id: string }) => e.id === secondId).status).toBe("DONE");
+  });
+
   // `AbortIdleSessionHandler`'s equivalent transition (queue entry -> CANCELLED, not back to
   // WAITING, when a session aborts on idle timeout) is NOT covered by a dedicated e2e test
   // here: genuinely triggering it means waiting out SESSION_IDLE_TIMEOUT_MS for real, and

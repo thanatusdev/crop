@@ -51,5 +51,8 @@ export interface SessionRepositoryPort {
     supervisorId: string | null,
     expectedCurrentControllerUserId: string
   ): Promise<boolean>;
+  /** Sets the patient on an active session that has none yet. Returns false when the session
+   * is no longer active or already has a patient (a concurrent assignment won). */
+  assignQueueEntry(sessionId: string, queueEntryId: string): Promise<boolean>;
   end(sessionId: string, status: "ENDED" | "ABORTED"): Promise<void>;
 }

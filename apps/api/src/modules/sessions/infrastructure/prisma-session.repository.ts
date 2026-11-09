@@ -115,6 +115,23 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
     return result.count === 1;
   }
 
+  async assignQueueEntry(sessionId: string, queueEntryId: string): Promise<boolean> {
+    try {
+      // Conditional update, not read-then-write: two participants clicking at once must not
+      // both "win" and overwrite each other's patient.
+      const { count } = await this.prisma.session.updateMany({
+        where: { id: sessionId, queueEntryId: null, status: SessionStatus.ACTIVE },
+        data: { queueEntryId },
+      });
+      return count === 1;
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictError("Este paciente da fila já foi usado em uma sessão.");
+      }
+      throw err;
+    }
+  }
+
   async end(sessionId: string, status: "ENDED" | "ABORTED"): Promise<void> {
     await this.prisma.session.update({
       where: { id: sessionId },

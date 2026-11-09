@@ -23,6 +23,7 @@ import {
   type ExamMessageDto,
   type HidInputEvent,
   type PatientPreparationUpdatedEvent,
+  type SessionState,
   type TargetOs,
 } from "@crop/shared";
 import { TOKEN_SERVICE, type TokenServicePort } from "../../iam/application/ports/token-service.port.js";
@@ -344,6 +345,11 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage(RT_EVENTS.LATENCY_PING)
   onLatencyPing(@ConnectedSocket() client: Socket, @MessageBody() body: { clientTs: number }): void {
     client.emit(RT_EVENTS.LATENCY_PONG, { clientTs: body.clientTs, serverTs: Date.now() });
+  }
+
+  /** Pushes a session's new state to everyone in its room (e.g. a patient was just attached). */
+  broadcastSessionState(state: SessionState): void {
+    this.server.to(room(state.id)).emit(RT_EVENTS.SESSION_STATE, state);
   }
 
   /** Called by SessionsController after a REST-initiated end, so every connected participant's

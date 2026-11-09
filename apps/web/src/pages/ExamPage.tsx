@@ -38,7 +38,6 @@ import { MODALITY_ABBREVIATION } from "../lib/equipment-display.js";
 import { humanFileSize } from "../lib/file-display.js";
 import {
   allergyStatusLabelKeyOf,
-  currentPatientOf,
   isDetailsEditable,
   patientSexLabelKeyOf,
   preparationStatusBadgeClass,
@@ -120,6 +119,7 @@ export default function ExamPage() {
   }
   const [releasing, setReleasing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState(false);
   const [printText, setPrintText] = useState("");
   const [printSent, setPrintSent] = useState(false);
   const printSentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,8 +208,8 @@ export default function ExamPage() {
     setStartError(null);
     setStarting(true);
     try {
-      const nextPatient = currentPatientOf(queue);
-      const started = await api.post<SessionState>("/sessions", { equipmentId, queueEntryId: nextPatient?.id });
+      const started = await api.post<SessionState>("/sessions", { equipmentId, queueEntryId: patientToStart?.id });
+      setSelectedQueueEntryId(patientToStart?.id ?? null);
       setSession(started);
     } catch (err) {
       setStartError(err instanceof ApiError ? err.message : t("exam:startError"));
@@ -381,6 +381,19 @@ export default function ExamPage() {
     }
   }
 
+  async function assignPatient(entry: QueueEntryDto) {
+    if (!session?.id) return;
+    setActionError(null);
+    setAssigning(true);
+    try {
+      setSession(await api.post<SessionState>(`/sessions/${session.id}/patient`, { queueEntryId: entry.id }));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : t("exam:assignPatientError"));
+    } finally {
+      setAssigning(false);
+    }
+  }
+
   async function emergencyReleaseAll() {
     if (!session?.id) return;
     setActionError(null);
@@ -395,27 +408,43 @@ export default function ExamPage() {
   }
 
   // ------------------------------------------------------------------------------------
-  // Active-patient panel (right column) -- inline now, not a modal: defaults to the room's
-  // current patient (`currentPatientOf`, the same IN_PROGRESS-else-next-WAITING precedence
-  // the "start exam" prompt above already uses) and only ever changes when someone actually
-  // selects a different card from the top queue rail. PHI minimization unchanged: only
+  // Active-patient panel (right column) -- inline now, not a modal: defaults to the session's
+  // own patient (if it was started with one, or one was attached since) and otherwise to
+  // nothing -- a session may run without a patient until the operator picks one from the
+  // queue rail. PHI minimization unchanged: only
   // fields this platform actually stores, same as every nursing screen.
   // ------------------------------------------------------------------------------------
 
-  const selectedEntry = queue.find((entry) => entry.id === selectedQueueEntryId) ?? null;
+  // Only patients still in line (plus the one being examined) -- done and cancelled entries
+  // stay on the dashboard's full table, not this working screen.
+  const visibleQueue = queue.filter((entry) => entry.status === "WAITING" || entry.status === "IN_PROGRESS");
+  const selectedEntry = visibleQueue.find((entry) => entry.id === selectedQueueEntryId) ?? null;
+  // Starting without a patient is the default; picking one from the queue is optional.
+  const patientToStart = selectedEntry?.status === "WAITING" ? selectedEntry : null;
+  // In a session opened without a patient, the selected waiting patient can be started in it.
+  const patientToAssign = session && !session.queueEntryId && isParticipant && selectedEntry?.status === "WAITING" ? selectedEntry : null;
 
   function selectPatient(entry: QueueEntryDto) {
+    // Clicking the selected card again clears the selection (pre-start: back to "no patient").
+    if (entry.id === selectedQueueEntryId) {
+      setSelectedQueueEntryId(null);
+      return;
+    }
     setSelectedQueueEntryId(entry.id);
     setNotesDraft(entry.teleoperationNotes ?? "");
     setNotesError(null);
   }
 
+  // Follow the session's own patient whenever it has (or gains) one.
   useEffect(() => {
-    if (selectedQueueEntryId) return;
-    const next = currentPatientOf(queue);
-    if (next) selectPatient(next);
+    const entry = session?.queueEntryId ? queue.find((e) => e.id === session.queueEntryId) : undefined;
+    if (entry && entry.id !== selectedQueueEntryId) {
+      setSelectedQueueEntryId(entry.id);
+      setNotesDraft(entry.teleoperationNotes ?? "");
+      setNotesError(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue, selectedQueueEntryId]);
+  }, [queue, session?.queueEntryId]);
 
   // Mirrors QueueEntry.assertTeleoperationNotesEditable in apps/api exactly (WAITING or
   // IN_PROGRESS) -- the identical rule isDetailsEditable already expresses for the nurse's
@@ -527,21 +556,27 @@ export default function ExamPage() {
               <CardTitle>{t("exam:startExamHeading")}</CardTitle>
             </CardHeader>
             <CardContent>
-              {(() => {
-                const nextPatient = currentPatientOf(queue);
-                return nextPatient ? (
-                  <p>{t("exam:startExamWithPatient", { patient: nextPatient.patientFirstName })}</p>
-                ) : (
-                  <p className="text-muted-foreground">{t("exam:startExamNoPatient")}</p>
-                );
-              })()}
+              {patientToStart ? (
+                <p className="mb-3">
+                  {t("exam:startExamWithPatient", { patient: patientToStart.patientFirstName })}{" "}
+                  <button type="button" className="text-sm text-primary underline" onClick={() => setSelectedQueueEntryId(null)}>
+                    {t("exam:clearSelection")}
+                  </button>
+                </p>
+              ) : (
+                <p className="mb-3 text-muted-foreground">{t("exam:startExamNoPatient")}</p>
+              )}
               {startError && (
                 <Alert variant="destructive" className="mb-3">
                   <AlertDescription>{startError}</AlertDescription>
                 </Alert>
               )}
               <Button onClick={() => void startExam()} disabled={starting || equipment.status !== "ONLINE"}>
-                {starting ? t("exam:starting") : t("exam:startExamButton")}
+                {starting
+                  ? t("exam:starting")
+                  : patientToStart
+                    ? t("exam:startExamForPatient", { patient: patientToStart.patientFirstName })
+                    : t("exam:startExamButton")}
               </Button>
               {equipment.status !== "ONLINE" && <p className="mt-2 text-sm text-destructive">{t("exam:equipmentOffline")}</p>}
 
@@ -550,7 +585,7 @@ export default function ExamPage() {
                   page's own hidden `<h1>` -- an `<h3>` here would skip a level (axe's own
                   heading-order rule caught this immediately). */}
               <h2 className="mt-6 text-base font-semibold">{t("exam:queueHeading")}</h2>
-              <QueueStrip queue={queue} selectedId={selectedQueueEntryId} onSelect={selectPatient} vertical />
+              <QueueStrip queue={visibleQueue} selectedId={selectedQueueEntryId} onSelect={selectPatient} vertical />
             </CardContent>
           </Card>
         ) : (
@@ -566,7 +601,7 @@ export default function ExamPage() {
             <Card className="mb-4 flex-row items-center gap-4 p-3">
               <h2 className="flex-none text-[13px] font-semibold text-muted-foreground">{t("exam:queueHeading")}</h2>
               <div className="min-w-0 flex-1">
-                <QueueStrip queue={queue} selectedId={selectedQueueEntryId} onSelect={selectPatient} />
+                <QueueStrip queue={visibleQueue} selectedId={selectedQueueEntryId} onSelect={selectPatient} />
               </div>
             </Card>
 
@@ -675,7 +710,9 @@ export default function ExamPage() {
                     </CardHeader>
                     <CardContent>
                       {!selectedEntry ? (
-                        <p className="text-sm text-muted-foreground">{t("exam:patientCardEmpty")}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {session.queueEntryId ? t("exam:patientCardEmpty") : t("exam:assignPatientHint")}
+                        </p>
                       ) : (
                         <>
                           <div className="mb-3 flex items-center justify-between gap-2">
@@ -712,6 +749,11 @@ export default function ExamPage() {
                               </>
                             )}
                           </dl>
+                          {patientToAssign && (
+                            <Button className="mt-3 w-full" onClick={() => void assignPatient(patientToAssign)} disabled={assigning}>
+                              {assigning ? t("exam:starting") : t("exam:assignPatientButton", { patient: patientToAssign.patientFirstName })}
+                            </Button>
+                          )}
                         </>
                       )}
                     </CardContent>

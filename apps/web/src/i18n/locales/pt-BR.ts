@@ -1444,9 +1444,11 @@ const ptBR = {
     sessionLoadError: "Não foi possível carregar esta sessão.",
 
     startExamHeading: "Iniciar Exame",
-    startExamWithPatient: "Próximo paciente: {{patient}}",
-    startExamNoPatient: "Nenhum paciente na fila -- o exame pode ser iniciado mesmo assim.",
+    startExamWithPatient: "Paciente selecionado: {{patient}}",
+    startExamNoPatient: "Nenhum paciente selecionado -- o exame pode ser iniciado sem paciente, ou escolha um na fila abaixo.",
     startExamButton: "Iniciar Exame",
+    startExamForPatient: "Iniciar Exame para {{patient}}",
+    clearSelection: "Limpar seleção",
     starting: "Iniciando...",
     startError: "Não foi possível iniciar o exame.",
     equipmentOffline: "Este equipamento está offline -- não é possível iniciar um exame agora.",
@@ -1513,6 +1515,9 @@ const ptBR = {
 
     patientCardHeading: "Ficha do Paciente Ativo",
     patientCardEmpty: "Nenhum paciente selecionado.",
+    assignPatientHint: "Nenhum paciente neste exame. Selecione um paciente na fila para iniciar o exame dele.",
+    assignPatientButton: "Iniciar exame para {{patient}}",
+    assignPatientError: "Não foi possível iniciar o exame deste paciente.",
     alertsCardHeading: "Alertas Clínicos & Segurança",
     patientExamLabel: "Exame",
     patientSexLabel: "Sexo",
@@ -1548,6 +1553,9 @@ const ptBR = {
     retry: "Tentar novamente",
     rejoinSession: "Reingressar na Sessão",
     startSession: "Iniciar Sessão",
+    superviseSession: "Supervisionar Sessão",
+    noActiveSessionTitle: "Nenhuma sessão ativa nesta sala",
+    startExamForPatient: "Iniciar Exame",
     starting: "Iniciando...",
     startSessionError: "Não foi possível iniciar a sessão.",
     // {{status}} is the same translated equipment-status word the badge itself shows
