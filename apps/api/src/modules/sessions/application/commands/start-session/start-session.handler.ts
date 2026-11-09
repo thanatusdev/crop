@@ -1,13 +1,12 @@
-import { Inject, Logger } from "@nestjs/common";
+import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, EventBus, QueryBus, type ICommandHandler } from "@nestjs/cqrs";
 import { ConfigService } from "@nestjs/config";
-import { AuditAction, QueueStatus } from "@crop/shared";
+import { AuditAction } from "@crop/shared";
 import { ConflictError, ForbiddenError } from "../../../../../shared/domain/errors.js";
 import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
 import { GetEquipmentQuery } from "../../../../equipment/application/queries/get-equipment/get-equipment.query.js";
 import { GetEquipmentConnectionSecretsQuery } from "../../../../equipment/application/queries/get-equipment-credentials/get-equipment-connection-secrets.query.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
-import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../../../queue/application/ports/queue-repository.port.js";
 import { QueueUpdatedEvent } from "../../../../queue/application/events/queue-updated.event.js";
 import { UNIT_REPOSITORY, type UnitRepositoryPort } from "../../../../units/application/ports/unit-repository.port.js";
 import { Session } from "../../../domain/session.entity.js";
@@ -18,13 +17,10 @@ import { StartSessionCommand } from "./start-session.command.js";
 
 @CommandHandler(StartSessionCommand)
 export class StartSessionHandler implements ICommandHandler<StartSessionCommand, Session> {
-  private readonly logger = new Logger(StartSessionHandler.name);
-
   constructor(
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
-    @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
@@ -89,25 +85,14 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
       queueEntryId: command.queueEntryId,
     });
 
-    // A real, previously-undiscovered bug: nothing ever moved a queue entry off `WAITING`
-    // when a session started against it, so the dashboard's "next waiting patient" picker
-    // kept re-selecting the *same* already-consumed entry on every subsequent attempt --
-    // and `queueEntryId` is `@unique` on this table (one session per queue entry, ever, not
-    // just one *active* one), so that always collided and always will, for that specific
-    // queue entry, regardless of this session's own outcome. Moving it to IN_PROGRESS here
-    // is what makes the picker actually advance to the next patient. Best-effort: a failure
-    // here is a queue-display inconvenience, not a reason to fail an otherwise-successful
-    // session start.
+    // `sessions.create` also moved the queue entry to IN_PROGRESS, in the same transaction
+    // (see SessionRepositoryPort.create) -- without that, the dashboard's "next waiting
+    // patient" picker kept re-selecting an already-consumed entry, and `queueEntryId` is
+    // `@unique` on sessions, so that always collided. Tell connected clients it happened
+    // (see EndSessionHandler's identical event): otherwise the dashboard's queue table and
+    // the nursing lock banner only showed IN_PROGRESS after a manual reload.
     if (command.queueEntryId) {
-      try {
-        await this.queue.updateStatus(command.queueEntryId, QueueStatus.IN_PROGRESS);
-        // Bug fix: see EndSessionHandler's identical fix -- this write never told any
-        // connected client it happened, so the dashboard's queue table (and now the nursing
-        // lock banner) only ever showed IN_PROGRESS after a manual reload.
-        this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, command.equipmentId));
-      } catch (err) {
-        this.logger.warn(`Could not mark queue entry ${command.queueEntryId} IN_PROGRESS: ${(err as Error).message}`);
-      }
+      this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, command.equipmentId));
     }
 
     this.runtime.setController(session.id, command.operatorId);

@@ -240,6 +240,10 @@ describe("Session lifecycle", () => {
 
     const assigned = await http.post(`/sessions/${sessionId}/patient`).set("Authorization", `Bearer ${operatorToken}`).send({ queueEntryId: secondId }).expect(201);
     expect(assigned.body.queueEntryId).toBe(secondId);
+    // The operator works for a contracted operadora (a different tenant): the event belongs in
+    // the clinic's chain, where the session is, not the operator's own.
+    const assignedAudit = await prisma.auditLog.findFirst({ where: { action: "SESSION_PATIENT_ASSIGNED", resourceId: secondId } });
+    expect(assignedAudit?.tenantId).toBe(tenantId);
 
     // Already has a patient -- a second assignment is refused rather than overwriting it.
     await http.post(`/sessions/${sessionId}/patient`).set("Authorization", `Bearer ${operatorToken}`).send({ queueEntryId: firstId }).expect(409);
