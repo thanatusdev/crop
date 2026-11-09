@@ -23,3 +23,4 @@ apps/web/blob-report
 
 # Local Netlify folder
 .netlify
+*.tsbuildinfo

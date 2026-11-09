@@ -22,6 +22,7 @@ import { UnitsModule } from "./modules/units/units.module.js";
 import { AccessModule } from "./modules/access/access.module.js";
 import { AgreementsModule } from "./modules/agreements/agreements.module.js";
 import { ChatModule } from "./modules/chat/chat.module.js";
+import { PlatformModule } from "./modules/platform/platform.module.js";
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { ChatModule } from "./modules/chat/chat.module.js";
     AccessModule,
     AgreementsModule,
     ChatModule,
+    PlatformModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },

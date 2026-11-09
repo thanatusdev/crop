@@ -31,3 +31,4 @@ export * from "./contracts/units.js";
 export * from "./contracts/invitations.js";
 export * from "./contracts/agreements.js";
 export * from "./contracts/chat.js";
+export * from "./contracts/platform-stats.js";
