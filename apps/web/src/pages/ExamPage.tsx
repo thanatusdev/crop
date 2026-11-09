@@ -21,7 +21,6 @@ import { useAuth } from "../lib/auth-context.js";
 import { createSessionSocket } from "../lib/socket-client.js";
 import { useMediaStream } from "../hooks/use-media-stream.js";
 import { useHidInput } from "../hooks/use-hid-input.js";
-import { useLatency } from "../hooks/use-latency.js";
 import { RoomCameraPanel } from "../components/RoomCameraPanel.js";
 import { QueueStrip } from "../components/QueueStrip.js";
 import { ExamChat } from "../components/ExamChat.js";
@@ -293,7 +292,6 @@ export default function ExamPage() {
 
   const streamState = useMediaStream(session?.id ?? null, canvasRef);
   useHidInput({ socket, canvasRef, containerRef, enabled: isController });
-  const rttMs = useLatency(socket);
 
   // The chat transcript is reloaded whenever the room or the shown day changes -- see
   // `ChatController`'s own `date` query param. Shortcuts don't vary by day; refetching them
@@ -562,18 +560,31 @@ export default function ExamPage() {
                 overriding Card's own `flex-col`) -- the wrapper div's `min-w-0` is what lets
                 QueueStrip's own `overflow-x-auto` (QueueStrip.tsx) actually engage: a flex
                 item's default `min-width: auto` would otherwise refuse to shrink below the
-                queue's full content width, growing the card instead of scrolling it. */}
+                queue's full content width, growing the card instead of scrolling it. The
+                right panel's collapse toggle ends this row, so collapsing frees the whole
+                column for the console instead of leaving a rail behind for the button. */}
             <Card className="mb-4 flex-row items-center gap-4 p-3">
               <h2 className="flex-none text-[13px] font-semibold text-muted-foreground">{t("exam:queueHeading")}</h2>
               <div className="min-w-0 flex-1">
                 <QueueStrip queue={queue} selectedId={selectedQueueEntryId} onSelect={selectPatient} />
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-none"
+                onClick={toggleRightPanel}
+                aria-expanded={!rightCollapsed}
+                aria-label={t(rightCollapsed ? "exam:expandPanel" : "exam:collapsePanel")}
+                title={t(rightCollapsed ? "exam:expandPanel" : "exam:collapsePanel")}
+              >
+                {rightCollapsed ? <PanelRightOpen /> : <PanelRightClose />}
+              </Button>
             </Card>
 
             <div
               className={cn(
                 "grid items-start gap-4 max-[1300px]:grid-cols-1",
-                rightCollapsed ? "grid-cols-[380px_minmax(0,1fr)_auto]" : "grid-cols-[380px_minmax(0,1fr)_400px]"
+                rightCollapsed ? "grid-cols-[380px_minmax(0,1fr)]" : "grid-cols-[380px_minmax(0,1fr)_400px]"
               )}
             >
               {/* LEFT: room camera (full-width in its column, bigger than the old sidebar
@@ -581,7 +592,10 @@ export default function ExamPage() {
               <div className="flex h-full flex-col gap-4">
                 <RoomCameraPanel whepUrl={equipment.cameraUrl} />
 
-                <Card className="flex min-h-100 flex-1 flex-col">
+                {/* Fixed height, not `flex-1`: the grid row is sized by its tallest column, so
+                    a growing chat would otherwise keep stretching the row instead of letting
+                    ExamChat's own message list scroll. */}
+                <Card className="flex h-[560px] flex-col">
                   <CardHeader>
                     <CardTitle className="text-[1.1em]">{t("exam:chatHeading")}</CardTitle>
                   </CardHeader>
@@ -611,7 +625,7 @@ export default function ExamPage() {
                     {t("exam:notInControl")}
                   </div>
                 )}
-                {/* This box (and the `.hud`-equivalent overlay inside it) stays black regardless
+                {/* This box stays black regardless
                     of the app's own theme -- a real video surface, not page chrome, so it keeps
                     its own self-contained colors exactly like a `Badge` does, per the "shared
                     ancestor" rule (see docs/architecture.md). The canvas itself keeps `w-full
@@ -626,10 +640,6 @@ export default function ExamPage() {
                   aria-label={t("exam:consoleAriaLabel", { room: roomHeading })}
                 >
                   <canvas ref={canvasRef} role="img" aria-label={t("exam:consoleAriaLabel", { room: roomHeading })} className="block w-full" />
-                  <div className="pointer-events-none absolute top-2 left-2 rounded-md bg-black/60 px-2.5 py-1.5 font-mono text-xs text-white" aria-hidden="true">
-                    <div>stream: {streamState.status}</div>
-                    <div>input RTT: {rttMs !== null ? `${rttMs} ms` : "—"}</div>
-                  </div>
                   {streamState.status === "error" && (
                     <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-black/60 px-2.5 py-1.5 font-mono text-xs text-white" role="alert">
                       {streamState.info}
@@ -640,35 +650,10 @@ export default function ExamPage() {
 
               {/* RIGHT: the active patient's record, then every action button -- the mock's
                   own "Ficha do Paciente Ativo" / "Alertas Clínicos" / "Ações" stack. Collapsible
-                  to a thin rail so the console can take the width; "Finalizar Exame" stays in
-                  the header either way. */}
-              {rightCollapsed ? (
-                <div className="flex justify-center rounded-lg border bg-card p-1 max-[1300px]:justify-end">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleRightPanel}
-                    aria-expanded={false}
-                    aria-label={t("exam:expandPanel")}
-                    title={t("exam:expandPanel")}
-                  >
-                    <PanelRightOpen />
-                  </Button>
-                </div>
-              ) : (
+                  away entirely (toggle at the end of the queue row above) so the console can
+                  take the width; "Finalizar Exame" stays in the header either way. */}
+              {!rightCollapsed && (
                 <div className="flex flex-col gap-4">
-                  <div className="flex justify-end">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={toggleRightPanel}
-                      aria-expanded={true}
-                      aria-label={t("exam:collapsePanel")}
-                      title={t("exam:collapsePanel")}
-                    >
-                      <PanelRightClose />
-                    </Button>
-                  </div>
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-[1.1em]">{t("exam:patientCardHeading")}</CardTitle>
