@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AccessTokenClaims, LoginResponse } from "@crop/shared";
-import { api } from "./api-client.js";
+import { api, SESSION_EXPIRED_EVENT } from "./api-client.js";
 import { ACCESS_KEY, tokenStore } from "./token-store.js";
 import { decodeJwtPayload } from "./jwt.js";
 import { detectClientOs } from "./client-platform.js";
@@ -18,6 +18,8 @@ export type VerifyMfaOutcome = { status: "ok"; claims: AccessTokenClaims } | Ext
 
 interface AuthState {
   user: AccessTokenClaims | null;
+  /** True after the tokens expired mid-use (see SESSION_EXPIRED_EVENT), until the next sign-in. */
+  sessionExpired: boolean;
   login: (email: string, password: string) => Promise<LoginResponse>;
   verifyMfa: (mfaToken: string, code: string) => Promise<VerifyMfaOutcome>;
   /** Redeems a `password_change_required` response's `changeToken` -- see
@@ -88,9 +90,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, [user?.sub]);
 
+  // Clearing `user` is all the redirect needs: ProtectedLayout/RoleRoute send a signed-out
+  // user to /login. The flag lets LoginPage say why they landed there.
+  const [sessionExpired, setSessionExpired] = useState(false);
+  useEffect(() => {
+    function onExpired() {
+      setSessionExpired(true);
+      setUser(null);
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
+
   const value = useMemo<AuthState>(
     () => ({
       user,
+      sessionExpired,
 
       login: async (email, password) => {
         return api.post<LoginResponse>("/auth/login", { email, password, clientOs: detectClientOs() }, { auth: false });
@@ -108,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // decoded role immediately -- reading `user` from this same render would still be
         // the pre-login `null`, since setUser's update hasn't committed yet.
         const claims = decodeJwtPayload<AccessTokenClaims>(result.accessToken);
+        setSessionExpired(false);
         setUser(claims);
         return { status: "ok", claims };
       },
@@ -120,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         tokenStore.setTokens(result.accessToken, result.refreshToken);
         const claims = decodeJwtPayload<AccessTokenClaims>(result.accessToken);
+        setSessionExpired(false);
         setUser(claims);
         return claims;
       },
@@ -132,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await api.post<{ accessToken: string; refreshToken: string }>("/auth/active-clinic", { clinicTenantId });
         tokenStore.setTokens(result.accessToken, result.refreshToken);
         const claims = decodeJwtPayload<AccessTokenClaims>(result.accessToken);
+        setSessionExpired(false);
         setUser(claims);
         return claims;
       },
@@ -153,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user]
+    [user, sessionExpired]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
