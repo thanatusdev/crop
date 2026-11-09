@@ -28,6 +28,7 @@ import {
 } from "@crop/shared";
 import { ZodValidationPipe } from "../../../shared/infrastructure/http/zod-validation.pipe.js";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard.js";
+import { Public } from "../../../shared/infrastructure/http/public.decorator.js";
 import { CurrentUser } from "./decorators/current-user.decorator.js";
 import { LoginCommand, type LoginResult } from "../application/commands/login/login.command.js";
 import { VerifyMfaCommand } from "../application/commands/verify-mfa/verify-mfa.command.js";
@@ -51,6 +52,7 @@ export class AuthController {
     private readonly queryBus: QueryBus
   ) {}
 
+  @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ZodValidationPipe(LoginRequestSchema))
@@ -61,6 +63,7 @@ export class AuthController {
     return result;
   }
 
+  @Public()
   @Post("mfa/verify")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ZodValidationPipe(MfaVerifyRequestSchema))
@@ -71,6 +74,7 @@ export class AuthController {
     return this.commandBus.execute(new VerifyMfaCommand(body.mfaToken, body.code));
   }
 
+  @Public()
   @Post("mfa/enroll/confirm")
   @HttpCode(HttpStatus.NO_CONTENT)
   @UsePipes(new ZodValidationPipe(MfaEnrollConfirmRequestSchema))
@@ -78,6 +82,7 @@ export class AuthController {
     await this.commandBus.execute(new ConfirmMfaEnrollmentCommand(body.enrollmentToken, body.code));
   }
 
+  @Public()
   @Post("refresh")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ZodValidationPipe(RefreshRequestSchema))
@@ -85,6 +90,7 @@ export class AuthController {
     return this.commandBus.execute(new RefreshTokensCommand(body.refreshToken));
   }
 
+  @Public()
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
   @UsePipes(new ZodValidationPipe(RefreshRequestSchema))
@@ -96,6 +102,7 @@ export class AuthController {
   // of whether an account exists (see RequestPasswordResetHandler) -- a bare 204 would work
   // too, but an explicit 200 body leaves room to add a non-committal hint later without a
   // breaking status-code change.
+  @Public()
   @Post("password-reset/request")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ZodValidationPipe(RequestPasswordResetRequestSchema))
@@ -108,12 +115,14 @@ export class AuthController {
   // it never denies the token's jti), and the token already lives in the URL the emailed
   // link points at, so a query param is the natural fit rather than inventing a body for a
   // request that changes nothing.
+  @Public()
   @Get("password-reset/validate")
   @HttpCode(HttpStatus.OK)
   async validatePasswordResetToken(@Query("token") token: string): Promise<PasswordResetValidateResponse> {
     return this.queryBus.execute(new ValidatePasswordResetTokenQuery(token));
   }
 
+  @Public()
   @Post("password-reset/confirm")
   @HttpCode(HttpStatus.NO_CONTENT)
   @UsePipes(new ZodValidationPipe(ResetPasswordRequestSchema))
@@ -125,6 +134,7 @@ export class AuthController {
   // to /login to prove 2FA again), this redeems a `changeToken` that only exists *after*
   // both factors already passed (see VerifyMfaHandler) -- there's a real session to hand
   // back, not just a "go log in now" instruction.
+  @Public()
   @Post("password-change")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ZodValidationPipe(ChangePasswordRequestSchema))
@@ -135,12 +145,14 @@ export class AuthController {
   // GET, not POST: purely a read (see PreviewInvitationHandler's own docstring -- it never
   // denies the token's jti), and the token already lives in the URL the emailed link
   // points at, same reasoning as `password-reset/validate`.
+  @Public()
   @Get("invitation")
   @HttpCode(HttpStatus.OK)
   async previewInvitation(@Query("token") token: string): Promise<InvitationPreview> {
     return this.queryBus.execute(new PreviewInvitationQuery(token));
   }
 
+  @Public()
   @Post("activate")
   @HttpCode(HttpStatus.NO_CONTENT)
   @UsePipes(new ZodValidationPipe(ActivateAccountRequestSchema))

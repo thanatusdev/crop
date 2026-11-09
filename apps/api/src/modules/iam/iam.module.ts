@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { CqrsModule } from "@nestjs/cqrs";
 import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
@@ -103,6 +104,12 @@ const COMMAND_AND_QUERY_HANDLERS = [
     JwtAccessStrategy,
     JwtAuthGuard,
     RolesGuard,
+    // Global, in this order: authenticate first, then check @Roles against request.user.
+    // Routes opt out with @Public(). The per-controller @UseGuards(JwtAuthGuard, RolesGuard)
+    // still in place are now redundant and can be dropped once open PRs touching those
+    // controllers have merged.
+    { provide: APP_GUARD, useExisting: JwtAuthGuard },
+    { provide: APP_GUARD, useExisting: RolesGuard },
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },
     { provide: USER_CLINIC_MEMBERSHIP_REPOSITORY, useClass: PrismaUserClinicMembershipRepository },
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },

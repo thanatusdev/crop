@@ -17,6 +17,9 @@ export class RolesGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Registered globally alongside JwtAuthGuard -- see its docstring for why WebSocket
+    // handlers are skipped.
+    if (context.getType() !== "http") return true;
     const required = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
