@@ -1,4 +1,4 @@
-import { Inject, Logger } from "@nestjs/common";
+import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, EventBus, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction, QueueStatus } from "@crop/shared";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
@@ -12,13 +12,12 @@ import { AssignSessionPatientCommand } from "./assign-session-patient.command.js
 /**
  * Starts a waiting patient's exam inside a session that was opened without one -- the
  * operator's "start now, pick the patient once they're on the table" flow on the exam page.
- * Mirrors StartSessionHandler's queue side effects (entry -> IN_PROGRESS + QueueUpdatedEvent);
- * EndSessionHandler then marks it DONE exactly as if the session had started with it.
+ * Mirrors StartSessionHandler's queue side effects (entry -> IN_PROGRESS, written by the
+ * repository in the same transaction as the link, + QueueUpdatedEvent); EndSessionHandler
+ * then marks it DONE exactly as if the session had started with it.
  */
 @CommandHandler(AssignSessionPatientCommand)
 export class AssignSessionPatientHandler implements ICommandHandler<AssignSessionPatientCommand, Session> {
-  private readonly logger = new Logger(AssignSessionPatientHandler.name);
-
   constructor(
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
@@ -52,17 +51,13 @@ export class AssignSessionPatientHandler implements ICommandHandler<AssignSessio
       throw new ConflictError("Esta sessão já possui um paciente.");
     }
 
-    // Best-effort, same as StartSessionHandler: the session link above is what matters.
-    try {
-      await this.queue.updateStatus(entry.id, QueueStatus.IN_PROGRESS);
-      this.eventBus.publish(new QueueUpdatedEvent(session.tenantId, session.equipmentId));
-    } catch (err) {
-      this.logger.warn(`Could not mark queue entry ${entry.id} IN_PROGRESS: ${(err as Error).message}`);
-    }
+    this.eventBus.publish(new QueueUpdatedEvent(session.tenantId, session.equipmentId));
 
     await this.commandBus.execute(
       new RecordAuditEventCommand({
-        tenantId: command.tenantId,
+        // The session's tenant, not the caller's: a cross-tenant supervisor or a
+        // PLATFORM_ADMIN acting here must not write this into their own tenant's chain.
+        tenantId: session.tenantId,
         userId: command.requestedByUserId,
         sessionId: session.id,
         action: AuditAction.SESSION_PATIENT_ASSIGNED,
