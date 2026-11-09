@@ -45,7 +45,7 @@ export class SwitchActiveClinicHandler implements ICommandHandler<SwitchActiveCl
     @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     private readonly operatorAccess: OperatorAccessService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: SwitchActiveClinicCommand): Promise<SwitchActiveClinicResult> {
@@ -100,7 +100,7 @@ export class SwitchActiveClinicHandler implements ICommandHandler<SwitchActiveCl
         resourceType: "User",
         resourceId: user.id,
         details: { fromTenantId: user.tenantId },
-      })
+      }),
     );
 
     return { accessToken, refreshToken };

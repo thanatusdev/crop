@@ -5,6 +5,6 @@ export class SetUnitDeactivatedCommand {
     public readonly unitId: string,
     public readonly actor: { userId: string; tenantId: string; role: UserRole },
     /** `true` takes the unit out of service; `false` returns it. */
-    public readonly deactivated: boolean
+    public readonly deactivated: boolean,
   ) {}
 }

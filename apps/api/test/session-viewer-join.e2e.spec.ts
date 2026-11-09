@@ -78,7 +78,11 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
 
   it("lets a supervisor who never took over join the room, and delivers SESSION_ENDED to them once the operator ends it", async () => {
     const sessionId = await startSession();
-    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "viewer-happy" });
+    const supervisor = await createContractedOperator(app, prisma, {
+      clinicTenantId: tenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
+      emailPrefix: "viewer-happy",
+    });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -116,7 +120,11 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
 
   it("still never lets a mere viewer actually send input, even though their socket is now in the room", async () => {
     const sessionId = await startSession();
-    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "viewer-noinput" });
+    const supervisor = await createContractedOperator(app, prisma, {
+      clinicTenantId: tenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
+      emailPrefix: "viewer-noinput",
+    });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -138,7 +146,11 @@ describe("A supervisor who only views a session (never takes over) is not stuck 
 
   it("still rejects JOIN_SESSION from an unrelated OPERATOR in the same tenant (not this session's own, and not a takeover-eligible role)", async () => {
     const sessionId = await startSession();
-    const otherOperator = await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "viewer-other-operator" });
+    const otherOperator = await createContractedOperator(app, prisma, {
+      clinicTenantId: tenantId,
+      role: UserRole.OPERATOR,
+      emailPrefix: "viewer-other-operator",
+    });
 
     const socket = connectSocket(otherOperator.accessToken);
     await connect(socket);

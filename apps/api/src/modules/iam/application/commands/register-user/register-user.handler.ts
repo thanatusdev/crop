@@ -23,7 +23,7 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
     @Inject(PASSWORD_HASHER) private readonly hasher: PasswordHasherPort,
     @Inject(MFA_SERVICE) private readonly mfa: MfaServicePort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: RegisterUserCommand): Promise<RegisterUserResult> {
@@ -41,7 +41,7 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
       throw new ForbiddenError(
         command.actingRole
           ? `O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode cadastrar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)}.`
-          : `Você não pode cadastrar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)}.`
+          : `Você não pode cadastrar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)}.`,
       );
     }
 
@@ -57,7 +57,9 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
       throw new NotFoundError("Tenant", command.tenantId);
     }
     if (!isRoleAllowedInTenantType(command.role, homeTenant.type)) {
-      throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)} não é permitido em uma ${labelOf(TENANT_TYPE_LABELS_PT_BR, homeTenant.type)}.`);
+      throw new ForbiddenError(
+        `O perfil ${labelOf(ROLE_LABELS_PT_BR, command.role)} não é permitido em uma ${labelOf(TENANT_TYPE_LABELS_PT_BR, homeTenant.type)}.`,
+      );
     }
 
     // Rule: "A Manager is linked to one or more clinics. A Supervisor is linked to the
@@ -119,7 +121,11 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
       // enforce-password-policy.ts) -- a seed-known password containing the new account's
       // own name is exactly as guessable as a self-chosen one would be. No reuse check
       // here: there is no history yet for an account that doesn't exist until `create()`.
-      assertPasswordPolicy(command.directActivation.password, { email: command.email, firstName: command.firstName, lastName: command.lastName });
+      assertPasswordPolicy(command.directActivation.password, {
+        email: command.email,
+        firstName: command.firstName,
+        lastName: command.lastName,
+      });
       passwordHash = await this.hasher.hash(command.directActivation.password);
       activatedAt = new Date();
       invitedAt = null;
@@ -172,7 +178,7 @@ export class RegisterUserHandler implements ICommandHandler<RegisterUserCommand,
         resourceType: "User",
         resourceId: user.id,
         details: { email: user.email, role: user.role, clinicTenantIds: [command.tenantId, ...extraClinicIds] },
-      })
+      }),
     );
 
     // Mandatory 2FA (docs/architecture.md): no access or refresh token is issued here.

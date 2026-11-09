@@ -36,7 +36,7 @@ export class ReturnControlToOperatorHandler implements ICommandHandler<ReturnCon
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ReturnControlToOperatorCommand): Promise<Session> {
@@ -63,7 +63,9 @@ export class ReturnControlToOperatorHandler implements ICommandHandler<ReturnCon
     // SuspendOutsideControlHandler. Handing control back would only hand it to nobody
     // (`getController` refuses suspended users), so say why instead.
     if (this.runtime.getSuspension(session.id)?.userIds.includes(session.operatorId)) {
-      throw new ForbiddenError("O contrato da empresa operadora não cobre mais este equipamento. Não é possível devolver o controle ao operador.");
+      throw new ForbiddenError(
+        "O contrato da empresa operadora não cobre mais este equipamento. Não é possível devolver o controle ao operador.",
+      );
     }
 
     await this.pikvm.releaseAllInput(session.equipmentId);
@@ -74,12 +76,7 @@ export class ReturnControlToOperatorHandler implements ICommandHandler<ReturnCon
     // keeps its record of who was involved as supervisor even after they're no longer the
     // one holding input, which is what keeps them a participant (see Session.isParticipant)
     // for replay/audit/re-takeover purposes afterward.
-    const applied = await this.sessions.setController(
-      session.id,
-      session.operatorId,
-      session.supervisorId,
-      session.controllerUserId
-    );
+    const applied = await this.sessions.setController(session.id, session.operatorId, session.supervisorId, session.controllerUserId);
     if (!applied) {
       throw new ConflictError("O controle desta sessão acabou de mudar. Tente novamente.");
     }
@@ -97,13 +94,7 @@ export class ReturnControlToOperatorHandler implements ICommandHandler<ReturnCon
     return updated;
   }
 
-  private async audit(
-    tenantId: string,
-    userId: string,
-    sessionId: string,
-    action: AuditAction,
-    details: unknown
-  ): Promise<void> {
+  private async audit(tenantId: string, userId: string, sessionId: string, action: AuditAction, details: unknown): Promise<void> {
     await this.commandBus.execute(
       new RecordAuditEventCommand({
         tenantId,
@@ -113,7 +104,7 @@ export class ReturnControlToOperatorHandler implements ICommandHandler<ReturnCon
         resourceType: "Session",
         resourceId: sessionId,
         details,
-      })
+      }),
     );
   }
 }

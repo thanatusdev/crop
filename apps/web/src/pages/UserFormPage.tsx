@@ -65,7 +65,7 @@ export default function UserFormPage() {
     // different admin created this account) -- same "the loaded value is never missing
     // from its own picker" guarantee ClinicFormPage's loadedManager gives.
     () => (role && !grantableRoles.includes(role) ? [role, ...grantableRoles] : grantableRoles),
-    [grantableRoles, role]
+    [grantableRoles, role],
   );
 
   const [loadedUser, setLoadedUser] = useState<UserDto | null>(null);
@@ -82,9 +82,11 @@ export default function UserFormPage() {
   const clinicOptions = useMemo(
     () =>
       isSuperadmin
-        ? tenants.filter((tenant) => tenant.type === "CLINIC").map((tenant) => ({ id: tenant.id, name: tenant.name, deactivated: tenant.deactivated }))
+        ? tenants
+            .filter((tenant) => tenant.type === "CLINIC")
+            .map((tenant) => ({ id: tenant.id, name: tenant.name, deactivated: tenant.deactivated }))
         : myClinics.map((clinic) => ({ id: clinic.id, name: clinic.name, deactivated: clinic.deactivated })),
-    [isSuperadmin, tenants, myClinics]
+    [isSuperadmin, tenants, myClinics],
   );
 
   // PLATFORM_ADMIN-only legacy single-tenant picker, same as AdminUsersPage's own create
@@ -187,8 +189,10 @@ export default function UserFormPage() {
   const canSubmit = !saving && (!clinicAssignmentNeeded || selectedClinicIds.length > 0);
 
   const title = mode === "create" ? t("userForm:createTitle") : mode === "edit" ? t("userForm:editTitle") : t("userForm:viewTitle");
-  const subtitle = mode === "create" ? t("userForm:createSubtitle") : mode === "edit" ? t("userForm:editSubtitle") : t("userForm:viewSubtitle");
-  const breadcrumbLeaf = mode === "create" ? t("userForm:breadcrumbNew") : mode === "edit" ? t("userForm:breadcrumbEdit") : t("userForm:breadcrumbView");
+  const subtitle =
+    mode === "create" ? t("userForm:createSubtitle") : mode === "edit" ? t("userForm:editSubtitle") : t("userForm:viewSubtitle");
+  const breadcrumbLeaf =
+    mode === "create" ? t("userForm:breadcrumbNew") : mode === "edit" ? t("userForm:breadcrumbEdit") : t("userForm:breadcrumbView");
 
   if (loading) {
     return (
@@ -274,7 +278,9 @@ export default function UserFormPage() {
                   {email}
                 </p>
               )}
-              <span className="text-xs text-muted-foreground">{mode === "create" ? t("adminUsers:inviteNote") : t("userForm:emailImmutableHint")}</span>
+              <span className="text-xs text-muted-foreground">
+                {mode === "create" ? t("adminUsers:inviteNote") : t("userForm:emailImmutableHint")}
+              </span>
             </div>
 
             <div className="flex gap-3">

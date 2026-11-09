@@ -2,7 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, clinicPayload, operatorPayload } from "./helpers.js";
+import {
+  createTestApp,
+  createLoggedInUser,
+  createContractedOperator,
+  createTenant,
+  testPrisma,
+  clinicPayload,
+  operatorPayload,
+} from "./helpers.js";
 
 /**
  * PLATFORM_ADMIN and tenant lifecycle -- the first genuinely cross-tenant capability in this
@@ -181,7 +189,14 @@ describe("Superadmin: tenant lifecycle management", () => {
     const res = await http
       .post("/users")
       .set("Authorization", `Bearer ${clinicAdminToken}`)
-      .send({ email, role: "NURSING", tenantId: otherTenantId, clinicTenantIds: [clinicTenantId], firstName: "Escalation", lastName: "Attempt" })
+      .send({
+        email,
+        role: "NURSING",
+        tenantId: otherTenantId,
+        clinicTenantIds: [clinicTenantId],
+        firstName: "Escalation",
+        lastName: "Attempt",
+      })
       .expect(201);
 
     const created = await prisma.user.findUniqueOrThrow({ where: { id: res.body.userId } });
@@ -245,7 +260,14 @@ describe("Superadmin: tenant lifecycle management", () => {
     const userRes = await http
       .post("/users")
       .set("Authorization", `Bearer ${platformAdminToken}`)
-      .send({ email: `audited-user-${crypto.randomUUID()}@test.crop.health`, password: "Whatever123!", role: "LOCAL_IT", tenantId, firstName: "Audited", lastName: "User" })
+      .send({
+        email: `audited-user-${crypto.randomUUID()}@test.crop.health`,
+        password: "Whatever123!",
+        role: "LOCAL_IT",
+        tenantId,
+        firstName: "Audited",
+        lastName: "User",
+      })
       .expect(201);
 
     const userLogs = await prisma.auditLog.findMany({ where: { tenantId, resourceId: userRes.body.userId } });

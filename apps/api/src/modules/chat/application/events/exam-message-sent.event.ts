@@ -16,6 +16,6 @@ export class ExamMessageSentEvent {
   constructor(
     public readonly tenantId: string,
     public readonly equipmentId: string,
-    public readonly message: ExamMessageDto
+    public readonly message: ExamMessageDto,
   ) {}
 }

@@ -112,7 +112,7 @@ describe("UpdateUnitRequestSchema", () => {
     "refuses to null out %s: an update may leave a required-on-create field alone but may not walk it back into the historical-null set",
     (field) => {
       expect(UpdateUnitRequestSchema.safeParse({ [field]: null }).success).toBe(false);
-    }
+    },
   );
 
   it("does allow nulling out technicalManagerId -- unlike every other required-on-create field, a manager can legitimately become unassigned", () => {
@@ -123,7 +123,7 @@ describe("UpdateUnitRequestSchema", () => {
     "does allow nulling out %s, because 'we don't have this on file' is a legitimate correction",
     (field) => {
       expect(UpdateUnitRequestSchema.safeParse({ [field]: null }).success).toBe(true);
-    }
+    },
   );
 
   it("has no clinicTenantId field at all -- a unit's clinic is fixed at creation, not reassignable via update", () => {

@@ -5,6 +5,6 @@ export class EquipmentStatusChangedEvent {
   constructor(
     public readonly tenantId: string,
     public readonly equipmentId: string,
-    public readonly status: EquipmentStatus
+    public readonly status: EquipmentStatus,
   ) {}
 }

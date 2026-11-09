@@ -6,6 +6,6 @@ export class RespondToAgreementCommand {
     public readonly agreementId: string,
     /** `true` accepts (-> ACTIVE), `false` rejects (-> REJECTED). One command rather than two so
      * the "only the other side may answer" rule cannot drift between them. */
-    public readonly accept: boolean
+    public readonly accept: boolean,
   ) {}
 }

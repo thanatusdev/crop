@@ -187,7 +187,12 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell>{target.mfaEnrolled ? t("adminUsers:mfaEnrolled") : t("adminUsers:mfaPending")}</TableCell>
                       <TableCell>
-                        <Badge className={cn("border-transparent", target.activated ? STATUS_BADGE_CLASS.online : STATUS_BADGE_CLASS.maintenance)}>
+                        <Badge
+                          className={cn(
+                            "border-transparent",
+                            target.activated ? STATUS_BADGE_CLASS.online : STATUS_BADGE_CLASS.maintenance,
+                          )}
+                        >
                           {target.activated ? t("adminUsers:activationDone") : t("adminUsers:activationPending")}
                         </Badge>
                       </TableCell>

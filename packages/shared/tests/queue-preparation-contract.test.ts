@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PreparationStatus } from "../src/enums.js";
-import {
-  PatientPreparationUpdatedEventSchema,
-  QueueEntrySchema,
-  UpdatePreparationStatusRequestSchema,
-} from "../src/contracts/queue.js";
+import { PatientPreparationUpdatedEventSchema, QueueEntrySchema, UpdatePreparationStatusRequestSchema } from "../src/contracts/queue.js";
 
 /**
  * `PreparationStatus.NOT_STARTED` is a starting value only -- a fresh `QueueEntry` is created
@@ -14,12 +10,9 @@ import {
  * directly rather than trusting the handler's domain guard to be the only thing enforcing it.
  */
 describe("UpdatePreparationStatusRequestSchema -- NOT_STARTED is not a writable value", () => {
-  it.each([PreparationStatus.POSITIONED, PreparationStatus.INJECTED, PreparationStatus.RELEASED])(
-    "accepts %s",
-    (status) => {
-      expect(UpdatePreparationStatusRequestSchema.safeParse({ status }).success).toBe(true);
-    }
-  );
+  it.each([PreparationStatus.POSITIONED, PreparationStatus.INJECTED, PreparationStatus.RELEASED])("accepts %s", (status) => {
+    expect(UpdatePreparationStatusRequestSchema.safeParse({ status }).success).toBe(true);
+  });
 
   it("rejects NOT_STARTED", () => {
     expect(UpdatePreparationStatusRequestSchema.safeParse({ status: PreparationStatus.NOT_STARTED }).success).toBe(false);

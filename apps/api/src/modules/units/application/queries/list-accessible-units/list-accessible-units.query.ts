@@ -7,6 +7,6 @@ export class ListAccessibleUnitsQuery {
     public readonly requestingTenantId: string,
     public readonly requestingRole: UserRole,
     /** See GetEquipmentQuery.actor. */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

@@ -42,7 +42,11 @@ describe("Supervisor takeover", () => {
 
     const admin = await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.CLINIC_ADMIN });
     alphaAdminToken = admin.accessToken;
-    const operator = await createContractedOperator(app, prisma, { clinicTenantId: alpha.id, role: UserRole.OPERATOR, emailPrefix: "operator" });
+    const operator = await createContractedOperator(app, prisma, {
+      clinicTenantId: alpha.id,
+      role: UserRole.OPERATOR,
+      emailPrefix: "operator",
+    });
     alphaOperatorToken = operator.accessToken;
     alphaOperatorId = operator.userId;
 
@@ -92,7 +96,11 @@ describe("Supervisor takeover", () => {
 
   it("lets a supervisor take over an operator's active session, and audits request + grant", async () => {
     const sessionId = await startSession();
-    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "sup-happy" });
+    const supervisor = await createContractedOperator(app, prisma, {
+      clinicTenantId: alphaTenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
+      emailPrefix: "sup-happy",
+    });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -168,7 +176,11 @@ describe("Supervisor takeover", () => {
 
   it("rejects a supervisor taking over a session they already control", async () => {
     const sessionId = await startSession();
-    const supervisor = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "self-takeover" });
+    const supervisor = await createContractedOperator(app, prisma, {
+      clinicTenantId: alphaTenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
+      emailPrefix: "self-takeover",
+    });
 
     const socket = connectSocket(supervisor.accessToken);
     await connect(socket);
@@ -192,8 +204,16 @@ describe("Supervisor takeover", () => {
 
   it("resolves two near-simultaneous takeover attempts to exactly one winner, never both", async () => {
     const sessionId = await startSession();
-    const supervisorA = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "race-a" });
-    const supervisorB = await createContractedOperator(app, prisma, { clinicTenantId: alphaTenantId, role: UserRole.OPERATIONAL_SUPERVISOR, emailPrefix: "race-b" });
+    const supervisorA = await createContractedOperator(app, prisma, {
+      clinicTenantId: alphaTenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
+      emailPrefix: "race-a",
+    });
+    const supervisorB = await createContractedOperator(app, prisma, {
+      clinicTenantId: alphaTenantId,
+      role: UserRole.OPERATIONAL_SUPERVISOR,
+      emailPrefix: "race-b",
+    });
 
     const socketA = connectSocket(supervisorA.accessToken);
     const socketB = connectSocket(supervisorB.accessToken);

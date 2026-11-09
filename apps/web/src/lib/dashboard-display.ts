@@ -1,4 +1,11 @@
-import { AgreementStatus, EquipmentStatus, type EquipmentDto, type OperatorAgreementDto, type QueueEntryDto, type UserDto } from "@crop/shared";
+import {
+  AgreementStatus,
+  EquipmentStatus,
+  type EquipmentDto,
+  type OperatorAgreementDto,
+  type QueueEntryDto,
+  type UserDto,
+} from "@crop/shared";
 
 /**
  * The "Painel" (`DashboardPage`) summary-card row's numbers -- one per card, computed from

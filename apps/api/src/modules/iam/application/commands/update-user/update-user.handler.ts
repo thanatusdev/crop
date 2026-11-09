@@ -1,6 +1,14 @@
 import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
-import { AuditAction, TenantType, UserRole, canGrantRole, isRoleAllowedInTenantType, requiresClinicAssignment, responsibleManagerRoleFor } from "@crop/shared";
+import {
+  AuditAction,
+  TenantType,
+  UserRole,
+  canGrantRole,
+  isRoleAllowedInTenantType,
+  requiresClinicAssignment,
+  responsibleManagerRoleFor,
+} from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { ROLE_LABELS_PT_BR, TENANT_TYPE_LABELS_PT_BR, labelOf } from "../../../../../shared/domain/pt-br-labels.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
@@ -16,7 +24,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: UpdateUserCommand): Promise<User> {
@@ -41,7 +49,9 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
     // documents does not apply here: every HTTP caller reaching this handler has a real,
     // non-null role (UsersController's own @Roles guard already guarantees that).
     if (!canGrantRole(command.actingRole, target.role)) {
-      throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode editar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, target.role)}.`);
+      throw new ForbiddenError(
+        `O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode editar usuários com o perfil ${labelOf(ROLE_LABELS_PT_BR, target.role)}.`,
+      );
     }
 
     const effectiveRole = command.changes.role ?? target.role;
@@ -52,13 +62,17 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
       // tenant-type boundary without this handler knowing it: `isRoleAllowedInTenantType`
       // below rejects that regardless, since home tenant itself never changes here.
       if (!canGrantRole(command.actingRole, command.changes.role)) {
-        throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode atribuir o perfil ${labelOf(ROLE_LABELS_PT_BR, command.changes.role)}.`);
+        throw new ForbiddenError(
+          `O perfil ${labelOf(ROLE_LABELS_PT_BR, command.actingRole)} não pode atribuir o perfil ${labelOf(ROLE_LABELS_PT_BR, command.changes.role)}.`,
+        );
       }
 
       const homeTenant = await this.tenants.findById(target.tenantId);
       if (!homeTenant) throw new NotFoundError("Tenant", target.tenantId);
       if (!isRoleAllowedInTenantType(command.changes.role, homeTenant.type)) {
-        throw new ForbiddenError(`O perfil ${labelOf(ROLE_LABELS_PT_BR, command.changes.role)} não é permitido em uma ${labelOf(TENANT_TYPE_LABELS_PT_BR, homeTenant.type)}.`);
+        throw new ForbiddenError(
+          `O perfil ${labelOf(ROLE_LABELS_PT_BR, command.changes.role)} não é permitido em uma ${labelOf(TENANT_TYPE_LABELS_PT_BR, homeTenant.type)}.`,
+        );
       }
 
       // FK guard: a role change that would leave some tenant's "Gestor Responsável"
@@ -71,7 +85,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
       const responsibleFor = await this.tenants.findByResponsibleManagerId(target.id);
       if (responsibleFor && responsibleManagerRoleFor(responsibleFor.type) !== command.changes.role) {
         throw new ForbiddenError(
-          `Este usuário é o Gestor Responsável de ${responsibleFor.name}. Remova essa atribuição antes de alterar o perfil dele.`
+          `Este usuário é o Gestor Responsável de ${responsibleFor.name}. Remova essa atribuição antes de alterar o perfil dele.`,
         );
       }
     }
@@ -151,7 +165,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
         // Field *names* only -- same flat rule TENANT_UPDATED/UNIT_UPDATED/EQUIPMENT_UPDATED
         // already follow.
         details: { changedFields: Object.keys(command.changes) },
-      })
+      }),
     );
 
     return updated;

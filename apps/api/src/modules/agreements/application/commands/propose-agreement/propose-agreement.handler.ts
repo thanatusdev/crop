@@ -23,7 +23,7 @@ export class ProposeAgreementHandler implements ICommandHandler<ProposeAgreement
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ProposeAgreementCommand): Promise<OperatorAgreement> {
@@ -108,7 +108,7 @@ export class ProposeAgreementHandler implements ICommandHandler<ProposeAgreement
           proposedByTenantId: proposerTenantId,
           reopened: existing !== null,
         },
-      })
+      }),
     );
 
     return agreement;

@@ -38,7 +38,7 @@ import { toTenantDto } from "./tenant.dto.js";
 export class TenantsController {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly queryBus: QueryBus
+    private readonly queryBus: QueryBus,
   ) {}
 
   @Post()
@@ -58,7 +58,7 @@ export class TenantsController {
         district: body.district ?? null,
         city: body.city ?? null,
         state: body.state ?? null,
-      })
+      }),
     );
     return toTenantDto(enriched);
   }
@@ -96,7 +96,7 @@ export class TenantsController {
   async update(
     @CurrentUser() admin: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdateTenantRequestSchema)) body: UpdateTenantRequest
+    @Body(new ZodValidationPipe(UpdateTenantRequestSchema)) body: UpdateTenantRequest,
   ) {
     const enriched = await this.commandBus.execute(new UpdateTenantCommand(id, admin.sub, body));
     return toTenantDto(enriched);
@@ -113,5 +113,4 @@ export class TenantsController {
   async reactivate(@CurrentUser() admin: AccessTokenClaims, @Param("id") id: string): Promise<void> {
     await this.commandBus.execute(new ReactivateTenantCommand(id, admin.sub));
   }
-
 }

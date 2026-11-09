@@ -15,7 +15,7 @@ export class UpdateEquipmentHandler implements ICommandHandler<UpdateEquipmentCo
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
     private readonly encryption: EncryptionService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: UpdateEquipmentCommand): Promise<Equipment> {
@@ -62,7 +62,7 @@ export class UpdateEquipmentHandler implements ICommandHandler<UpdateEquipmentCo
         // names, never values") is easier to keep correct than judging each field case by
         // case as new ones get added later.
         details: { changedFields: Object.keys(command.changes) },
-      })
+      }),
     );
 
     return updated;

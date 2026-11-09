@@ -53,20 +53,34 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     companyAId = (await createTenant(prisma, `AgreeCompanyA-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
     companyBId = (await createTenant(prisma, `AgreeCompanyB-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
 
-    const clinicAdmin = await createLoggedInUser(app, { tenantId: clinicId, role: UserRole.CLINIC_ADMIN, emailPrefix: "agree-clinic-admin" });
+    const clinicAdmin = await createLoggedInUser(app, {
+      tenantId: clinicId,
+      role: UserRole.CLINIC_ADMIN,
+      emailPrefix: "agree-clinic-admin",
+    });
     clinicAdminToken = clinicAdmin.accessToken;
     clinicAdminUserId = clinicAdmin.userId;
-    companyAAdminToken = (await createLoggedInUser(app, { tenantId: companyAId, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-a-admin" }))
-      .accessToken;
-    companyBAdminToken = (await createLoggedInUser(app, { tenantId: companyBId, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-b-admin" }))
-      .accessToken;
+    companyAAdminToken = (
+      await createLoggedInUser(app, { tenantId: companyAId, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-a-admin" })
+    ).accessToken;
+    companyBAdminToken = (
+      await createLoggedInUser(app, { tenantId: companyBId, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-b-admin" })
+    ).accessToken;
 
     // Two rooms, each with a scanner. Which is "granted" differs per company, which is the point.
     grantedUnitId = (
-      await http.post("/units").set("Authorization", `Bearer ${clinicAdminToken}`).send(unitPayload(clinicAdminUserId, { name: "Ala Norte" })).expect(201)
+      await http
+        .post("/units")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send(unitPayload(clinicAdminUserId, { name: "Ala Norte" }))
+        .expect(201)
     ).body.id;
     ungrantedUnitId = (
-      await http.post("/units").set("Authorization", `Bearer ${clinicAdminToken}`).send(unitPayload(clinicAdminUserId, { name: "Ala Sul" })).expect(201)
+      await http
+        .post("/units")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send(unitPayload(clinicAdminUserId, { name: "Ala Sul" }))
+        .expect(201)
     ).body.id;
 
     grantedEquipmentId = (
@@ -117,7 +131,10 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
 
     // The clinic proposed, so the clinic may not accept -- otherwise the handshake is decoration
     // and we are back to the unilateral link this model replaced.
-    const selfAccept = await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(403);
+    const selfAccept = await http
+      .post(`/agreements/${proposed.body.id}/accept`)
+      .set("Authorization", `Bearer ${clinicAdminToken}`)
+      .expect(403);
     expect(selfAccept.body.code).toBe("FORBIDDEN");
 
     // And PENDING grants no access at all: the operator cannot even enter the clinic's context.
@@ -138,7 +155,10 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     expect(duplicate.body.code).toBe("CONFLICT");
 
     // Accepted by the counterparty -> ACTIVE, and only now is the clinic reachable.
-    const accepted = await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${companyAAdminToken}`).expect(201);
+    const accepted = await http
+      .post(`/agreements/${proposed.body.id}/accept`)
+      .set("Authorization", `Bearer ${companyAAdminToken}`)
+      .expect(201);
     expect(accepted.body.status).toBe("ACTIVE");
     expect(accepted.body.scopes.map((s: { label: string }) => s.label)).toEqual(["Ala Norte"]);
   });
@@ -155,7 +175,10 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     // returns patient first names.
     for (const [label, res] of [
       ["equipment detail", await http.get(`/equipment/${ungrantedEquipmentId}`).set("Authorization", `Bearer ${operatorToken}`)],
-      ["session start", await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: ungrantedEquipmentId })],
+      [
+        "session start",
+        await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: ungrantedEquipmentId }),
+      ],
       ["patient queue", await http.get(`/queue?equipmentId=${ungrantedEquipmentId}`).set("Authorization", `Bearer ${operatorToken}`)],
     ] as const) {
       expect(res.status, `${label} should be refused`).toBe(403);
@@ -165,13 +188,24 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     // The in-scope device works end to end, proving the refusals above are about scope and not a
     // blanket loss of access.
     await http.get(`/equipment/${grantedEquipmentId}`).set("Authorization", `Bearer ${operatorToken}`).expect(200);
-    const session = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: grantedEquipmentId }).expect(201);
-    await http.post(`/sessions/${session.body.id as string}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
+    const session = await http
+      .post("/sessions")
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .send({ equipmentId: grantedEquipmentId })
+      .expect(201);
+    await http
+      .post(`/sessions/${session.body.id as string}/end`)
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .expect(201);
   });
 
   it("lets one clinic contract a second company with different scope, without either seeing the other's rooms", async () => {
     // Proposed by the *company* this time -- the mirror of the first test's direction.
-    const proposed = await http.post("/agreements").set("Authorization", `Bearer ${companyBAdminToken}`).send({ clinicTenantId: clinicId }).expect(201);
+    const proposed = await http
+      .post("/agreements")
+      .set("Authorization", `Bearer ${companyBAdminToken}`)
+      .send({ clinicTenantId: clinicId })
+      .expect(201);
     expect(proposed.body.status).toBe("PENDING");
 
     // The company proposed, so the company may not accept.
@@ -190,12 +224,18 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
       .send({ unitIds: [ungrantedUnitId], equipmentIds: [] })
       .expect(200);
 
-    const afterScope = await http.get("/equipment").set("Authorization", `Bearer ${await operatorInClinic(companyBId, clinicId)}`).expect(200);
+    const afterScope = await http
+      .get("/equipment")
+      .set("Authorization", `Bearer ${await operatorInClinic(companyBId, clinicId)}`)
+      .expect(200);
     expect(afterScope.body.map((e: { name: string }) => e.name)).toEqual(["Agree-Ungranted-CT"]);
 
     // Company A is unaffected and still sees only its own room -- two live contracts, disjoint
     // scope, on one clinic. This is the shape the old single-FK column could not express at all.
-    const companyAList = await http.get("/equipment").set("Authorization", `Bearer ${await operatorInClinic(companyAId, clinicId)}`).expect(200);
+    const companyAList = await http
+      .get("/equipment")
+      .set("Authorization", `Bearer ${await operatorInClinic(companyAId, clinicId)}`)
+      .expect(200);
     expect(companyAList.body.map((e: { name: string }) => e.name)).toEqual(["Agree-Granted-MRI"]);
   });
 
@@ -226,8 +266,9 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
 
   it("cuts access the moment a clinic revokes, without invalidating the operator's existing token", async () => {
     const company = (await createTenant(prisma, `AgreeRevoke-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
-    const companyAdmin = (await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-revoke-admin" }))
-      .accessToken;
+    const companyAdmin = (
+      await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-revoke-admin" })
+    ).accessToken;
 
     const proposed = await http
       .post("/agreements")
@@ -240,7 +281,10 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     const operatorToken = await operatorInClinic(company, clinicId);
     expect((await http.get("/equipment").set("Authorization", `Bearer ${operatorToken}`).expect(200)).body).toHaveLength(1);
 
-    const revoked = await http.post(`/agreements/${proposed.body.id}/revoke`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(200);
+    const revoked = await http
+      .post(`/agreements/${proposed.body.id}/revoke`)
+      .set("Authorization", `Bearer ${clinicAdminToken}`)
+      .expect(200);
     expect(revoked.body.status).toBe("REVOKED");
 
     // That same token now reaches nothing. Revocation is enforced on the data paths rather than by
@@ -264,7 +308,10 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     const theirs = await http.get("/agreements").set("Authorization", `Bearer ${outsiderClinicAdmin}`).expect(200);
     expect(theirs.body).toEqual([]);
 
-    const peek = await http.get(`/agreements/${mine.body[0].id as string}`).set("Authorization", `Bearer ${outsiderClinicAdmin}`).expect(403);
+    const peek = await http
+      .get(`/agreements/${mine.body[0].id as string}`)
+      .set("Authorization", `Bearer ${outsiderClinicAdmin}`)
+      .expect(403);
     expect(peek.body.code).toBe("FORBIDDEN");
   });
 
@@ -386,7 +433,10 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     // The company, not the clinic, is the one who must answer -- same `assertCanBeRespondedToBy`
     // rule proven for the operator-proposes direction elsewhere in this suite, exercised here in
     // the other direction.
-    const selfAccept = await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(403);
+    const selfAccept = await http
+      .post(`/agreements/${proposed.body.id}/accept`)
+      .set("Authorization", `Bearer ${clinicAdminToken}`)
+      .expect(403);
     expect(selfAccept.body.code).toBe("FORBIDDEN");
 
     await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${companyAdmin}`).expect(201);
@@ -394,8 +444,9 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
 
   it("audits the whole lifecycle against the clinic, since the clinic is the party whose exposure changes", async () => {
     const company = (await createTenant(prisma, `AgreeAudit-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
-    const companyAdmin = (await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-audit-admin" }))
-      .accessToken;
+    const companyAdmin = (
+      await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-audit-admin" })
+    ).accessToken;
 
     const proposed = await http
       .post("/agreements")
@@ -414,12 +465,7 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
       where: { resourceType: "OperatorAgreement", resourceId: proposed.body.id as string },
       orderBy: { seq: "asc" },
     });
-    expect(rows.map((r) => r.action)).toEqual([
-      "AGREEMENT_PROPOSED",
-      "AGREEMENT_ACCEPTED",
-      "AGREEMENT_SCOPE_CHANGED",
-      "AGREEMENT_REVOKED",
-    ]);
+    expect(rows.map((r) => r.action)).toEqual(["AGREEMENT_PROPOSED", "AGREEMENT_ACCEPTED", "AGREEMENT_SCOPE_CHANGED", "AGREEMENT_REVOKED"]);
     // Against the clinic even for the two acts the *company* performed, so a reviewer reading one
     // clinic's log sees the complete history of who could reach its patients.
     expect(rows.every((r) => r.tenantId === clinicId)).toBe(true);
@@ -429,14 +475,23 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
 
   it("re-proposing after a rejection reuses the same agreement row rather than accumulating history rows", async () => {
     const company = (await createTenant(prisma, `AgreeReopen-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
-    const companyAdmin = (await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-reopen-admin" }))
-      .accessToken;
+    const companyAdmin = (
+      await createLoggedInUser(app, { tenantId: company, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-reopen-admin" })
+    ).accessToken;
 
-    const first = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: company }).expect(201);
+    const first = await http
+      .post("/agreements")
+      .set("Authorization", `Bearer ${clinicAdminToken}`)
+      .send({ operatorTenantId: company })
+      .expect(201);
     const rejected = await http.post(`/agreements/${first.body.id}/reject`).set("Authorization", `Bearer ${companyAdmin}`).expect(201);
     expect(rejected.body.status).toBe("REJECTED");
 
-    const second = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: company }).expect(201);
+    const second = await http
+      .post("/agreements")
+      .set("Authorization", `Bearer ${clinicAdminToken}`)
+      .send({ operatorTenantId: company })
+      .expect(201);
     expect(second.body.id).toBe(first.body.id);
     expect(second.body.status).toBe("PENDING");
     // The previous round's answer is cleared, so a reopened agreement cannot look already-answered.
@@ -453,7 +508,11 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
    */
   it("lets a clinic grant two companies different scanners in the very same room", async () => {
     const sharedUnit = (
-      await http.post("/units").set("Authorization", `Bearer ${clinicAdminToken}`).send(unitPayload(clinicAdminUserId, { name: "Sala Compartilhada" })).expect(201)
+      await http
+        .post("/units")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send(unitPayload(clinicAdminUserId, { name: "Sala Compartilhada" }))
+        .expect(201)
     ).body.id;
     const scannerOne = (
       await http
@@ -472,13 +531,19 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
     await prisma.equipment.updateMany({ where: { id: { in: [scannerOne, scannerTwo] } }, data: { status: "ONLINE" } });
 
     const companyC = (await createTenant(prisma, `AgreeShared-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
-    const companyCAdmin = (await createLoggedInUser(app, { tenantId: companyC, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-shared-c-admin" }))
-      .accessToken;
+    const companyCAdmin = (
+      await createLoggedInUser(app, { tenantId: companyC, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-shared-c-admin" })
+    ).accessToken;
     const companyD = (await createTenant(prisma, `AgreeShared-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
-    const companyDAdmin = (await createLoggedInUser(app, { tenantId: companyD, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-shared-d-admin" }))
-      .accessToken;
+    const companyDAdmin = (
+      await createLoggedInUser(app, { tenantId: companyD, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-shared-d-admin" })
+    ).accessToken;
 
-    const proposedC = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyC }).expect(201);
+    const proposedC = await http
+      .post("/agreements")
+      .set("Authorization", `Bearer ${clinicAdminToken}`)
+      .send({ operatorTenantId: companyC })
+      .expect(201);
     await http.post(`/agreements/${proposedC.body.id}/accept`).set("Authorization", `Bearer ${companyCAdmin}`).expect(201);
     await http
       .put(`/agreements/${proposedC.body.id}/scope`)
@@ -486,7 +551,11 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
       .send({ unitIds: [], equipmentIds: [scannerOne] })
       .expect(200);
 
-    const proposedD = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyD }).expect(201);
+    const proposedD = await http
+      .post("/agreements")
+      .set("Authorization", `Bearer ${clinicAdminToken}`)
+      .send({ operatorTenantId: companyD })
+      .expect(201);
     await http.post(`/agreements/${proposedD.body.id}/accept`).set("Authorization", `Bearer ${companyDAdmin}`).expect(201);
     await http
       .put(`/agreements/${proposedD.body.id}/scope`)
@@ -544,7 +613,11 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
   describe("GET /agreements/:id/scope-options", () => {
     it("lists the agreement's own clinic equipment, flagging direct and unit-inherited grants separately", async () => {
       const clinic2 = (await createTenant(prisma, `AgreeScopeOpts-${crypto.randomUUID()}`)).id;
-      const clinic2Admin = await createLoggedInUser(app, { tenantId: clinic2, role: UserRole.CLINIC_ADMIN, emailPrefix: "agree-scopeopts-admin" });
+      const clinic2Admin = await createLoggedInUser(app, {
+        tenantId: clinic2,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "agree-scopeopts-admin",
+      });
       const company2 = (await createTenant(prisma, `AgreeScopeOptsCo-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
       const company2Admin = (
         await createLoggedInUser(app, { tenantId: company2, role: UserRole.OPERATOR_ADMIN, emailPrefix: "agree-scopeopts-co-admin" })
@@ -613,20 +686,31 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
         .set("Authorization", `Bearer ${clinic2Admin.accessToken}`)
         .expect(200);
       const byName = new Map(
-        (options.body as { id: string; name: string; unitId: string; granted: boolean; grantedViaUnit: boolean }[]).map((o) => [o.name, o])
+        (options.body as { id: string; name: string; unitId: string; granted: boolean; grantedViaUnit: boolean }[]).map((o) => [o.name, o]),
       );
 
       expect(byName.get("ScopeOpts-Direct")).toMatchObject({ unitId: unitDirect, granted: true, grantedViaUnit: false });
       expect(byName.get("ScopeOpts-ViaUnit")).toMatchObject({ unitId: unitViaGrant, granted: false, grantedViaUnit: true });
-      expect(byName.get("ScopeOpts-Ungranted")).toMatchObject({ id: eUngranted, unitId: unitUngranted, granted: false, grantedViaUnit: false });
+      expect(byName.get("ScopeOpts-Ungranted")).toMatchObject({
+        id: eUngranted,
+        unitId: unitUngranted,
+        granted: false,
+        grantedViaUnit: false,
+      });
 
       // The operator side cannot even read its own agreement's options -- scope is the clinic's
       // to see and set, same `assertScopeCanBeSetBy` rule `PUT :id/scope` enforces.
-      const asOperator = await http.get(`/agreements/${proposed.body.id}/scope-options`).set("Authorization", `Bearer ${company2Admin}`).expect(403);
+      const asOperator = await http
+        .get(`/agreements/${proposed.body.id}/scope-options`)
+        .set("Authorization", `Bearer ${company2Admin}`)
+        .expect(403);
       expect(asOperator.body.code).toBe("FORBIDDEN");
 
       // Nor can a clinic with no part in this agreement at all.
-      const outsider = await http.get(`/agreements/${proposed.body.id}/scope-options`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(403);
+      const outsider = await http
+        .get(`/agreements/${proposed.body.id}/scope-options`)
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .expect(403);
       expect(outsider.body.code).toBe("FORBIDDEN");
     });
   });
@@ -642,8 +726,9 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
 
     beforeAll(async () => {
       const platformId = (await createTenant(prisma, `AgreePlatform-${crypto.randomUUID()}`, "PLATFORM")).id;
-      platformToken = (await createLoggedInUser(app, { tenantId: platformId, role: UserRole.PLATFORM_ADMIN, emailPrefix: "agree-platform" }))
-        .accessToken;
+      platformToken = (
+        await createLoggedInUser(app, { tenantId: platformId, role: UserRole.PLATFORM_ADMIN, emailPrefix: "agree-platform" })
+      ).accessToken;
     });
 
     it("sees every agreement and accepts a clinic's proposal on behalf of a company with no admin yet", async () => {
@@ -658,7 +743,10 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
       expect((list.body as { id: string }[]).map((a) => a.id)).toContain(proposed.body.id);
       await http.get(`/agreements/${proposed.body.id}`).set("Authorization", `Bearer ${platformToken}`).expect(200);
 
-      const accepted = await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${platformToken}`).expect(201);
+      const accepted = await http
+        .post(`/agreements/${proposed.body.id}/accept`)
+        .set("Authorization", `Bearer ${platformToken}`)
+        .expect(201);
       expect(accepted.body.status).toBe("ACTIVE");
 
       const audit = await prisma.auditLog.findFirst({
@@ -679,7 +767,11 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
 
     it("cannot answer an agreement that is no longer pending, and says so in Portuguese", async () => {
       const newCompanyId = (await createTenant(prisma, `AgreeNewCompany2-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
-      const proposed = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: newCompanyId }).expect(201);
+      const proposed = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: newCompanyId })
+        .expect(201);
       await http.post(`/agreements/${proposed.body.id}/reject`).set("Authorization", `Bearer ${platformToken}`).expect(201);
 
       const again = await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${platformToken}`).expect(403);
@@ -695,14 +787,19 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
   describe("lifecycle safety", () => {
     async function freshCompanyWithAdmin(label: string): Promise<{ companyId: string; adminToken: string }> {
       const companyId = (await createTenant(prisma, `Agree${label}-${crypto.randomUUID()}`, "OPERATOR_PROVIDER")).id;
-      const adminToken = (await createLoggedInUser(app, { tenantId: companyId, role: UserRole.OPERATOR_ADMIN, emailPrefix: `agree-${label.toLowerCase()}` }))
-        .accessToken;
+      const adminToken = (
+        await createLoggedInUser(app, { tenantId: companyId, role: UserRole.OPERATOR_ADMIN, emailPrefix: `agree-${label.toLowerCase()}` })
+      ).accessToken;
       return { companyId, adminToken };
     }
 
     async function onlineEquipment(name: string): Promise<string> {
       const id = (
-        await http.post("/equipment").set("Authorization", `Bearer ${clinicAdminToken}`).send(equipmentPayload({ name, unitId: grantedUnitId })).expect(201)
+        await http
+          .post("/equipment")
+          .set("Authorization", `Bearer ${clinicAdminToken}`)
+          .send(equipmentPayload({ name, unitId: grantedUnitId }))
+          .expect(201)
       ).body.id as string;
       await prisma.equipment.update({ where: { id }, data: { status: "ONLINE" } });
       return id;
@@ -754,7 +851,11 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
         .expect(201);
       await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`).expect(201);
 
-      const kept = await http.post("/sessions").set("Authorization", `Bearer ${await operatorInClinic(companyId, clinicId)}`).send({ equipmentId: keptId }).expect(201);
+      const kept = await http
+        .post("/sessions")
+        .set("Authorization", `Bearer ${await operatorInClinic(companyId, clinicId)}`)
+        .send({ equipmentId: keptId })
+        .expect(201);
       const dropped = await http
         .post("/sessions")
         .set("Authorization", `Bearer ${await operatorInClinic(companyId, clinicId)}`)
@@ -768,10 +869,15 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
         .expect(200);
 
       expect((await waitForSuspension(dropped.body.id as string))?.details).toMatchObject({ reason: "agreement_scope_reduced" });
-      const keptAudit = await prisma.auditLog.findFirst({ where: { sessionId: kept.body.id as string, action: "SESSION_CONTROL_SUSPENDED" } });
+      const keptAudit = await prisma.auditLog.findFirst({
+        where: { sessionId: kept.body.id as string, action: "SESSION_CONTROL_SUSPENDED" },
+      });
       expect(keptAudit).toBeNull();
 
-      await prisma.session.updateMany({ where: { id: { in: [kept.body.id, dropped.body.id] } }, data: { status: "ENDED", endedAt: new Date() } });
+      await prisma.session.updateMany({
+        where: { id: { in: [kept.body.id, dropped.body.id] } },
+        data: { status: "ENDED", endedAt: new Date() },
+      });
     });
 
     it("a re-proposal after a revoke starts with no scope instead of inheriting the old round's", async () => {
@@ -785,20 +891,34 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
       await http.post(`/agreements/${proposed.body.id}/revoke`).set("Authorization", `Bearer ${adminToken}`).expect(200);
 
       // The *company* re-proposes: accepting this must not silently restore Ala Norte.
-      const reopened = await http.post("/agreements").set("Authorization", `Bearer ${adminToken}`).send({ clinicTenantId: clinicId }).expect(201);
+      const reopened = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ clinicTenantId: clinicId })
+        .expect(201);
       expect(reopened.body.id).toBe(proposed.body.id);
       expect(reopened.body.scopes).toEqual([]);
     });
 
     it("lets the proposer withdraw a pending proposal, after which it can no longer be accepted", async () => {
       const { companyId, adminToken } = await freshCompanyWithAdmin("Withdraw");
-      const proposed = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyId }).expect(201);
+      const proposed = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: companyId })
+        .expect(201);
 
       // Only the proposer may withdraw; the other side's "no" is reject.
-      const notTheirs = await http.post(`/agreements/${proposed.body.id}/withdraw`).set("Authorization", `Bearer ${adminToken}`).expect(403);
+      const notTheirs = await http
+        .post(`/agreements/${proposed.body.id}/withdraw`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(403);
       expect(notTheirs.body.message).toBe("Somente quem propôs o contrato pode cancelar a proposta.");
 
-      const withdrawn = await http.post(`/agreements/${proposed.body.id}/withdraw`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(200);
+      const withdrawn = await http
+        .post(`/agreements/${proposed.body.id}/withdraw`)
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .expect(200);
       expect(withdrawn.body.status).toBe("REVOKED");
       await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`).expect(403);
 
@@ -806,14 +926,22 @@ describe("Operator agreements: handshake, scope, and the access they grant", () 
       expect(audit?.tenantId).toBe(clinicId);
 
       // And proposing again reopens the very same row.
-      const again = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyId }).expect(201);
+      const again = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: companyId })
+        .expect(201);
       expect(again.body.id).toBe(proposed.body.id);
       expect(again.body.status).toBe("PENDING");
     });
 
     it("refuses the second of two simultaneous answers instead of letting the last write win", async () => {
       const { companyId, adminToken } = await freshCompanyWithAdmin("Race");
-      const proposed = await http.post("/agreements").set("Authorization", `Bearer ${clinicAdminToken}`).send({ operatorTenantId: companyId }).expect(201);
+      const proposed = await http
+        .post("/agreements")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ operatorTenantId: companyId })
+        .expect(201);
 
       const [accept, reject] = await Promise.all([
         http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${adminToken}`),

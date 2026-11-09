@@ -36,7 +36,7 @@ export class JwtTokenService implements TokenServicePort {
 
   constructor(
     private readonly jwt: JwtService,
-    config: ConfigService
+    config: ConfigService,
   ) {
     this.accessSecret = config.getOrThrow<string>("JWT_ACCESS_SECRET");
     this.refreshSecret = config.getOrThrow<string>("JWT_REFRESH_SECRET");
@@ -73,7 +73,8 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyMfaChallenge(token: string): MfaChallengeClaims {
     const claims = this.verify<MfaChallengeClaims>(token, this.accessSecret);
-    if (claims.purpose !== "mfa_challenge") throw new UnauthorizedError("Sua verificação em duas etapas expirou ou é inválida. Faça login novamente.");
+    if (claims.purpose !== "mfa_challenge")
+      throw new UnauthorizedError("Sua verificação em duas etapas expirou ou é inválida. Faça login novamente.");
     return claims;
   }
 
@@ -84,7 +85,8 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyMfaEnrollment(token: string): MfaEnrollmentClaims {
     const claims = this.verify<MfaEnrollmentClaims>(token, this.accessSecret);
-    if (claims.purpose !== "mfa_enrollment") throw new UnauthorizedError("A configuração da verificação em duas etapas expirou ou é inválida. Faça login novamente.");
+    if (claims.purpose !== "mfa_enrollment")
+      throw new UnauthorizedError("A configuração da verificação em duas etapas expirou ou é inválida. Faça login novamente.");
     return claims;
   }
 
@@ -126,7 +128,8 @@ export class JwtTokenService implements TokenServicePort {
 
   verifyPasswordChange(token: string): PasswordChangeClaims & { jti: string; exp: number } {
     const claims = this.verify<PasswordChangeClaims & { jti: string; exp: number }>(token, this.accessSecret);
-    if (claims.purpose !== "password_change") throw new UnauthorizedError("Sua solicitação de troca de senha expirou ou é inválida. Faça login novamente.");
+    if (claims.purpose !== "password_change")
+      throw new UnauthorizedError("Sua solicitação de troca de senha expirou ou é inválida. Faça login novamente.");
     return claims;
   }
 

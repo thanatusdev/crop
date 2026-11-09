@@ -8,6 +8,6 @@ import type { AccessTokenClaims } from "@crop/shared";
 export class CanAccessEquipmentChatQuery {
   constructor(
     public readonly equipmentId: string,
-    public readonly actor: AccessTokenClaims
+    public readonly actor: AccessTokenClaims,
   ) {}
 }

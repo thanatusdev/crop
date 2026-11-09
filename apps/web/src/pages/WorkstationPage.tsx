@@ -141,7 +141,9 @@ export default function WorkstationPage() {
     setClinicsLoading(true);
     setClinicsError(null);
     try {
-      const list = (await api.get<MyClinic[]>("/auth/me/clinics")).filter((c) => !c.deactivated).sort((a, b) => a.name.localeCompare(b.name));
+      const list = (await api.get<MyClinic[]>("/auth/me/clinics"))
+        .filter((c) => !c.deactivated)
+        .sort((a, b) => a.name.localeCompare(b.name));
       setClinics(list);
       if (!params.get("clinicTenantId")) {
         // Seed from whichever clinic the stored token is already scoped to, not an empty
@@ -197,10 +199,7 @@ export default function WorkstationPage() {
     setUnitsError(null);
     setEquipmentError(null);
     try {
-      const [unitList, equipmentList] = await Promise.all([
-        api.get<UnitDto[]>("/units"),
-        api.get<EquipmentDto[]>("/equipment"),
-      ]);
+      const [unitList, equipmentList] = await Promise.all([api.get<UnitDto[]>("/units"), api.get<EquipmentDto[]>("/equipment")]);
       setUnits(unitList.filter((u) => !u.deactivated).sort((a, b) => a.name.localeCompare(b.name)));
       setEquipment(equipmentList.filter((e) => !e.deactivated));
     } catch (err) {
@@ -233,7 +232,7 @@ export default function WorkstationPage() {
 
   const roomsForUnit = useMemo(
     () => equipment.filter((e) => e.unitId === selectedUnitId).sort((a, b) => a.name.localeCompare(b.name)),
-    [equipment, selectedUnitId]
+    [equipment, selectedUnitId],
   );
   const selectedEquipment = equipment.find((e) => e.id === selectedEquipmentId) ?? null;
 
@@ -462,7 +461,9 @@ export default function WorkstationPage() {
                 <div>
                   <strong>{selectedEquipment.roomLabel ?? selectedEquipment.name}</strong>
                   <div className="mt-1">
-                    <Badge className={cn("border-transparent", tailwindBadgeClassOf(displayStatus))}>{t(statusLabelKeyOf(displayStatus))}</Badge>
+                    <Badge className={cn("border-transparent", tailwindBadgeClassOf(displayStatus))}>
+                      {t(statusLabelKeyOf(displayStatus))}
+                    </Badge>
                   </div>
                 </div>
                 <div className="flex flex-col gap-0.5" role="status" aria-live="polite">

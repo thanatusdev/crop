@@ -38,8 +38,12 @@ const httpServer = createServer((req, res) => {
     res.end(
       JSON.stringify({
         ok: true,
-        result: { online: true, keyboard: { online: true, leds: { caps: false, num: false, scroll: false } }, mouse: { online: true, absolute: true } },
-      })
+        result: {
+          online: true,
+          keyboard: { online: true, leds: { caps: false, num: false, scroll: false } },
+          mouse: { online: true, absolute: true },
+        },
+      }),
     );
     return;
   }
@@ -82,8 +86,12 @@ hidWss.on("connection", (ws) => {
   ws.send(
     JSON.stringify({
       event_type: "hid",
-      event: { online: true, keyboard: { online: true, leds: { caps: false, num: false, scroll: false } }, mouse: { online: true, absolute: true } },
-    })
+      event: {
+        online: true,
+        keyboard: { online: true, leds: { caps: false, num: false, scroll: false } },
+        mouse: { online: true, absolute: true },
+      },
+    }),
   );
   ws.send(JSON.stringify({ event_type: "loop", event: {} }));
 

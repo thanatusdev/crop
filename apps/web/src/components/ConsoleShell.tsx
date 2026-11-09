@@ -9,7 +9,8 @@ import { useAuth } from "../lib/auth-context.js";
 import { computeNavPermissions } from "../lib/nav-permissions.js";
 import { Button } from "./ui/button.js";
 
-export type ConsoleNavKey = "dashboard" | "workstation" | "users" | "clinics" | "operators" | "units" | "equipment" | "nursing" | "agreements" | "audit";
+export type ConsoleNavKey =
+  "dashboard" | "workstation" | "users" | "clinics" | "operators" | "units" | "equipment" | "nursing" | "agreements" | "audit";
 
 /**
  * The shared light-theme sidebar+topbar chrome (Dashboard, Gestores & Usuários, Unidades,
@@ -149,7 +150,13 @@ export function ConsoleShell({
     { key: "workstation", to: "/posto-de-trabalho", label: t("shell:navWorkstation"), visible: nav.canSelectWorkstation },
     { key: "users", to: "/admin/users", label: t("shell:navUsers"), visible: nav.canManageUsers },
     { key: "clinics", to: "/superadmin/clinics", label: t("shell:navClinics"), visible: nav.canManagePlatform, count: clinicCount },
-    { key: "operators", to: "/superadmin/operadoras", label: t("shell:navOperators"), visible: nav.canManagePlatform, count: operatorCount },
+    {
+      key: "operators",
+      to: "/superadmin/operadoras",
+      label: t("shell:navOperators"),
+      visible: nav.canManagePlatform,
+      count: operatorCount,
+    },
     { key: "units", to: "/admin/units", label: t("shell:navUnits"), visible: nav.canManageUnits, count: unitCount },
     { key: "equipment", to: "/admin/equipment", label: t("shell:navEquipment"), visible: nav.canManageEquipment },
     { key: "nursing", to: "/enfermagem", label: t("shell:navNursing"), visible: nav.canManageQueue },
@@ -189,7 +196,7 @@ export function ConsoleShell({
                 to={item.to}
                 className={cn(
                   "flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm text-foreground no-underline hover:bg-secondary",
-                  activeNav === item.key && "bg-sidebar-accent font-semibold text-sidebar-accent-foreground hover:bg-sidebar-accent"
+                  activeNav === item.key && "bg-sidebar-accent font-semibold text-sidebar-accent-foreground hover:bg-sidebar-accent",
                 )}
               >
                 <span>{item.label}</span>
@@ -199,9 +206,7 @@ export function ConsoleShell({
               </Link>
             ))}
         </nav>
-        <div className="mt-3 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground">
-          RadLink v1 · {t("shell:footerNote")}
-        </div>
+        <div className="mt-3 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground">RadLink v1 · {t("shell:footerNote")}</div>
       </aside>
 
       <div className="min-w-0 flex-1">
@@ -230,5 +235,3 @@ export function ConsoleShell({
     </div>
   );
 }
-
-

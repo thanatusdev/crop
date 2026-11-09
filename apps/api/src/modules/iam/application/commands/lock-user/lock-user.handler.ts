@@ -19,7 +19,7 @@ import { LockUserCommand } from "./lock-user.command.js";
 export class LockUserHandler implements ICommandHandler<LockUserCommand, void> {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: LockUserCommand): Promise<void> {
@@ -44,7 +44,7 @@ export class LockUserHandler implements ICommandHandler<LockUserCommand, void> {
         resourceType: "User",
         resourceId: target.id,
         details: { targetEmail: target.email },
-      })
+      }),
     );
   }
 }

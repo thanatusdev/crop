@@ -125,8 +125,7 @@ export class OperatorAgreement {
     if (!this.isActive()) return false;
     if (equipment.tenantId !== this.props.clinicTenantId) return false;
     return this.props.scopes.some(
-      (scope) =>
-        scope.equipmentId === equipment.id || (equipment.unitId !== null && scope.unitId === equipment.unitId)
+      (scope) => scope.equipmentId === equipment.id || (equipment.unitId !== null && scope.unitId === equipment.unitId),
     );
   }
 
@@ -138,7 +137,9 @@ export class OperatorAgreement {
    */
   assertCanBeRespondedToBy(tenantId: string): void {
     if (this.props.status !== AgreementStatus.PENDING) {
-      throw new ForbiddenError(`Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`);
+      throw new ForbiddenError(
+        `Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`,
+      );
     }
     if (!this.involves(tenantId)) {
       throw new ForbiddenError("Sua organização não é parte deste contrato.");
@@ -161,7 +162,9 @@ export class OperatorAgreement {
    */
   assertCanBeRespondedToOnBehalf(): void {
     if (this.props.status !== AgreementStatus.PENDING) {
-      throw new ForbiddenError(`Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`);
+      throw new ForbiddenError(
+        `Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`,
+      );
     }
   }
 
@@ -172,7 +175,9 @@ export class OperatorAgreement {
    */
   assertCanBeWithdrawnBy(tenantId: string): void {
     if (this.props.status !== AgreementStatus.PENDING) {
-      throw new ForbiddenError(`Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`);
+      throw new ForbiddenError(
+        `Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)} e não aguarda mais resposta.`,
+      );
     }
     if (this.props.proposedByTenantId !== tenantId) {
       throw new ForbiddenError("Somente quem propôs o contrato pode cancelar a proposta.");
@@ -187,7 +192,9 @@ export class OperatorAgreement {
    */
   assertCanBeRevokedBy(tenantId: string): void {
     if (this.props.status !== AgreementStatus.ACTIVE) {
-      throw new ForbiddenError(`Somente um contrato ativo pode ser encerrado. Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)}.`);
+      throw new ForbiddenError(
+        `Somente um contrato ativo pode ser encerrado. Este contrato está ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)}.`,
+      );
     }
     if (!this.involves(tenantId)) {
       throw new ForbiddenError("Sua organização não é parte deste contrato.");
@@ -205,7 +212,9 @@ export class OperatorAgreement {
       throw new ForbiddenError("Somente a clínica pode alterar o que o contrato abrange.");
     }
     if (this.props.status === AgreementStatus.REJECTED || this.props.status === AgreementStatus.REVOKED) {
-      throw new ForbiddenError(`Não é possível alterar a abrangência de um contrato ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)}.`);
+      throw new ForbiddenError(
+        `Não é possível alterar a abrangência de um contrato ${labelOf(AGREEMENT_STATUS_LABELS_PT_BR, this.props.status)}.`,
+      );
     }
   }
 }

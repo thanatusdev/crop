@@ -67,9 +67,7 @@ export default function SessionReplayPage() {
   }, [sessionId]);
 
   const current = snapshots[index] ?? null;
-  const imageUrl = useAuthenticatedImage(
-    sessionId && current ? `/sessions/${sessionId}/snapshots/${current.id}/image` : null
-  );
+  const imageUrl = useAuthenticatedImage(sessionId && current ? `/sessions/${sessionId}/snapshots/${current.id}/image` : null);
 
   const nearbyEvents = useMemo(() => {
     if (!auditLogs || !current) return [];
@@ -114,8 +112,7 @@ export default function SessionReplayPage() {
         <h1 className="sr-only">{equipment.name} session replay</h1>
         {snapshots.length === 0 ? (
           <p className="text-muted-foreground">
-            No snapshots were captured for this session (it may have been too short, or ended before the first
-            capture interval elapsed).
+            No snapshots were captured for this session (it may have been too short, or ended before the first capture interval elapsed).
           </p>
         ) : (
           <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,1fr)] items-start gap-4">

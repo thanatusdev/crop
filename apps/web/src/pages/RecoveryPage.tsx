@@ -279,4 +279,3 @@ function ValidatedResetForm({ token }: { token: string }) {
     </div>
   );
 }
-

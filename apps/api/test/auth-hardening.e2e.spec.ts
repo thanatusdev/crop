@@ -51,10 +51,7 @@ describe("Auth hardening: rate limiting and logout revocation", () => {
 
     // Even the CORRECT password is rejected once locked out -- the limiter counts attempts
     // against the email, not just failures, so it can't be bypassed by finally guessing right.
-    const correctRes = await http
-      .post("/auth/login")
-      .send({ email, password: "TestPassword123!", clientOs: "MACOS" })
-      .expect(429);
+    const correctRes = await http.post("/auth/login").send({ email, password: "TestPassword123!", clientOs: "MACOS" }).expect(429);
     expect(correctRes.body.code).toBe("TOO_MANY_REQUESTS");
   });
 
@@ -73,10 +70,7 @@ describe("Auth hardening: rate limiting and logout revocation", () => {
       },
     });
 
-    const loginRes = await http
-      .post("/auth/login")
-      .send({ email, password: "TestPassword123!", clientOs: "MACOS" })
-      .expect(200);
+    const loginRes = await http.post("/auth/login").send({ email, password: "TestPassword123!", clientOs: "MACOS" }).expect(200);
     const mfaToken = loginRes.body.mfaToken as string;
 
     for (let i = 0; i < 10; i++) {

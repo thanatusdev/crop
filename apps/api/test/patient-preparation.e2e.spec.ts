@@ -21,7 +21,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -56,7 +56,9 @@ describe("Patient preparation (nursing quick-action status)", () => {
 
     adminToken = (await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN })).accessToken;
     nurseToken = (await createLoggedInUser(app, { tenantId, role: UserRole.NURSING, emailPrefix: "nurse" })).accessToken;
-    operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "operator" })).accessToken;
+    operatorToken = (
+      await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "operator" })
+    ).accessToken;
     localItToken = (await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "local-it" })).accessToken;
     otherTenantNurseToken = (
       await createLoggedInUser(app, { tenantId: otherTenant.id, role: UserRole.NURSING, emailPrefix: "other-nurse" })
@@ -71,11 +73,7 @@ describe("Patient preparation (nursing quick-action status)", () => {
   });
 
   async function createQueueEntry(patientFirstName: string): Promise<string> {
-    const res = await http
-      .post("/queue")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ equipmentId, patientFirstName })
-      .expect(201);
+    const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201);
     return res.body.id;
   }
 
@@ -182,7 +180,7 @@ describe("Patient preparation (nursing quick-action status)", () => {
     // The audit row for this release must correlate to the session it waited on.
     const auditRes = await http.get(`/audit?limit=200`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const releasedEvent = auditRes.body.find(
-      (e: { resourceId: string; action: string }) => e.resourceId === queueEntryId && e.action === "PATIENT_RELEASED"
+      (e: { resourceId: string; action: string }) => e.resourceId === queueEntryId && e.action === "PATIENT_RELEASED",
     );
     expect(releasedEvent).toBeTruthy();
     expect(releasedEvent.sessionId).toBe(sessionId);
@@ -229,7 +227,7 @@ describe("Patient preparation (nursing quick-action status)", () => {
     const auditRes = await http.get(`/audit?limit=200`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const denied = auditRes.body.find(
       (e: { action: string; details: { path?: string } }) =>
-        e.action === "PERMISSION_DENIED" && e.details.path === `/queue/${queueEntryId}/preparation`
+        e.action === "PERMISSION_DENIED" && e.details.path === `/queue/${queueEntryId}/preparation`,
     );
     expect(denied).toBeTruthy();
     expect(denied.details.requiredRoles).toContain("NURSING");

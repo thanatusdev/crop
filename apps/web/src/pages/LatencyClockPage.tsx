@@ -77,8 +77,8 @@ export default function LatencyClockPage() {
       </div>
 
       <p style={{ marginTop: 40, color: "#9aa4b2", fontSize: 14, maxWidth: 480, textAlign: "center" }}>
-        Open on the machine being remotely controlled. Compare this display against the same
-        moment visible in the operator's PiKVM console feed to measure true round-trip latency.
+        Open on the machine being remotely controlled. Compare this display against the same moment visible in the operator's PiKVM console
+        feed to measure true round-trip latency.
       </p>
     </div>
   );

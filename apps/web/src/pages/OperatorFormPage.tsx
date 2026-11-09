@@ -169,11 +169,20 @@ export default function OperatorFormPage() {
     }
   }
 
-  const title = mode === "create" ? t("operatorForm:createTitle") : mode === "edit" ? t("operatorForm:editTitle") : t("operatorForm:viewTitle");
+  const title =
+    mode === "create" ? t("operatorForm:createTitle") : mode === "edit" ? t("operatorForm:editTitle") : t("operatorForm:viewTitle");
   const subtitle =
-    mode === "create" ? t("operatorForm:createSubtitle") : mode === "edit" ? t("operatorForm:editSubtitle") : t("operatorForm:viewSubtitle");
+    mode === "create"
+      ? t("operatorForm:createSubtitle")
+      : mode === "edit"
+        ? t("operatorForm:editSubtitle")
+        : t("operatorForm:viewSubtitle");
   const breadcrumbLeaf =
-    mode === "create" ? t("operatorForm:breadcrumbNew") : mode === "edit" ? t("operatorForm:breadcrumbEdit") : t("operatorForm:breadcrumbView");
+    mode === "create"
+      ? t("operatorForm:breadcrumbNew")
+      : mode === "edit"
+        ? t("operatorForm:breadcrumbEdit")
+        : t("operatorForm:breadcrumbView");
 
   if (loading) {
     return (

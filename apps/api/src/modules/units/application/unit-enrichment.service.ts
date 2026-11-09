@@ -43,7 +43,7 @@ export class UnitEnrichmentService {
       unit,
       equipmentCount: equipmentSummaries[unit.id]?.equipmentCount ?? 0,
       roomCount: equipmentSummaries[unit.id]?.roomCount ?? 0,
-      technicalManager: unit.technicalManagerId ? managerSummaries[unit.technicalManagerId] ?? null : null,
+      technicalManager: unit.technicalManagerId ? (managerSummaries[unit.technicalManagerId] ?? null) : null,
     }));
   }
 

@@ -133,7 +133,7 @@ export default function AdminOperatorsPage() {
         operator.deactivated ? t("adminOperators:statusInactive") : t("adminOperators:statusActive"),
       ]
         .map(escape)
-        .join(",")
+        .join(","),
     );
     const csv = `\uFEFF${[columns.map(escape).join(","), ...rows].join("\r\n")}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -303,7 +303,7 @@ export default function AdminOperatorsPage() {
                           <Badge
                             className={cn(
                               "border-transparent",
-                              operator.deactivated ? "bg-[#3d1d1d] text-[#ff8b8b]" : "bg-[#1d3d2b] text-[#5fdc8a]"
+                              operator.deactivated ? "bg-[#3d1d1d] text-[#ff8b8b]" : "bg-[#1d3d2b] text-[#5fdc8a]",
                             )}
                           >
                             {operator.deactivated ? t("adminOperators:statusInactive") : t("adminOperators:statusActive")}

@@ -142,7 +142,7 @@ export default function AdminClinicsPage() {
         clinic.deactivated ? t("adminClinics:statusInactive") : t("adminClinics:statusActive"),
       ]
         .map(escape)
-        .join(",")
+        .join(","),
     );
     const csv = `\uFEFF${[columns.map(escape).join(","), ...rows].join("\r\n")}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -213,7 +213,9 @@ export default function AdminClinicsPage() {
           <CardContent>
             <div className="text-sm text-muted-foreground">{t("adminClinics:statsManagersLabel")}</div>
             <div className="text-2xl font-semibold">{summary.withResponsibleManager}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{t("adminClinics:statsManagersPct", { pct: summary.responsibleManagerCoveragePct })}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("adminClinics:statsManagersPct", { pct: summary.responsibleManagerCoveragePct })}
+            </p>
             {summary.total - summary.withResponsibleManager > 0 && (
               <p className="mt-1 text-xs text-muted-foreground">
                 {t("adminClinics:statsManagersNote", { count: summary.total - summary.withResponsibleManager })}
@@ -345,7 +347,7 @@ export default function AdminClinicsPage() {
                           <Badge
                             className={cn(
                               "border-transparent",
-                              clinic.deactivated ? "bg-[#3d1d1d] text-[#ff8b8b]" : "bg-[#1d3d2b] text-[#5fdc8a]"
+                              clinic.deactivated ? "bg-[#3d1d1d] text-[#ff8b8b]" : "bg-[#1d3d2b] text-[#5fdc8a]",
                             )}
                           >
                             {clinic.deactivated ? t("adminClinics:statusInactive") : t("adminClinics:statusActive")}

@@ -15,7 +15,7 @@ export class RefreshTokensHandler implements ICommandHandler<RefreshTokensComman
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
-    @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort
+    @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort,
   ) {}
 
   async execute(command: RefreshTokensCommand): Promise<RefreshTokensResult> {

@@ -6,6 +6,6 @@ export class ListEquipmentQuery {
     /** See `GetEquipmentQuery.actor`. On this query the actor causes *filtering* rather than a
      * refusal: a contracted operator whose agreement covers one of three rooms should see that one
      * room, not an error. */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

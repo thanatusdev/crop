@@ -8,7 +8,7 @@ import { ListTenantsQuery } from "./list-tenants.query.js";
 export class ListTenantsHandler implements IQueryHandler<ListTenantsQuery, EnrichedTenant[]> {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
-    private readonly enrichment: TenantEnrichmentService
+    private readonly enrichment: TenantEnrichmentService,
   ) {}
 
   async execute(query: ListTenantsQuery): Promise<EnrichedTenant[]> {

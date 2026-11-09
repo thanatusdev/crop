@@ -23,6 +23,6 @@ export class UpdateUserCommand {
     public readonly actingAdminId: string,
     public readonly actingAdminTenantId: string,
     public readonly actingRole: UserRole,
-    public readonly changes: UpdateUserChanges
+    public readonly changes: UpdateUserChanges,
   ) {}
 }

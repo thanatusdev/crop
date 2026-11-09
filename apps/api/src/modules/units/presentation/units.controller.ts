@@ -43,7 +43,7 @@ import { toUnitDto } from "./unit.dto.js";
 export class UnitsController {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly queryBus: QueryBus
+    private readonly queryBus: QueryBus,
   ) {}
 
   @Post()
@@ -71,8 +71,8 @@ export class UnitsController {
         },
         user.sub,
         user.tenantId,
-        user.role
-      )
+        user.role,
+      ),
     );
     return toUnitDto(enriched);
   }
@@ -92,7 +92,9 @@ export class UnitsController {
     }
 
     const targetClinicTenantId = clinicTenantId ?? user.tenantId;
-    const enriched = await this.queryBus.execute(new ListUnitsByClinicQuery(targetClinicTenantId, user.sub, user.tenantId, user.role, user));
+    const enriched = await this.queryBus.execute(
+      new ListUnitsByClinicQuery(targetClinicTenantId, user.sub, user.tenantId, user.role, user),
+    );
     return enriched.map(toUnitDto);
   }
 
@@ -115,10 +117,10 @@ export class UnitsController {
   async update(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdateUnitRequestSchema)) body: UpdateUnitRequest
+    @Body(new ZodValidationPipe(UpdateUnitRequestSchema)) body: UpdateUnitRequest,
   ) {
     const enriched = await this.commandBus.execute(
-      new UpdateUnitCommand(id, { userId: user.sub, tenantId: user.tenantId, role: user.role }, body)
+      new UpdateUnitCommand(id, { userId: user.sub, tenantId: user.tenantId, role: user.role }, body),
     );
     return toUnitDto(enriched);
   }
@@ -132,7 +134,7 @@ export class UnitsController {
   @Roles(UserRole.PLATFORM_ADMIN, UserRole.CLINIC_ADMIN, UserRole.LOCAL_SUPERVISOR, UserRole.LOCAL_IT)
   async deactivate(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string) {
     const enriched = await this.commandBus.execute(
-      new SetUnitDeactivatedCommand(id, { userId: user.sub, tenantId: user.tenantId, role: user.role }, true)
+      new SetUnitDeactivatedCommand(id, { userId: user.sub, tenantId: user.tenantId, role: user.role }, true),
     );
     return toUnitDto(enriched);
   }
@@ -141,7 +143,7 @@ export class UnitsController {
   @Roles(UserRole.PLATFORM_ADMIN, UserRole.CLINIC_ADMIN, UserRole.LOCAL_SUPERVISOR, UserRole.LOCAL_IT)
   async reactivate(@CurrentUser() user: AccessTokenClaims, @Param("id") id: string) {
     const enriched = await this.commandBus.execute(
-      new SetUnitDeactivatedCommand(id, { userId: user.sub, tenantId: user.tenantId, role: user.role }, false)
+      new SetUnitDeactivatedCommand(id, { userId: user.sub, tenantId: user.tenantId, role: user.role }, false),
     );
     return toUnitDto(enriched);
   }

@@ -28,7 +28,7 @@ import { SetEquipmentDeactivatedCommand } from "./set-equipment-deactivated.comm
 export class SetEquipmentDeactivatedHandler implements ICommandHandler<SetEquipmentDeactivatedCommand, Equipment> {
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: SetEquipmentDeactivatedCommand): Promise<Equipment> {
@@ -60,7 +60,7 @@ export class SetEquipmentDeactivatedHandler implements ICommandHandler<SetEquipm
         // the device before it left service, and after this point the stored value is frozen
         // and no longer evidence of anything current.
         details: { name: existing.name, serialNumber: existing.serialNumber, lastKnownStatus: existing.status },
-      })
+      }),
     );
 
     return updated;

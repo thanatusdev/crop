@@ -10,6 +10,6 @@ export class ListUnitsByClinicQuery {
     public readonly requestingRole: UserRole | null = null,
     /** See GetEquipmentQuery.actor -- narrows the result to what this caller's agreement scope
      * covers, when they're reaching this clinic cross-tenant. */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

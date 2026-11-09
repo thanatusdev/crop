@@ -20,7 +20,7 @@ export class PrintTextHandler implements ICommandHandler<PrintTextCommand, void>
   constructor(
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: PrintTextCommand): Promise<void> {
@@ -54,7 +54,7 @@ export class PrintTextHandler implements ICommandHandler<PrintTextCommand, void>
         resourceType: "Equipment",
         resourceId: command.equipmentId,
         details: { length: command.text.length, keymap: command.keymap, delivered },
-      })
+      }),
     );
   }
 }

@@ -37,7 +37,7 @@ export class ExecuteTakeoverHandler implements ICommandHandler<ExecuteTakeoverCo
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ExecuteTakeoverCommand): Promise<Session> {
@@ -82,12 +82,7 @@ export class ExecuteTakeoverHandler implements ICommandHandler<ExecuteTakeoverCo
     // overwriting a concurrent winner or leaving the in-memory SessionRuntimePort -- the
     // actual authority for live input gating -- pointing at someone the database no longer
     // agrees is in control.
-    const applied = await this.sessions.setController(
-      session.id,
-      command.supervisorId,
-      command.supervisorId,
-      session.controllerUserId
-    );
+    const applied = await this.sessions.setController(session.id, command.supervisorId, command.supervisorId, session.controllerUserId);
     if (!applied) {
       throw new ConflictError("Outra pessoa acabou de assumir o controle desta sessão. Tente novamente.");
     }
@@ -104,13 +99,7 @@ export class ExecuteTakeoverHandler implements ICommandHandler<ExecuteTakeoverCo
     return updated;
   }
 
-  private async audit(
-    tenantId: string,
-    userId: string,
-    sessionId: string,
-    action: AuditAction,
-    details: unknown
-  ): Promise<void> {
+  private async audit(tenantId: string, userId: string, sessionId: string, action: AuditAction, details: unknown): Promise<void> {
     await this.commandBus.execute(
       new RecordAuditEventCommand({
         tenantId,
@@ -120,7 +109,7 @@ export class ExecuteTakeoverHandler implements ICommandHandler<ExecuteTakeoverCo
         resourceType: "Session",
         resourceId: sessionId,
         details,
-      })
+      }),
     );
   }
 }

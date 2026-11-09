@@ -4,7 +4,9 @@ import request from "supertest";
 import { UserRole } from "@crop/shared";
 import {
   createTestApp,
-  createLoggedInUser, createContractedOperator, grantWholeClinicScope,
+  createLoggedInUser,
+  createContractedOperator,
+  grantWholeClinicScope,
   createTenant,
   testPrisma,
   unitPayload,
@@ -39,8 +41,9 @@ describe("Units registry", () => {
     const admin = await createLoggedInUser(app, { tenantId: clinicId, role: UserRole.CLINIC_ADMIN });
     adminToken = admin.accessToken;
     adminUserId = admin.userId;
-    operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: clinicId, role: UserRole.OPERATOR, emailPrefix: "unit-registry-op" }))
-      .accessToken;
+    operatorToken = (
+      await createContractedOperator(app, prisma, { clinicTenantId: clinicId, role: UserRole.OPERATOR, emailPrefix: "unit-registry-op" })
+    ).accessToken;
   });
 
   afterAll(async () => {
@@ -118,7 +121,7 @@ describe("Units registry", () => {
         const payload = unitPayload(adminUserId, { name: `Registry-Missing-${field}` });
         delete payload[field];
         await http.post("/units").set("Authorization", `Bearer ${adminToken}`).send(payload).expect(400);
-      }
+      },
     );
 
     it("rejects a duplicate unit name within the same clinic, case-insensitively", async () => {
@@ -165,7 +168,11 @@ describe("Units registry", () => {
   describe("technical manager eligibility", () => {
     it("rejects a technical manager who belongs to a different clinic", async () => {
       const otherClinicId = (await createTenant(prisma, `UnitRegistryTm-${crypto.randomUUID()}`)).id;
-      const outsider = await createLoggedInUser(app, { tenantId: otherClinicId, role: UserRole.CLINIC_ADMIN, emailPrefix: "unit-tm-outsider" });
+      const outsider = await createLoggedInUser(app, {
+        tenantId: otherClinicId,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "unit-tm-outsider",
+      });
 
       const res = await http
         .post("/units")
@@ -203,7 +210,12 @@ describe("Units registry", () => {
 
     it("rejects a technical manager whose account has not been activated", async () => {
       const unactivated = await prisma.user.create({
-        data: { tenantId: clinicId, email: `unit-tm-unactivated-${crypto.randomUUID()}@test.crop.health`, passwordHash: "unused", role: "CLINIC_ADMIN" },
+        data: {
+          tenantId: clinicId,
+          email: `unit-tm-unactivated-${crypto.randomUUID()}@test.crop.health`,
+          passwordHash: "unused",
+          role: "CLINIC_ADMIN",
+        },
       });
       const res = await http
         .post("/units")
@@ -233,7 +245,10 @@ describe("Units registry", () => {
     });
 
     it("GET /units/technical-managers lists only eligible, activated, unlocked staff of the given clinic", async () => {
-      const res = await http.get(`/units/technical-managers?clinicTenantId=${clinicId}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+      const res = await http
+        .get(`/units/technical-managers?clinicTenantId=${clinicId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
       const ids = (res.body as { id: string }[]).map((o) => o.id);
       expect(ids).toContain(adminUserId);
       // The operator created in beforeAll is ineligible (wrong role) and must not appear.
@@ -260,7 +275,11 @@ describe("Units registry", () => {
 
     it("refuses to blank out a required-on-create field", async () => {
       const created = await registerUnit({ name: "Registry-No-Blanking" });
-      await http.patch(`/units/${created.id as string}`).set("Authorization", `Bearer ${adminToken}`).send({ street: null }).expect(400);
+      await http
+        .patch(`/units/${created.id as string}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ street: null })
+        .expect(400);
     });
 
     it("allows unassigning the technical manager, unlike every other required-on-create field", async () => {
@@ -309,12 +328,20 @@ describe("Units registry", () => {
 
     it("rejects an OPERATOR editing a unit", async () => {
       const created = await registerUnit({ name: "Registry-Operator-Edit-Blocked" });
-      await http.patch(`/units/${created.id as string}`).set("Authorization", `Bearer ${operatorToken}`).send({ city: "Blocked" }).expect(403);
+      await http
+        .patch(`/units/${created.id as string}`)
+        .set("Authorization", `Bearer ${operatorToken}`)
+        .send({ city: "Blocked" })
+        .expect(403);
     });
 
     it("audits every edit under UNIT_UPDATED, attributing the acting admin", async () => {
       const created = await registerUnit({ name: "Registry-Edit-Audited" });
-      await http.patch(`/units/${created.id as string}`).set("Authorization", `Bearer ${adminToken}`).send({ city: "Audited-City" }).expect(200);
+      await http
+        .patch(`/units/${created.id as string}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ city: "Audited-City" })
+        .expect(200);
       const log = await prisma.auditLog.findFirstOrThrow({ where: { resourceId: created.id as string, action: "UNIT_UPDATED" } });
       expect(log.userId).toBe(adminUserId);
       expect((log.details as { changedFields?: string[] }).changedFields).toEqual(["city"]);
@@ -350,7 +377,10 @@ describe("Units registry", () => {
 
     it("rejects an OPERATOR deactivating a unit", async () => {
       const created = await registerUnit({ name: "Registry-Operator-Deactivate-Blocked" });
-      await http.post(`/units/${created.id as string}/deactivate`).set("Authorization", `Bearer ${operatorToken}`).expect(403);
+      await http
+        .post(`/units/${created.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${operatorToken}`)
+        .expect(403);
     });
 
     /**
@@ -370,16 +400,26 @@ describe("Units registry", () => {
         .expect(201);
       await prisma.equipment.update({ where: { id: equipment.body.id }, data: { status: "ONLINE" } });
 
-      await http.post(`/units/${unit.id as string}/deactivate`).set("Authorization", `Bearer ${adminToken}`).expect(201);
+      await http
+        .post(`/units/${unit.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(201);
 
       const frozen = await prisma.equipment.findUniqueOrThrow({ where: { id: equipment.body.id } });
       expect(frozen.status).toBe("ONLINE"); // untouched by unit deactivation
 
-      const blocked = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: equipment.body.id }).expect(409);
+      const blocked = await http
+        .post("/sessions")
+        .set("Authorization", `Bearer ${operatorToken}`)
+        .send({ equipmentId: equipment.body.id })
+        .expect(409);
       expect(blocked.body.code).toBe("CONFLICT");
       expect(blocked.body.message).toContain("A unidade do equipamento");
 
-      await http.post(`/units/${unit.id as string}/reactivate`).set("Authorization", `Bearer ${adminToken}`).expect(201);
+      await http
+        .post(`/units/${unit.id as string}/reactivate`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(201);
       await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: equipment.body.id }).expect(201);
     });
 
@@ -391,9 +431,18 @@ describe("Units registry", () => {
         .send(equipmentPayload({ name: "Registry-Independent-Retire-Equipment", unitId: unit.id }))
         .expect(201);
 
-      await http.post(`/equipment/${equipment.body.id as string}/deactivate`).set("Authorization", `Bearer ${adminToken}`).expect(201);
-      await http.post(`/units/${unit.id as string}/deactivate`).set("Authorization", `Bearer ${adminToken}`).expect(201);
-      await http.post(`/units/${unit.id as string}/reactivate`).set("Authorization", `Bearer ${adminToken}`).expect(201);
+      await http
+        .post(`/equipment/${equipment.body.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(201);
+      await http
+        .post(`/units/${unit.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(201);
+      await http
+        .post(`/units/${unit.id as string}/reactivate`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(201);
 
       const stillRetired = await prisma.equipment.findUniqueOrThrow({ where: { id: equipment.body.id as string } });
       expect(stillRetired.deactivatedAt).not.toBeNull();
@@ -419,9 +468,15 @@ describe("Units registry", () => {
         .set("Authorization", `Bearer ${adminToken}`)
         .send(equipmentPayload({ name: "Registry-Counts-C", unitId: unit.id, roomLabel: "Sala C" }))
         .expect(201);
-      await http.post(`/equipment/${retired.body.id as string}/deactivate`).set("Authorization", `Bearer ${adminToken}`).expect(201);
+      await http
+        .post(`/equipment/${retired.body.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(201);
 
-      const res = await http.get(`/units/${unit.id as string}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+      const res = await http
+        .get(`/units/${unit.id as string}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
       expect(res.body.equipmentCount).toBe(3); // includes the retired device
       expect(res.body.roomCount).toBe(2); // excludes Sala C, whose only equipment is retired
 
@@ -431,7 +486,10 @@ describe("Units registry", () => {
         .set("Authorization", `Bearer ${adminToken}`)
         .send(equipmentPayload({ name: "Registry-Counts-A2", unitId: unit.id, roomLabel: "Sala A" }))
         .expect(201);
-      const res2 = await http.get(`/units/${unit.id as string}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+      const res2 = await http
+        .get(`/units/${unit.id as string}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
       expect(res2.body.equipmentCount).toBe(4);
       expect(res2.body.roomCount).toBe(2);
 
@@ -457,7 +515,10 @@ describe("Units registry", () => {
         .send(unitPayload(otherAdmin.userId, { name: "Registry-Other-Clinic-Unit" }))
         .expect(201);
 
-      await http.get(`/units/${otherUnit.body.id as string}`).set("Authorization", `Bearer ${adminToken}`).expect(403);
+      await http
+        .get(`/units/${otherUnit.body.id as string}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(403);
     });
   });
 
@@ -477,7 +538,11 @@ describe("Units registry", () => {
       const ownUnit = await registerUnit({ name: "Registry-Scope-Own-Unit" });
 
       const platformTenant = (await createTenant(prisma, `UnitRegistryPlatform-${crypto.randomUUID()}`, "PLATFORM")).id;
-      const platformAdmin = await createLoggedInUser(app, { tenantId: platformTenant, role: UserRole.PLATFORM_ADMIN, emailPrefix: "unit-registry-platform" });
+      const platformAdmin = await createLoggedInUser(app, {
+        tenantId: platformTenant,
+        role: UserRole.PLATFORM_ADMIN,
+        emailPrefix: "unit-registry-platform",
+      });
 
       const res = await http.get("/units?scope=all").set("Authorization", `Bearer ${platformAdmin.accessToken}`).expect(200);
       const ids = (res.body as { id: string }[]).map((u) => u.id);

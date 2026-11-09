@@ -22,7 +22,7 @@ export class ProcessHidInputHandler implements ICommandHandler<ProcessHidInputCo
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     private readonly commandBus: CommandBus,
-    private readonly metrics: MetricsService
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(command: ProcessHidInputCommand): Promise<void> {
@@ -48,7 +48,7 @@ export class ProcessHidInputHandler implements ICommandHandler<ProcessHidInputCo
           tenantId: command.tenantId,
           userId: command.userId,
           event: command.event,
-        })
+        }),
       )
       .catch((err: Error) => this.logger.warn(`Failed to buffer input event: ${err.message}`));
   }

@@ -8,6 +8,6 @@ export class UpdateEquipmentStatusCommand {
     // human acting) -- set for the one other caller, manual maintenance mode
     // (EnterMaintenanceHandler/ClearMaintenanceHandler), so that audit trail correctly
     // attributes it to the admin who did it instead of looking system-triggered.
-    public readonly actingUserId: string | null = null
+    public readonly actingUserId: string | null = null,
   ) {}
 }

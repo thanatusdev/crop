@@ -21,7 +21,7 @@ import { CreateMessageShortcutCommand } from "./create-message-shortcut.command.
 export class CreateMessageShortcutHandler implements ICommandHandler<CreateMessageShortcutCommand, MessageShortcut> {
   constructor(
     @Inject(MESSAGE_SHORTCUT_REPOSITORY) private readonly shortcuts: MessageShortcutRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: CreateMessageShortcutCommand): Promise<MessageShortcut> {
@@ -46,7 +46,7 @@ export class CreateMessageShortcutHandler implements ICommandHandler<CreateMessa
         resourceType: "MessageShortcut",
         resourceId: shortcut.id,
         details: { code },
-      })
+      }),
     );
 
     return shortcut;

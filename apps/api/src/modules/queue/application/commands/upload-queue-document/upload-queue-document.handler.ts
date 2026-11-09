@@ -15,7 +15,7 @@ export class UploadQueueDocumentHandler implements ICommandHandler<UploadQueueDo
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(QUEUE_DOCUMENT_REPOSITORY) private readonly documents: QueueDocumentRepositoryPort,
     @Inject(QUEUE_DOCUMENT_STORAGE) private readonly storage: QueueDocumentStoragePort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: UploadQueueDocumentCommand): Promise<QueueEntryDocument> {
@@ -51,7 +51,7 @@ export class UploadQueueDocumentHandler implements ICommandHandler<UploadQueueDo
         // kind + mimeType only -- never filename, which can itself carry a patient's name
         // (same rule SendExamMessageHandler already follows for chat attachments).
         details: { equipmentId: entry.equipmentId, documentId: document.id, kind: document.kind, mimeType: document.mimeType },
-      })
+      }),
     );
 
     return document;

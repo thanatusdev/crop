@@ -32,8 +32,9 @@ describe("Admin user management: editing", () => {
     otherTenantId = (await createTenant(prisma, `EditUsersOther-${crypto.randomUUID()}`)).id;
     platformTenantId = (await createTenant(prisma, `EditUsersPlatform-${crypto.randomUUID()}`, "PLATFORM")).id;
     adminUser = await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "edit-admin" });
-    platformAdminToken = (await createLoggedInUser(app, { tenantId: platformTenantId, role: UserRole.PLATFORM_ADMIN, emailPrefix: "edit-platform-admin" }))
-      .accessToken;
+    platformAdminToken = (
+      await createLoggedInUser(app, { tenantId: platformTenantId, role: UserRole.PLATFORM_ADMIN, emailPrefix: "edit-platform-admin" })
+    ).accessToken;
   });
 
   afterAll(async () => {
@@ -56,7 +57,12 @@ describe("Admin user management: editing", () => {
     const res = await http
       .patch(`/users/${userId}`)
       .set("Authorization", `Bearer ${adminUser.accessToken}`)
-      .send({ firstName: "Renomeada", lastName: "Sobrenome", professionalRegistration: "COREN-SP 999999", email: "ignored@test.crop.health" })
+      .send({
+        firstName: "Renomeada",
+        lastName: "Sobrenome",
+        professionalRegistration: "COREN-SP 999999",
+        email: "ignored@test.crop.health",
+      })
       .expect(200);
     expect(res.body.firstName).toBe("Renomeada");
     expect(res.body.lastName).toBe("Sobrenome");
@@ -72,13 +78,21 @@ describe("Admin user management: editing", () => {
 
   it("clears professionalRegistration with an explicit null, same asymmetry as other optional-at-creation fields", async () => {
     const userId = await createNurse({ professionalRegistration: "COREN-SP 111111" });
-    const res = await http.patch(`/users/${userId}`).set("Authorization", `Bearer ${adminUser.accessToken}`).send({ professionalRegistration: null }).expect(200);
+    const res = await http
+      .patch(`/users/${userId}`)
+      .set("Authorization", `Bearer ${adminUser.accessToken}`)
+      .send({ professionalRegistration: null })
+      .expect(200);
     expect(res.body.professionalRegistration).toBeNull();
   });
 
   it("lets a CLINIC_ADMIN change a NURSING user's role to LOCAL_IT -- both roles are within what CLINIC_ADMIN may grant", async () => {
     const userId = await createNurse();
-    const res = await http.patch(`/users/${userId}`).set("Authorization", `Bearer ${adminUser.accessToken}`).send({ role: "LOCAL_IT" }).expect(200);
+    const res = await http
+      .patch(`/users/${userId}`)
+      .set("Authorization", `Bearer ${adminUser.accessToken}`)
+      .send({ role: "LOCAL_IT" })
+      .expect(200);
     expect(res.body.role).toBe("LOCAL_IT");
   });
 
@@ -109,12 +123,24 @@ describe("Admin user management: editing", () => {
   });
 
   it("rejects editing a user who belongs to a different tenant, same isolation lock/unlock already enforce", async () => {
-    const otherUser = await createLoggedInUser(app, { tenantId: otherTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "edit-cross-tenant" });
-    await http.patch(`/users/${otherUser.userId}`).set("Authorization", `Bearer ${adminUser.accessToken}`).send({ firstName: "Nope" }).expect(403);
+    const otherUser = await createLoggedInUser(app, {
+      tenantId: otherTenantId,
+      role: UserRole.CLINIC_ADMIN,
+      emailPrefix: "edit-cross-tenant",
+    });
+    await http
+      .patch(`/users/${otherUser.userId}`)
+      .set("Authorization", `Bearer ${adminUser.accessToken}`)
+      .send({ firstName: "Nope" })
+      .expect(403);
   });
 
   it("404s for a user that doesn't exist", async () => {
-    await http.patch("/users/00000000-0000-0000-0000-000000000000").set("Authorization", `Bearer ${adminUser.accessToken}`).send({ firstName: "Nope" }).expect(404);
+    await http
+      .patch("/users/00000000-0000-0000-0000-000000000000")
+      .set("Authorization", `Bearer ${adminUser.accessToken}`)
+      .send({ firstName: "Nope" })
+      .expect(404);
   });
 
   it("replaces clinicTenantIds wholesale, scoped to clinics the acting admin already belongs to", async () => {
@@ -163,8 +189,16 @@ describe("Admin user management: editing", () => {
     expect(res.body.code).toBe("FORBIDDEN");
 
     // Unassigning first, then the same role change succeeds.
-    await http.patch(`/tenants/${tenantId}`).set("Authorization", `Bearer ${platformAdminToken}`).send({ responsibleManagerId: null }).expect(200);
-    await http.patch(`/users/${clinicAdmin.userId}`).set("Authorization", `Bearer ${adminUser.accessToken}`).send({ role: "LOCAL_SUPERVISOR" }).expect(200);
+    await http
+      .patch(`/tenants/${tenantId}`)
+      .set("Authorization", `Bearer ${platformAdminToken}`)
+      .send({ responsibleManagerId: null })
+      .expect(200);
+    await http
+      .patch(`/users/${clinicAdmin.userId}`)
+      .set("Authorization", `Bearer ${adminUser.accessToken}`)
+      .send({ role: "LOCAL_SUPERVISOR" })
+      .expect(200);
   });
 
   it("rejects a non-admin editing any user", async () => {

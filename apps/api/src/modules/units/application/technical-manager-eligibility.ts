@@ -9,11 +9,7 @@ import { UserRole } from "@crop/shared";
  * `OPERATIONAL_SUPERVISOR`/`OPERATOR_ADMIN`, whose home tenant is the operator company, not
  * the clinic itself, and `AUDITOR`, whose role is oversight, not operation).
  */
-export const TECHNICAL_MANAGER_ELIGIBLE_ROLES: readonly UserRole[] = [
-  UserRole.CLINIC_ADMIN,
-  UserRole.LOCAL_SUPERVISOR,
-  UserRole.LOCAL_IT,
-];
+export const TECHNICAL_MANAGER_ELIGIBLE_ROLES: readonly UserRole[] = [UserRole.CLINIC_ADMIN, UserRole.LOCAL_SUPERVISOR, UserRole.LOCAL_IT];
 
 export function isEligibleTechnicalManager(user: { role: UserRole }): boolean {
   return TECHNICAL_MANAGER_ELIGIBLE_ROLES.includes(user.role);

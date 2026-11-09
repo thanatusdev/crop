@@ -73,11 +73,7 @@ export type AltGrDecision =
   | { action: "fire-pending-then-forward" } // a non-AltRight key arrived while Ctrl was pending: fire Ctrl now, then forward this event normally
   | { action: "forward" }; // unrelated event: forward unmodified
 
-export function decideAltGrCtrl(
-  code: string,
-  state: boolean,
-  hasPendingControlLeft: boolean
-): AltGrDecision {
+export function decideAltGrCtrl(code: string, state: boolean, hasPendingControlLeft: boolean): AltGrDecision {
   if (state && code === "ControlLeft" && !hasPendingControlLeft) {
     return { action: "suppress-and-schedule" };
   }

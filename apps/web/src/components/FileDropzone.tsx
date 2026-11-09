@@ -66,7 +66,7 @@ export function FileDropzone({
       className={cn(
         "flex flex-col items-center gap-2 rounded-md border-2 border-dashed p-6 text-center transition-colors",
         inactive ? "opacity-60" : "cursor-pointer hover:border-primary/50",
-        isDraggingOver && !inactive && "border-primary bg-accent/40"
+        isDraggingOver && !inactive && "border-primary bg-accent/40",
       )}
       onClick={openPicker}
       onDragOver={(ev) => {

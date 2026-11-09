@@ -14,7 +14,7 @@ export class CreateTenantHandler implements ICommandHandler<CreateTenantCommand,
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     private readonly enrichment: TenantEnrichmentService,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: CreateTenantCommand): Promise<EnrichedTenant> {
@@ -58,7 +58,7 @@ export class CreateTenantHandler implements ICommandHandler<CreateTenantCommand,
         resourceType: "Tenant",
         resourceId: tenant.id,
         details: { name: tenant.name, type: tenant.type, cnpj: tenant.cnpj },
-      })
+      }),
     );
 
     this.eventBus.publish(new TenantCreatedEvent(tenant.id, tenant.type));

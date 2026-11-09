@@ -14,7 +14,7 @@ export class GetQueueEntryTimelineHandler implements IQueryHandler<GetQueueEntry
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(AUDIT_REPOSITORY) private readonly audit: AuditRepositoryPort,
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: GetQueueEntryTimelineQuery): Promise<QueueTimelineEntry[]> {
@@ -47,7 +47,7 @@ export class GetQueueEntryTimelineHandler implements IQueryHandler<GetQueueEntry
     return rows.map((row) => ({
       action: row.action,
       timestamp: row.timestamp,
-      actorName: row.userId ? names[row.userId] ?? null : null,
+      actorName: row.userId ? (names[row.userId] ?? null) : null,
     }));
   }
 }

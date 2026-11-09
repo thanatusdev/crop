@@ -45,7 +45,7 @@ export async function computeAuditHash(input: HashChainInput): Promise<string> {
 
 export async function verifyAuditChain(
   rows: HashChainInput[],
-  expectedHashes: string[]
+  expectedHashes: string[],
 ): Promise<{ valid: boolean; brokenAtIndex: number | null }> {
   for (let i = 0; i < rows.length; i++) {
     const computed = await computeAuditHash(rows[i]);

@@ -126,7 +126,7 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    private readonly participantNames: SessionParticipantNameService
+    private readonly participantNames: SessionParticipantNameService,
   ) {}
 
   handleConnection(client: Socket): void {
@@ -185,7 +185,11 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     // again, or the page would show its user as in control while every input is refused.
     const suspension = this.runtime.getSuspension(session.id);
     if (suspension) {
-      const payload: ControlSuspendedEvent = { sessionId: session.id, suspendedUserIds: [...suspension.userIds], message: suspension.message };
+      const payload: ControlSuspendedEvent = {
+        sessionId: session.id,
+        suspendedUserIds: [...suspension.userIds],
+        message: suspension.message,
+      };
       client.emit(RT_EVENTS.CONTROL_SUSPENDED, payload);
     }
   }
@@ -211,8 +215,8 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
         data.user.sub,
         data.user.clientOs,
         data.session.targetOs,
-        event
-      )
+        event,
+      ),
     );
   }
 
@@ -238,8 +242,8 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
         data.session.equipmentId,
         data.user.sub,
         data.session.keymap,
-        parsed.data.text
-      )
+        parsed.data.text,
+      ),
     );
   }
 
@@ -272,7 +276,9 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     try {
       await this.queryBus.execute(new CanAccessEquipmentChatQuery(parsed.data.equipmentId, data.user));
     } catch (err) {
-      client.emit(RT_EVENTS.ERROR, { message: err instanceof Error ? err.message : "Você não tem permissão para entrar no chat desta sala." });
+      client.emit(RT_EVENTS.ERROR, {
+        message: err instanceof Error ? err.message : "Você não tem permissão para entrar no chat desta sala.",
+      });
       return;
     }
     await client.join(equipmentChatRoom(parsed.data.equipmentId));
@@ -282,7 +288,7 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   async onTakeoverRequest(@ConnectedSocket() client: Socket, @MessageBody() body: { sessionId: string }): Promise<void> {
     const data = client.data as SocketData;
     const session = await this.commandBus.execute(
-      new ExecuteTakeoverCommand(body.sessionId, data.user.tenantId, data.user.sub, data.user.role, data.user.homeTenantId)
+      new ExecuteTakeoverCommand(body.sessionId, data.user.tenantId, data.user.sub, data.user.role, data.user.homeTenantId),
     );
 
     // The incoming controller almost certainly wasn't a participant (and so never joined
@@ -307,14 +313,16 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
       reason: "takeover",
     };
     this.server.to(room(session.id)).emit(RT_EVENTS.CONTROLLER_CHANGED, payload);
-    this.server.to(room(session.id)).emit(RT_EVENTS.SESSION_STATE, toSessionDto(session, await this.participantNames.resolveOperatorProfile(session)));
+    this.server
+      .to(room(session.id))
+      .emit(RT_EVENTS.SESSION_STATE, toSessionDto(session, await this.participantNames.resolveOperatorProfile(session)));
   }
 
   @SubscribeMessage(RT_EVENTS.RETURN_CONTROL_REQUEST)
   async onReturnControlRequest(@ConnectedSocket() client: Socket, @MessageBody() body: { sessionId: string }): Promise<void> {
     const data = client.data as SocketData;
     const session = await this.commandBus.execute(
-      new ReturnControlToOperatorCommand(body.sessionId, data.user.tenantId, data.user.sub, data.user.role)
+      new ReturnControlToOperatorCommand(body.sessionId, data.user.tenantId, data.user.sub, data.user.role),
     );
 
     // The acting supervisor/admin isn't necessarily the new controller here (control always
@@ -338,7 +346,9 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
       reason: "return_to_operator",
     };
     this.server.to(room(session.id)).emit(RT_EVENTS.CONTROLLER_CHANGED, payload);
-    this.server.to(room(session.id)).emit(RT_EVENTS.SESSION_STATE, toSessionDto(session, await this.participantNames.resolveOperatorProfile(session)));
+    this.server
+      .to(room(session.id))
+      .emit(RT_EVENTS.SESSION_STATE, toSessionDto(session, await this.participantNames.resolveOperatorProfile(session)));
   }
 
   @SubscribeMessage(RT_EVENTS.LATENCY_PING)

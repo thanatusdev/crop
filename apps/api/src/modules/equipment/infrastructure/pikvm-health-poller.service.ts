@@ -21,7 +21,7 @@ export class PiKvmHealthPoller {
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipmentRepo: EquipmentRepositoryPort,
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   @Cron(CronExpression.EVERY_10_SECONDS)

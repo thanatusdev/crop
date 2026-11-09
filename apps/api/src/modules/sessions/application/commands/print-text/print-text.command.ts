@@ -5,6 +5,6 @@ export class PrintTextCommand {
     public readonly equipmentId: string,
     public readonly userId: string,
     public readonly keymap: string,
-    public readonly text: string
+    public readonly text: string,
   ) {}
 }

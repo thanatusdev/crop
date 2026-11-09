@@ -78,7 +78,11 @@ async function checkHid(): Promise<void> {
 
   try {
     const state = await withTimeout(stateReceived, TIMEOUT_MS, "hid_state event");
-    record("HID state event shape", true, `online=${state.online}, keyboard.online=${state.keyboard.online}, mouse.online=${state.mouse.online}`);
+    record(
+      "HID state event shape",
+      true,
+      `online=${state.online}, keyboard.online=${state.keyboard.online}, mouse.online=${state.mouse.online}`,
+    );
   } catch (err) {
     record("HID state event shape", false, (err as Error).message);
   }
@@ -162,7 +166,7 @@ async function checkMedia(): Promise<void> {
     record(
       "Frame stream health",
       frameCount > 0,
-      `${frameCount} frames in ${MEDIA_OBSERVE_SECONDS}s (~${fps.toFixed(1)}fps), ${keyFrameCount} keyframes`
+      `${frameCount} frames in ${MEDIA_OBSERVE_SECONDS}s (~${fps.toFixed(1)}fps), ${keyFrameCount} keyframes`,
     );
   } else {
     record("First video frame received", false, "No binary frame arrived within the observation window");

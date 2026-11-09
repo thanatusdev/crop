@@ -24,7 +24,7 @@ export class PreviewInvitationHandler implements IQueryHandler<PreviewInvitation
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
-    @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort
+    @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort,
   ) {}
 
   async execute(query: PreviewInvitationQuery): Promise<PreviewInvitationResult> {

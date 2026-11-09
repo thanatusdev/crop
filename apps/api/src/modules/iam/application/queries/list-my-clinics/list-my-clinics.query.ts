@@ -16,6 +16,6 @@ export class ListMyClinicsQuery {
      * into a clinic saw no entry highlighted at all, because the list was being compared against
      * their operating company's id -- which is not a clinic and therefore never in the list.
      */
-    public readonly activeTenantId: string
+    public readonly activeTenantId: string,
   ) {}
 }

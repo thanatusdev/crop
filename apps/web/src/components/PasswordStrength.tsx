@@ -42,4 +42,3 @@ export function PasswordStrength({ password, evaluation }: { password: string; e
     </div>
   );
 }
-

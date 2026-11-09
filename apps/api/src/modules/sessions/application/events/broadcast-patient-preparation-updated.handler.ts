@@ -16,7 +16,7 @@ import { SessionsGateway } from "../../presentation/sessions.gateway.js";
 export class BroadcastPatientPreparationUpdatedHandler implements IEventHandler<PatientPreparationUpdatedEvent> {
   constructor(
     private readonly gateway: SessionsGateway,
-    @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort
+    @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
   ) {}
 
   async handle(event: PatientPreparationUpdatedEvent): Promise<void> {

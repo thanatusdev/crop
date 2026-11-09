@@ -36,6 +36,6 @@ export class CreateUnitCommand {
     public readonly unit: NewUnit,
     public readonly actingAdminId: string | null = null,
     public readonly actingAdminTenantId: string | null = null,
-    public readonly actingRole: UserRole | null = null
+    public readonly actingRole: UserRole | null = null,
   ) {}
 }

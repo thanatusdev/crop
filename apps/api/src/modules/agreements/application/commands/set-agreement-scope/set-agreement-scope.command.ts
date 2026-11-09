@@ -5,6 +5,6 @@ export class SetAgreementScopeCommand {
     public readonly actor: AccessTokenClaims,
     public readonly agreementId: string,
     public readonly unitIds: string[],
-    public readonly equipmentIds: string[]
+    public readonly equipmentIds: string[],
   ) {}
 }

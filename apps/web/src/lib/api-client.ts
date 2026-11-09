@@ -11,7 +11,7 @@ export class ApiError extends Error {
      * schema. Empty for every other kind of error. Lets a form highlight the offending inputs
      * instead of only showing one combined sentence.
      */
-    public readonly fieldErrors: readonly { path: string; message: string }[] = []
+    public readonly fieldErrors: readonly { path: string; message: string }[] = [],
   ) {
     super(message);
   }
@@ -27,7 +27,10 @@ export class ApiError extends Error {
  * equipment form, whose optional DICOM fields make a field-level 400 an ordinary occurrence
  * rather than a rarity.
  */
-function describeError(body: { message?: unknown; code?: unknown }, fallback: string): { message: string; fieldErrors: { path: string; message: string }[] } {
+function describeError(
+  body: { message?: unknown; code?: unknown },
+  fallback: string,
+): { message: string; fieldErrors: { path: string; message: string }[] } {
   const raw = body.message;
   if (typeof raw === "string" && raw.length > 0) return { message: raw, fieldErrors: [] };
 
@@ -146,7 +149,9 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
     // A 5xx body is never shown as-is: it is either Nest's generic "Internal server error" or
     // something an upstream proxy produced, and neither is meant for the person using the app.
     const { message, fieldErrors } =
-      res.status >= 500 ? { message: fallbackMessageFor(res.status), fieldErrors: [] } : describeError(errorBody, fallbackMessageFor(res.status));
+      res.status >= 500
+        ? { message: fallbackMessageFor(res.status), fieldErrors: [] }
+        : describeError(errorBody, fallbackMessageFor(res.status));
     throw new ApiError(res.status, errorBody.code ?? "UNKNOWN", message, fieldErrors);
   }
 

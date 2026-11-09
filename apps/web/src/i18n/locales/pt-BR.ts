@@ -81,7 +81,7 @@ const ptBR = {
     ruleMinLength: "Mínimo de 8 caracteres (10+ rec.)",
     ruleMixedCase: "Maiúscula e minúscula",
     ruleDigit: "Pelo menos 1 número",
-    ruleSymbol: 'Símbolo especial (@, #, $, %)',
+    ruleSymbol: "Símbolo especial (@, #, $, %)",
     ruleNoPersonalInfo: 'Não deve conter seu primeiro nome, sobrenome ou "radlink"',
     ruleSatisfied: "Regra atendida",
     ruleNotSatisfied: "Regra não atendida",
@@ -138,7 +138,8 @@ const ptBR = {
   changePassword: {
     tagline: "Acesso ao Sistema Clínico",
     title: "Atualize sua senha",
-    reasonMustChange: "Por segurança, defina uma nova senha para continuar. Esta credencial foi definida por um administrador e é de uso único.",
+    reasonMustChange:
+      "Por segurança, defina uma nova senha para continuar. Esta credencial foi definida por um administrador e é de uso único.",
     reasonExpired: "Sua senha expirou e precisa ser atualizada para continuar.",
     expiryLabel: "Esta sessão de troca expira em",
     expiredMessage: "O tempo para definir a nova senha esgotou. Faça login novamente.",
@@ -154,7 +155,8 @@ const ptBR = {
   activation: {
     tagline: "Acesso ao Sistema Clínico",
     loadingToken: "Verificando convite...",
-    invalidTokenBody: "Este convite não é mais válido -- ele pode ter expirado ou já ter sido utilizado. Contate o administrador da sua clínica para receber um novo.",
+    invalidTokenBody:
+      "Este convite não é mais válido -- ele pode ter expirado ou já ter sido utilizado. Contate o administrador da sua clínica para receber um novo.",
     expiredMessage: "Este convite expirou. Contate o administrador da sua clínica para receber um novo.",
     noTokenBody: "Nenhum convite foi encontrado nesta página. Verifique o link recebido por e-mail.",
     title: "Ative sua conta",
@@ -208,7 +210,8 @@ const ptBR = {
     actionEdit: "Editar",
 
     createTitle: "Criar usuário",
-    inviteNote: "Um link de ativação seguro será enviado para este e-mail (válido por 24 horas). A pessoa escolherá sua própria senha e configurará a autenticação em dois fatores no primeiro acesso.",
+    inviteNote:
+      "Um link de ativação seguro será enviado para este e-mail (válido por 24 horas). A pessoa escolherá sua própria senha e configurará a autenticação em dois fatores no primeiro acesso.",
     emailLabel: "E-mail corporativo",
     firstNameLabel: "Nome",
     lastNameLabel: "Sobrenome",
@@ -401,7 +404,8 @@ const ptBR = {
     confirmDeactivateTitle: "Desativar unidade",
     confirmDeactivateBodyWithEquipment:
       "{{name}} deixará de aceitar novas sessões de teleoperação em seus {{count}} equipamentos vinculados. Nenhum equipamento é desativado individualmente, e uma sessão em andamento não é encerrada. O cadastro é preservado e pode ser reativado depois.",
-    confirmDeactivateBodyNoEquipment: "{{name}} deixará de aceitar novas sessões de teleoperação. O cadastro é preservado e pode ser reativado depois.",
+    confirmDeactivateBodyNoEquipment:
+      "{{name}} deixará de aceitar novas sessões de teleoperação. O cadastro é preservado e pode ser reativado depois.",
     confirmDeactivateConfirm: "Desativar",
     confirmCancel: "Cancelar",
 
@@ -428,7 +432,8 @@ const ptBR = {
     breadcrumbView: "Detalhes da Unidade",
 
     createTitle: "Cadastrar Nova Unidade",
-    createSubtitle: "Preencha os dados da unidade física, selecione a clínica mantenedora, o tipo de estabelecimento e o status operacional.",
+    createSubtitle:
+      "Preencha os dados da unidade física, selecione a clínica mantenedora, o tipo de estabelecimento e o status operacional.",
     editTitle: "Editar Unidade",
     editSubtitle: "Atualize os dados institucionais, o endereço e a modalidade desta unidade.",
     viewTitle: "Detalhes da Unidade",
@@ -456,7 +461,8 @@ const ptBR = {
     establishmentMobileUnit: "Unidade Móvel",
 
     operationalLabel: "Status operacional",
-    operationalHint: "Define se a unidade aceita novas sessões de teleoperação em seus equipamentos. Um equipamento retirado de serviço individualmente permanece assim mesmo que a unidade seja reativada.",
+    operationalHint:
+      "Define se a unidade aceita novas sessões de teleoperação em seus equipamentos. Um equipamento retirado de serviço individualmente permanece assim mesmo que a unidade seja reativada.",
     operationalOn: "Unidade ativa / operacional",
     operationalOff: "Unidade desativada",
 
@@ -817,7 +823,8 @@ const ptBR = {
     confirmDeactivateTitle: "Desativar clínica",
     confirmDeactivateBodyWithResources:
       "{{name}} deixará de aceitar login de seus usuários. Seus {{equipmentCount}} equipamentos e {{unitCount}} unidades vinculadas não são desativados individualmente, e uma sessão em andamento não é encerrada. O cadastro é preservado e pode ser reativado depois.",
-    confirmDeactivateBodyNoResources: "{{name}} deixará de aceitar login de seus usuários. O cadastro é preservado e pode ser reativado depois.",
+    confirmDeactivateBodyNoResources:
+      "{{name}} deixará de aceitar login de seus usuários. O cadastro é preservado e pode ser reativado depois.",
     confirmDeactivateConfirm: "Desativar",
     confirmCancel: "Cancelar",
 
@@ -959,7 +966,8 @@ const ptBR = {
     confirmDeactivateTitle: "Desativar operadora",
     confirmDeactivateBodyWithAgreements:
       "{{name}} deixará de aceitar login de seus usuários. Ela possui {{count}} contrato(s) ativo(s) com clínicas, que não são revogados automaticamente -- revogue-os em Contratos se necessário. O cadastro é preservado e pode ser reativado depois.",
-    confirmDeactivateBodyNoAgreements: "{{name}} deixará de aceitar login de seus usuários. O cadastro é preservado e pode ser reativado depois.",
+    confirmDeactivateBodyNoAgreements:
+      "{{name}} deixará de aceitar login de seus usuários. O cadastro é preservado e pode ser reativado depois.",
     confirmDeactivateConfirm: "Desativar",
     confirmCancel: "Cancelar",
 
@@ -1112,7 +1120,8 @@ const ptBR = {
     lockBannerTitle: "Trava Operacional Ativa",
     lockBannerBodyKnownOperator:
       "Enquanto o exame atual não for concluído por {{operatorName}}, a fila deste equipamento permanece travada.",
-    lockBannerBodyUnknownOperator: "Enquanto o exame atual não for concluído pelo operador remoto, a fila deste equipamento permanece travada.",
+    lockBannerBodyUnknownOperator:
+      "Enquanto o exame atual não for concluído pelo operador remoto, a fila deste equipamento permanece travada.",
 
     queueHeading: "Fila da Sala · {{count}} Pacientes Hoje",
     queueEmpty: "Fila vazia.",
@@ -1146,7 +1155,8 @@ const ptBR = {
     reorderColHandle: "Ordem",
     colExam: "Exame",
     reorderBannerTitle: "Alterações de Ordem Não Confirmadas",
-    reorderBannerBody: "{{count}} paciente(s) fora da ordem atual da fila. Confirme para aplicar, ou descarte para voltar à ordem original.",
+    reorderBannerBody:
+      "{{count}} paciente(s) fora da ordem atual da fila. Confirme para aplicar, ou descarte para voltar à ordem original.",
     restoreOriginalOrder: "Restaurar Ordem Original",
     cancelChanges: "Cancelar Alterações",
     confirmNewSequence: "Confirmar Nova Sequência",
@@ -1231,7 +1241,8 @@ const ptBR = {
     documentsHeading: "Documentação do Exame",
     documentsSubheading: "Pedido médico, laudo anterior ou outro documento relacionado a este exame.",
     documentsEmpty: "Nenhum documento enviado.",
-    documentsImmediateNote: "O envio e a remoção de documentos são imediatos -- não fazem parte de \"Salvar Alterações deste Paciente\" e não são desfeitos por \"Descartar Edição\".",
+    documentsImmediateNote:
+      'O envio e a remoção de documentos são imediatos -- não fazem parte de "Salvar Alterações deste Paciente" e não são desfeitos por "Descartar Edição".',
     documentKindLabel: "Tipo de documento",
     documentKindPedidoMedico: "Pedido Médico",
     documentKindLaudoAnterior: "Laudo Anterior",
@@ -1289,7 +1300,6 @@ const ptBR = {
     fastingConfirmedNote: "Jejum confirmado",
     fastingConfirmedHoursNote: "Jejum confirmado · {{hours}} h",
     fastingNotConfirmedNote: "Jejum não confirmado",
-
   },
 
   /**
@@ -1380,7 +1390,8 @@ const ptBR = {
     heading: "Contratos de Teleoperação",
     subtitleClinic: "Empresas de operação remota autorizadas a operar os equipamentos desta clínica.",
     subtitleOperator: "Clínicas que contrataram sua empresa para operação remota.",
-    subtitlePlatform: "Todos os contratos entre clínicas e empresas operadoras da plataforma. Uma proposta pendente pode ser respondida em nome da parte que a aguarda.",
+    subtitlePlatform:
+      "Todos os contratos entre clínicas e empresas operadoras da plataforma. Uma proposta pendente pode ser respondida em nome da parte que a aguarda.",
     propose: "Propor contrato",
     proposeTitle: "Propor novo contrato",
     proposeSubmit: "Enviar proposta",
@@ -1415,7 +1426,8 @@ const ptBR = {
     scopeEmpty: "Nenhum equipamento liberado — sem acesso",
     scopeTitle: "Abrangência: {{name}}",
     scopeLegend: "Equipamentos liberados para esta empresa",
-    scopeHint: "A empresa só acessa os equipamentos marcados. Um equipamento instalado depois não entra liberado automaticamente — é preciso marcá-lo aqui.",
+    scopeHint:
+      "A empresa só acessa os equipamentos marcados. Um equipamento instalado depois não entra liberado automaticamente — é preciso marcá-lo aqui.",
     scopeUnitConversionNotice:
       "Este contrato ainda cobre uma unidade inteira (um modelo antigo). Os equipamentos dessa unidade já vêm marcados abaixo; ao salvar, a liberação passa a valer só para os equipamentos marcados, não mais para a unidade como um todo.",
     scopeSubmit: "Salvar abrangência",
@@ -1611,4 +1623,3 @@ const ptBR = {
 } as const;
 
 export default ptBR;
-

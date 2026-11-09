@@ -15,7 +15,7 @@ export class ListQueueByEquipmentHandler implements IQueryHandler<ListQueueByEqu
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     private readonly config: ConfigService,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: ListQueueByEquipmentQuery): Promise<QueueEntry[]> {

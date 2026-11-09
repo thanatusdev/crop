@@ -22,7 +22,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -53,7 +53,13 @@ describe("Queue entry timeline (nursing per-exam activity panel)", () => {
 
     adminToken = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.CLINIC_ADMIN })).accessToken;
     nurseToken = (
-      await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "nurse", firstName: "Camila", lastName: "Rocha" })
+      await createLoggedInUser(app, {
+        tenantId: tenant.id,
+        role: UserRole.NURSING,
+        emailPrefix: "nurse",
+        firstName: "Camila",
+        lastName: "Rocha",
+      })
     ).accessToken;
     otherTenantNurseToken = (
       await createLoggedInUser(app, { tenantId: otherTenant.id, role: UserRole.NURSING, emailPrefix: "other-nurse" })
@@ -68,18 +74,18 @@ describe("Queue entry timeline (nursing per-exam activity panel)", () => {
   });
 
   async function createQueueEntry(patientFirstName: string): Promise<string> {
-    const res = await http
-      .post("/queue")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ equipmentId, patientFirstName })
-      .expect(201);
+    const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201);
     return res.body.id;
   }
 
   it("lists this entry's own preparation/details actions, newest first, with the actor's real name", async () => {
     const queueEntryId = await createQueueEntry("Timeline-Patient");
 
-    await http.post(`/queue/${queueEntryId}/preparation`).set("Authorization", `Bearer ${nurseToken}`).send({ status: "POSITIONED" }).expect(204);
+    await http
+      .post(`/queue/${queueEntryId}/preparation`)
+      .set("Authorization", `Bearer ${nurseToken}`)
+      .send({ status: "POSITIONED" })
+      .expect(204);
     await http.patch(`/queue/${queueEntryId}`).set("Authorization", `Bearer ${nurseToken}`).send({ fastingConfirmed: true }).expect(204);
 
     const res = await http.get(`/queue/${queueEntryId}/timeline`).set("Authorization", `Bearer ${nurseToken}`).expect(200);
@@ -97,7 +103,11 @@ describe("Queue entry timeline (nursing per-exam activity panel)", () => {
 
   it("has no hash-chain fields", async () => {
     const queueEntryId = await createQueueEntry("Timeline-Shape-Patient");
-    await http.post(`/queue/${queueEntryId}/preparation`).set("Authorization", `Bearer ${nurseToken}`).send({ status: "POSITIONED" }).expect(204);
+    await http
+      .post(`/queue/${queueEntryId}/preparation`)
+      .set("Authorization", `Bearer ${nurseToken}`)
+      .send({ status: "POSITIONED" })
+      .expect(204);
 
     const res = await http.get(`/queue/${queueEntryId}/timeline`).set("Authorization", `Bearer ${nurseToken}`).expect(200);
     expect(res.body.length).toBeGreaterThan(0);
@@ -113,7 +123,11 @@ describe("Queue entry timeline (nursing per-exam activity panel)", () => {
     // just these two.
     const reorderEquipmentId = await createOnlineEquipment(http, adminToken, prisma, "Timeline-Reorder-CT");
     const createOnReorderEquipment = async (name: string) => {
-      const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId: reorderEquipmentId, patientFirstName: name }).expect(201);
+      const res = await http
+        .post("/queue")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ equipmentId: reorderEquipmentId, patientFirstName: name })
+        .expect(201);
       return res.body.id as string;
     };
     const a = await createOnReorderEquipment("Reorder-Timeline-A");
@@ -153,7 +167,11 @@ describe("Queue entry timeline (nursing per-exam activity panel)", () => {
   // other one.
   it("NURSING can read the timeline but still gets 403 from GET /audit itself", async () => {
     const queueEntryId = await createQueueEntry("Independent-Gates-Patient");
-    await http.post(`/queue/${queueEntryId}/preparation`).set("Authorization", `Bearer ${nurseToken}`).send({ status: "POSITIONED" }).expect(204);
+    await http
+      .post(`/queue/${queueEntryId}/preparation`)
+      .set("Authorization", `Bearer ${nurseToken}`)
+      .send({ status: "POSITIONED" })
+      .expect(204);
 
     await http.get(`/queue/${queueEntryId}/timeline`).set("Authorization", `Bearer ${nurseToken}`).expect(200);
     const auditRes = await http.get("/audit").set("Authorization", `Bearer ${nurseToken}`).expect(403);

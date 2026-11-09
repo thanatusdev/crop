@@ -131,7 +131,17 @@ const BaseCreateTenantRequestSchema = z.object({
   state: z.enum(BR_STATES).optional(),
 });
 
-const INSTITUTIONAL_REQUIRED_FIELDS = ["cnpj", "institutionalEmail", "phone", "zipCode", "street", "number", "district", "city", "state"] as const;
+const INSTITUTIONAL_REQUIRED_FIELDS = [
+  "cnpj",
+  "institutionalEmail",
+  "phone",
+  "zipCode",
+  "street",
+  "number",
+  "district",
+  "city",
+  "state",
+] as const;
 
 export const CreateTenantRequestSchema = BaseCreateTenantRequestSchema.superRefine((data, ctx) => {
   for (const field of INSTITUTIONAL_REQUIRED_FIELDS) {
@@ -177,4 +187,3 @@ export const UpdateTenantRequestSchema = z.object({
   responsibleManagerId: z.string().uuid().nullable().optional(),
 });
 export type UpdateTenantRequest = z.infer<typeof UpdateTenantRequestSchema>;
-

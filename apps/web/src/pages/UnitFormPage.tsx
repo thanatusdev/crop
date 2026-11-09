@@ -186,7 +186,7 @@ export default function UnitFormPage() {
       isSuperadmin
         ? tenants.filter((tenant) => tenant.type === "CLINIC").map((tenant) => ({ id: tenant.id, name: tenant.name }))
         : myClinics.map((clinic) => ({ id: clinic.id, name: clinic.name })),
-    [isSuperadmin, tenants, myClinics]
+    [isSuperadmin, tenants, myClinics],
   );
   function clinicName(clinicTenantId: string): string {
     return clinicOptions.find((clinic) => clinic.id === clinicTenantId)?.name ?? clinicTenantId;
@@ -280,7 +280,7 @@ export default function UnitFormPage() {
         title: t(UNIT_MODALITY_LABEL_KEY[modality]),
         hint: t(UNIT_MODALITY_HINT_KEY[modality]),
       })),
-    [t]
+    [t],
   );
 
   function applyServerFieldErrors(err: ApiError) {
@@ -351,7 +351,8 @@ export default function UnitFormPage() {
   }
 
   const title = mode === "create" ? t("unitForm:createTitle") : mode === "edit" ? t("unitForm:editTitle") : t("unitForm:viewTitle");
-  const subtitle = mode === "create" ? t("unitForm:createSubtitle") : mode === "edit" ? t("unitForm:editSubtitle") : t("unitForm:viewSubtitle");
+  const subtitle =
+    mode === "create" ? t("unitForm:createSubtitle") : mode === "edit" ? t("unitForm:editSubtitle") : t("unitForm:viewSubtitle");
   const breadcrumbLeaf =
     mode === "create" ? t("unitForm:breadcrumbNew") : mode === "edit" ? t("unitForm:breadcrumbEdit") : t("unitForm:breadcrumbView");
 
@@ -712,7 +713,9 @@ export default function UnitFormPage() {
                   })}
                 </p>
               )}
-              {!form.technicalManagerId && mode !== "create" && <p className="text-xs text-muted-foreground">{t("unitForm:technicalManagerNone")}</p>}
+              {!form.technicalManagerId && mode !== "create" && (
+                <p className="text-xs text-muted-foreground">{t("unitForm:technicalManagerNone")}</p>
+              )}
             </div>
           </CardContent>
         </Card>

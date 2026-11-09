@@ -19,14 +19,14 @@ import { ListClinicOptionsQuery } from "./list-clinic-options.query.js";
 export class ListClinicOptionsHandler implements IQueryHandler<ListClinicOptionsQuery, AgreementCounterpartyOption[]> {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
-    @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort
+    @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
   ) {}
 
   async execute(query: ListClinicOptionsQuery): Promise<AgreementCounterpartyOption[]> {
     const [allTenants, ownAgreements] = await Promise.all([this.tenants.listAll(), this.agreements.listForTenant(query.operatorTenantId)]);
 
     const unavailableClinicIds = new Set(
-      ownAgreements.filter((a) => a.status === AgreementStatus.PENDING || a.status === AgreementStatus.ACTIVE).map((a) => a.clinicTenantId)
+      ownAgreements.filter((a) => a.status === AgreementStatus.PENDING || a.status === AgreementStatus.ACTIVE).map((a) => a.clinicTenantId),
     );
 
     return allTenants

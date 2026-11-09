@@ -63,10 +63,7 @@ describe("Queue: multi-tenant isolation", () => {
       .send({ equipmentId: alphaEquipmentId, patientFirstName: "RealPatient" })
       .expect(201);
 
-    const res = await http
-      .get(`/queue?equipmentId=${alphaEquipmentId}`)
-      .set("Authorization", `Bearer ${betaOperatorToken}`)
-      .expect(403);
+    const res = await http.get(`/queue?equipmentId=${alphaEquipmentId}`).set("Authorization", `Bearer ${betaOperatorToken}`).expect(403);
     expect(res.body.code).toBe("FORBIDDEN");
   });
 
@@ -85,10 +82,7 @@ describe("Queue: multi-tenant isolation", () => {
     expect(res.body.code).toBe("FORBIDDEN");
 
     // Confirm the attack didn't work, not just that it returned 403.
-    const listRes = await http
-      .get(`/queue?equipmentId=${alphaEquipmentId}`)
-      .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .expect(200);
+    const listRes = await http.get(`/queue?equipmentId=${alphaEquipmentId}`).set("Authorization", `Bearer ${alphaAdminToken}`).expect(200);
     const entry = listRes.body.find((e: { id: string }) => e.id === createRes.body.id);
     expect(entry.status).toBe("WAITING");
   });
@@ -100,10 +94,7 @@ describe("Queue: multi-tenant isolation", () => {
       .send({ equipmentId: alphaEquipmentId, patientFirstName: "Owned-Patient" })
       .expect(201);
 
-    await http
-      .get(`/queue?equipmentId=${alphaEquipmentId}`)
-      .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .expect(200);
+    await http.get(`/queue?equipmentId=${alphaEquipmentId}`).set("Authorization", `Bearer ${alphaAdminToken}`).expect(200);
 
     await http
       .post(`/queue/${createRes.body.id}/status`)
@@ -111,10 +102,7 @@ describe("Queue: multi-tenant isolation", () => {
       .send({ status: "IN_PROGRESS" })
       .expect(204);
 
-    const auditRes = await http
-      .get(`/audit?limit=200`)
-      .set("Authorization", `Bearer ${alphaAdminToken}`)
-      .expect(200);
+    const auditRes = await http.get(`/audit?limit=200`).set("Authorization", `Bearer ${alphaAdminToken}`).expect(200);
     const actions = auditRes.body
       .filter((e: { resourceId: string }) => e.resourceId === createRes.body.id)
       .map((e: { action: string }) => e.action);
@@ -123,7 +111,7 @@ describe("Queue: multi-tenant isolation", () => {
 
     // PHI never leaks into the audit trail's own details.
     const createdEvent = auditRes.body.find(
-      (e: { resourceId: string; action: string }) => e.resourceId === createRes.body.id && e.action === "QUEUE_ENTRY_CREATED"
+      (e: { resourceId: string; action: string }) => e.resourceId === createRes.body.id && e.action === "QUEUE_ENTRY_CREATED",
     );
     expect(JSON.stringify(createdEvent.details)).not.toContain("Owned-Patient");
   });

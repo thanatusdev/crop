@@ -16,6 +16,6 @@ import type { TenantType } from "@crop/shared";
 export class TenantCreatedEvent {
   constructor(
     public readonly tenantId: string,
-    public readonly type: TenantType
+    public readonly type: TenantType,
   ) {}
 }

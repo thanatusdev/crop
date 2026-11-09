@@ -376,7 +376,9 @@ export default function ClinicFormPage() {
             {loadedClinic && loadedClinic.isMatriz !== null && (
               <div className="flex flex-col gap-1.5">
                 <Label>{t("clinicForm:branchLabel")}</Label>
-                <p className="min-h-6 py-2.5 text-sm">{loadedClinic.isMatriz ? t("clinicForm:branchMatriz") : t("clinicForm:branchFilial")}</p>
+                <p className="min-h-6 py-2.5 text-sm">
+                  {loadedClinic.isMatriz ? t("clinicForm:branchMatriz") : t("clinicForm:branchFilial")}
+                </p>
                 <span className="text-xs text-muted-foreground">{t("clinicForm:branchDerivedNote")}</span>
               </div>
             )}

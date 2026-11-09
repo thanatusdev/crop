@@ -12,6 +12,6 @@ export class AgreementAccessReducedEvent {
   constructor(
     public readonly clinicTenantId: string,
     public readonly operatorTenantId: string,
-    public readonly reason: "agreement_revoked" | "agreement_scope_reduced"
+    public readonly reason: "agreement_revoked" | "agreement_scope_reduced",
   ) {}
 }

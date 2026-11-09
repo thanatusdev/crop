@@ -16,7 +16,7 @@ export class UpdateUnitHandler implements ICommandHandler<UpdateUnitCommand, Enr
     private readonly technicalManagers: TechnicalManagerValidator,
     private readonly enrichment: UnitEnrichmentService,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: UpdateUnitCommand): Promise<EnrichedUnit> {
@@ -56,7 +56,7 @@ export class UpdateUnitHandler implements ICommandHandler<UpdateUnitCommand, Enr
         // for the same reason: simpler to keep correct than judging each field as sensitive
         // or not, case by case, as new ones get added later.
         details: { changedFields: Object.keys(command.changes) },
-      })
+      }),
     );
 
     return this.enrichment.enrichOne(updated);

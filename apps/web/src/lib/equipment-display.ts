@@ -82,10 +82,7 @@ export const MODALITY_ABBREVIATION: Record<ExamModality, string> = {
  * `statusLabelKeyOf` above.
  */
 export type ModalityLabelKey =
-  | "equipmentForm:modalityMri"
-  | "equipmentForm:modalityCt"
-  | "equipmentForm:modalityUltrasound"
-  | "equipmentForm:modalityXray";
+  "equipmentForm:modalityMri" | "equipmentForm:modalityCt" | "equipmentForm:modalityUltrasound" | "equipmentForm:modalityXray";
 export type ModalityHintKey =
   | "equipmentForm:modalityMriHint"
   | "equipmentForm:modalityCtHint"

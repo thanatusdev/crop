@@ -87,13 +87,15 @@ export function isPartyTo(agreement: OperatorAgreementDto, tenantId: string): bo
 export function agreementStatusLabelKeyFor(
   agreement: OperatorAgreementDto,
   viewerTenantId: string,
-  isPlatformAdmin = false
+  isPlatformAdmin = false,
 ): AgreementLabelKey {
   if (agreement.status !== AgreementStatus.PENDING) return agreementStatusLabelKeyOf(agreement.status);
   // Neither "you" nor "the other party" means anything to a viewer who is party to neither side;
   // name the side the proposal is waiting on instead.
   if (isPlatformAdmin) {
-    return agreement.proposedByTenantId === agreement.clinicTenantId ? "agreements:statusPendingOperator" : "agreements:statusPendingClinic";
+    return agreement.proposedByTenantId === agreement.clinicTenantId
+      ? "agreements:statusPendingOperator"
+      : "agreements:statusPendingClinic";
   }
   return isActionableBy(agreement, viewerTenantId) ? "agreements:statusPendingYou" : "agreements:statusPendingOther";
 }

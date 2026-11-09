@@ -37,8 +37,9 @@ describe("Real-time push: queue and equipment status", () => {
     tenantAId = (await createTenant(prisma, `Realtime-A-${crypto.randomUUID()}`)).id;
     tenantAAdminToken = (await createLoggedInUser(app, { tenantId: tenantAId, role: UserRole.CLINIC_ADMIN })).accessToken;
     const tenantBId = (await createTenant(prisma, `Realtime-B-${crypto.randomUUID()}`)).id;
-    tenantBAdminToken = (await createLoggedInUser(app, { tenantId: tenantBId, role: UserRole.CLINIC_ADMIN, emailPrefix: "realtime-b-admin" }))
-      .accessToken;
+    tenantBAdminToken = (
+      await createLoggedInUser(app, { tenantId: tenantBId, role: UserRole.CLINIC_ADMIN, emailPrefix: "realtime-b-admin" })
+    ).accessToken;
 
     const eqRes = await http
       .post("/equipment")
@@ -74,7 +75,11 @@ describe("Real-time push: queue and equipment status", () => {
       otherTenantReceived = true;
     });
 
-    await http.post("/queue").set("Authorization", `Bearer ${tenantAAdminToken}`).send({ equipmentId, patientFirstName: "Realtime-Patient" }).expect(201);
+    await http
+      .post("/queue")
+      .set("Authorization", `Bearer ${tenantAAdminToken}`)
+      .send({ equipmentId, patientFirstName: "Realtime-Patient" })
+      .expect(201);
 
     const payload = await receivedBySameTenant;
     expect(payload.equipmentId).toBe(equipmentId);
@@ -109,9 +114,8 @@ describe("Real-time push: queue and equipment status", () => {
   });
 
   it("pushes PATIENT_PREPARATION_UPDATED when the nurse positions a patient", async () => {
-    const nurseToken = (
-      await createLoggedInUser(app, { tenantId: tenantAId, role: UserRole.NURSING, emailPrefix: "realtime-nurse" })
-    ).accessToken;
+    const nurseToken = (await createLoggedInUser(app, { tenantId: tenantAId, role: UserRole.NURSING, emailPrefix: "realtime-nurse" }))
+      .accessToken;
     const queueRes = await http
       .post("/queue")
       .set("Authorization", `Bearer ${tenantAAdminToken}`)

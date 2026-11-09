@@ -35,7 +35,7 @@ describe("Multi-tenant isolation and RBAC", () => {
         equipmentPayload({
           name: "MRI-Isolation-Test",
           pikvmHost: "https://192.0.2.1", // TEST-NET-1, guaranteed non-routable
-        })
+        }),
       )
       .expect(201);
     alphaEquipmentId = createRes.body.id;
@@ -54,7 +54,7 @@ describe("Multi-tenant isolation and RBAC", () => {
   it("audits equipment creation, attributed to the admin who created it", async () => {
     const auditRes = await http.get("/audit?limit=200").set("Authorization", `Bearer ${alphaAuditorToken}`).expect(200);
     const created = auditRes.body.find(
-      (e: { action: string; resourceId: string }) => e.action === "EQUIPMENT_CREATED" && e.resourceId === alphaEquipmentId
+      (e: { action: string; resourceId: string }) => e.action === "EQUIPMENT_CREATED" && e.resourceId === alphaEquipmentId,
     );
     expect(created).toBeDefined();
     expect(created.details.name).toBe("MRI-Isolation-Test");
@@ -66,10 +66,7 @@ describe("Multi-tenant isolation and RBAC", () => {
   });
 
   it("returns 403, not 404, when fetching another tenant's equipment by id directly", async () => {
-    const res = await http
-      .get(`/equipment/${alphaEquipmentId}`)
-      .set("Authorization", `Bearer ${betaOperatorToken}`)
-      .expect(403);
+    const res = await http.get(`/equipment/${alphaEquipmentId}`).set("Authorization", `Bearer ${betaOperatorToken}`).expect(403);
     expect(res.body.code).toBe("FORBIDDEN");
   });
 
@@ -98,7 +95,7 @@ describe("Multi-tenant isolation and RBAC", () => {
     // violations -- see docs/architecture.md.
     const auditRes = await http.get("/audit?limit=200").set("Authorization", `Bearer ${alphaAuditorToken}`).expect(200);
     const denied = auditRes.body.find(
-      (e: { action: string; details: { path?: string } }) => e.action === "PERMISSION_DENIED" && e.details?.path === "/equipment"
+      (e: { action: string; details: { path?: string } }) => e.action === "PERMISSION_DENIED" && e.details?.path === "/equipment",
     );
     expect(denied).toBeDefined();
     expect(denied.details.requiredRoles).toEqual(expect.arrayContaining(["CLINIC_ADMIN", "PLATFORM_ADMIN"]));

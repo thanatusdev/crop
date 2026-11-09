@@ -88,10 +88,7 @@ describe("Units: clinic-access scoping", () => {
       .expect(403);
     expect(createRes.body.code).toBe("FORBIDDEN");
 
-    const listRes = await http
-      .get(`/units?clinicTenantId=${clinicB}`)
-      .set("Authorization", `Bearer ${admin.accessToken}`)
-      .expect(403);
+    const listRes = await http.get(`/units?clinicTenantId=${clinicB}`).set("Authorization", `Bearer ${admin.accessToken}`).expect(403);
     expect(listRes.body.code).toBe("FORBIDDEN");
   });
 
@@ -108,7 +105,11 @@ describe("Units: clinic-access scoping", () => {
    * `ClinicAccessChecker`, which Phase 2's agreement model is about to build directly on.
    */
   it("refuses unit creation to an OPERATOR_ADMIN even for a clinic it is linked to, while still allowing it to read that clinic's units", async () => {
-    const opAdmin = await createLoggedInUser(app, { tenantId: operatorTenant, role: UserRole.OPERATOR_ADMIN, emailPrefix: "units-operator" });
+    const opAdmin = await createLoggedInUser(app, {
+      tenantId: operatorTenant,
+      role: UserRole.OPERATOR_ADMIN,
+      emailPrefix: "units-operator",
+    });
     const clinicBManager = await createLoggedInUser(app, {
       tenantId: clinicB,
       role: UserRole.CLINIC_ADMIN,
@@ -166,7 +167,11 @@ describe("Units: clinic-access scoping", () => {
       emailPrefix: "units-deactivated-owner",
     });
     const platformTenant = (await createTenant(prisma, `UnitsPlatform2-${crypto.randomUUID()}`, "PLATFORM")).id;
-    const platformAdmin = await createLoggedInUser(app, { tenantId: platformTenant, role: UserRole.PLATFORM_ADMIN, emailPrefix: "units-platform2" });
+    const platformAdmin = await createLoggedInUser(app, {
+      tenantId: platformTenant,
+      role: UserRole.PLATFORM_ADMIN,
+      emailPrefix: "units-platform2",
+    });
 
     await prisma.tenant.update({ where: { id: deactivatedClinic }, data: { deactivatedAt: new Date() } });
 

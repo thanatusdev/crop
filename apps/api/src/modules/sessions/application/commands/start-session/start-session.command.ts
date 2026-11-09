@@ -16,6 +16,6 @@ export class StartSessionCommand {
      * script, which dispatches this command directly through the CommandBus with no HTTP actor,
      * keeps working.
      */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

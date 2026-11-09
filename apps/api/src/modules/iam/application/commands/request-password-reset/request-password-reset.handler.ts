@@ -49,7 +49,7 @@ export class RequestPasswordResetHandler implements ICommandHandler<RequestPassw
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
     @Inject(MAILER) private readonly mailer: MailerPort,
     private readonly config: ConfigService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: RequestPasswordResetCommand): Promise<void> {
@@ -99,7 +99,7 @@ export class RequestPasswordResetHandler implements ICommandHandler<RequestPassw
         resourceType: "User",
         resourceId: user.id,
         details: {},
-      })
+      }),
     );
   }
 }

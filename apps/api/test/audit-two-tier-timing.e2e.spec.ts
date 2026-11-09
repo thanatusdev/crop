@@ -53,7 +53,8 @@ describe("Audit trail: two-tier timing (critical events instant, HID input buffe
     // equipment is audited against the clinic. Giving an operator admin a consolidated view
     // across both is a separate, known piece of work -- it is not silently broken here, it is
     // simply out of this test's scope.
-    clinicUserEmail = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "audit-timing-clinic" })).email;
+    clinicUserEmail = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "audit-timing-clinic" }))
+      .email;
 
     const http = request(baseUrl);
     const equipmentRes = await http

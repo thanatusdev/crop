@@ -7,13 +7,8 @@ import { Video } from "lucide-react";
  */
 export function Logo({ size = 56 }: { size?: number }) {
   return (
-    <div
-      className="flex items-center justify-center rounded-[28%] border bg-card"
-      style={{ width: size, height: size }}
-      aria-hidden="true"
-    >
+    <div className="flex items-center justify-center rounded-[28%] border bg-card" style={{ width: size, height: size }} aria-hidden="true">
       <Video className="text-primary" style={{ width: size * 0.5, height: size * 0.5 }} strokeWidth={1.8} />
     </div>
   );
 }
-

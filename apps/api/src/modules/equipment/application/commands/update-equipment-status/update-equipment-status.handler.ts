@@ -11,7 +11,7 @@ export class UpdateEquipmentStatusHandler implements ICommandHandler<UpdateEquip
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: UpdateEquipmentStatusCommand): Promise<void> {
@@ -35,7 +35,7 @@ export class UpdateEquipmentStatusHandler implements ICommandHandler<UpdateEquip
         resourceType: "Equipment",
         resourceId: current.id,
         details: { previousStatus: current.status, newStatus: command.status },
-      })
+      }),
     );
 
     this.eventBus.publish(new EquipmentStatusChangedEvent(current.tenantId, current.id, command.status));

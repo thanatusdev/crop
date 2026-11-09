@@ -66,14 +66,9 @@ describe("PiKvmHidClient", () => {
     const releasedKeyEvents = ws.sent.map((s) => JSON.parse(s)).filter((e) => e.event_type === "key");
     const releasedButtonEvents = ws.sent.map((s) => JSON.parse(s)).filter((e) => e.event_type === "mouse_button");
 
-    expect(releasedKeyEvents).toEqual([
-      { event_type: "key", event: { key: "ControlLeft", state: false, finish: true } },
-    ]);
+    expect(releasedKeyEvents).toEqual([{ event_type: "key", event: { key: "ControlLeft", state: false, finish: true } }]);
     expect(releasedButtonEvents).toEqual([{ event_type: "mouse_button", event: { button: "left", state: false } }]);
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/hid/reset"),
-      expect.objectContaining({ method: "POST" })
-    );
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("/api/hid/reset"), expect.objectContaining({ method: "POST" }));
   });
 
   it("clears pressed-key tracking on an unexpected disconnect, so a stale key isn't released twice on reconnect", () => {
@@ -87,7 +82,7 @@ describe("PiKvmHidClient", () => {
     expect(FakeWebSocket.instances.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("emits a 'state' event on the device's real event_type (\"hid\", confirmed against a PiKVM Mini running kvmd 4.61 -- NOT \"hid_state\", which is what the docs assumed before this was checked against real hardware)", () => {
+  it('emits a \'state\' event on the device\'s real event_type ("hid", confirmed against a PiKVM Mini running kvmd 4.61 -- NOT "hid_state", which is what the docs assumed before this was checked against real hardware)', () => {
     const client = new PiKvmHidClient({ baseUrl: "https://pikvm", user: "admin", password: "admin" });
     client.connect();
     const ws = FakeWebSocket.instances[0];

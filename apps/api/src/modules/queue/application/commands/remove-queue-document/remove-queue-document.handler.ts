@@ -14,7 +14,7 @@ export class RemoveQueueDocumentHandler implements ICommandHandler<RemoveQueueDo
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(QUEUE_DOCUMENT_REPOSITORY) private readonly documents: QueueDocumentRepositoryPort,
     @Inject(QUEUE_DOCUMENT_STORAGE) private readonly storage: QueueDocumentStoragePort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: RemoveQueueDocumentCommand): Promise<void> {
@@ -47,7 +47,7 @@ export class RemoveQueueDocumentHandler implements ICommandHandler<RemoveQueueDo
         resourceType: "QueueEntry",
         resourceId: entry.id,
         details: { equipmentId: entry.equipmentId, documentId: document.id, kind: document.kind, mimeType: document.mimeType },
-      })
+      }),
     );
   }
 }

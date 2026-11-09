@@ -1,13 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Socket } from "socket.io-client";
-import {
-  RT_EVENTS,
-  decideAltGrCtrl,
-  fixIsoBackquote,
-  toAbsoluteHidCoordinates,
-  toScrollStep,
-  type HidInputEvent,
-} from "@crop/shared";
+import { RT_EVENTS, decideAltGrCtrl, fixIsoBackquote, toAbsoluteHidCoordinates, toScrollStep, type HidInputEvent } from "@crop/shared";
 
 const ALTGR_DELAY_MS = 50;
 const SCROLL_RATE = 5;
@@ -130,7 +123,7 @@ export function useHidInput(params: {
       // aspect ratio (width:100%, height:auto), so the geometry offset is always zero.
       pendingMove = toAbsoluteHidCoordinates(
         { x: ev.clientX - rect.left, y: ev.clientY - rect.top },
-        { x: 0, y: 0, width: rect.width, height: rect.height }
+        { x: 0, y: 0, width: rect.width, height: rect.height },
       );
     };
 

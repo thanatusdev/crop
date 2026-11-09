@@ -14,6 +14,6 @@ export class GetEquipmentQuery {
      * call site to invent an actor, which is precisely how a check like this ends up being passed a
      * synthetic "system" identity that quietly satisfies it everywhere.
      */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

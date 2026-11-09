@@ -58,7 +58,7 @@ export class AgreementsController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort
+    @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
   ) {}
 
   private homeTenantOf(user: AccessTokenClaims): string {
@@ -80,7 +80,7 @@ export class AgreementsController {
       throw new ValidationError(`Status de contrato inválido: "${status}".`);
     }
     const agreements: OperatorAgreement[] = await this.queryBus.execute(
-      new ListAgreementsQuery(this.partyScopeOf(user), status as AgreementStatus | undefined)
+      new ListAgreementsQuery(this.partyScopeOf(user), status as AgreementStatus | undefined),
     );
     return toAgreementDtos(agreements, this.agreements);
   }
@@ -115,14 +115,14 @@ export class AgreementsController {
   @Post()
   async propose(
     @CurrentUser() user: AccessTokenClaims,
-    @Body(new ZodValidationPipe(ProposeAgreementRequestSchema)) body: ProposeAgreementRequest
+    @Body(new ZodValidationPipe(ProposeAgreementRequestSchema)) body: ProposeAgreementRequest,
   ): Promise<OperatorAgreementDto> {
     // The schema guarantees exactly one of the two is present; whichever it is, it names the
     // *counterparty*. The handler decides which side is which from the tenant types, so a caller
     // cannot misrepresent their own side by choosing the "wrong" field.
     const counterparty = body.clinicTenantId ?? body.operatorTenantId!;
     const agreement: OperatorAgreement = await this.commandBus.execute(
-      new ProposeAgreementCommand(user, counterparty, body.unitIds ?? [], body.equipmentIds ?? [])
+      new ProposeAgreementCommand(user, counterparty, body.unitIds ?? [], body.equipmentIds ?? []),
     );
     return this.toDto(agreement);
   }
@@ -160,10 +160,10 @@ export class AgreementsController {
   async setScope(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(SetAgreementScopeRequestSchema)) body: SetAgreementScopeRequest
+    @Body(new ZodValidationPipe(SetAgreementScopeRequestSchema)) body: SetAgreementScopeRequest,
   ): Promise<OperatorAgreementDto> {
     const agreement: OperatorAgreement = await this.commandBus.execute(
-      new SetAgreementScopeCommand(user, id, body.unitIds, body.equipmentIds)
+      new SetAgreementScopeCommand(user, id, body.unitIds, body.equipmentIds),
     );
     return this.toDto(agreement);
   }

@@ -13,6 +13,6 @@ export class UploadQueueDocumentCommand {
     public readonly kind: QueueDocumentKind,
     public readonly filename: string,
     public readonly mimeType: string,
-    public readonly data: Buffer
+    public readonly data: Buffer,
   ) {}
 }

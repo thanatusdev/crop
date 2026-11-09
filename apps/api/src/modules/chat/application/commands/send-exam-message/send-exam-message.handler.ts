@@ -38,7 +38,7 @@ export class SendExamMessageHandler implements ICommandHandler<SendExamMessageCo
     @Inject(CHAT_ATTACHMENT_STORAGE) private readonly attachments: ChatAttachmentStoragePort,
     private readonly operatorAccess: OperatorAccessService,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: SendExamMessageCommand): Promise<ExamMessageDto> {
@@ -101,7 +101,7 @@ export class SendExamMessageHandler implements ICommandHandler<SendExamMessageCo
           hasAttachment: attachment !== null,
           attachmentMimeType: attachment?.mimeType ?? null,
         },
-      })
+      }),
     );
 
     const authorNames = await this.users.summarizeDisplayNames([actor.sub]);

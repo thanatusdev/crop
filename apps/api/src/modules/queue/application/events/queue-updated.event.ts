@@ -10,6 +10,6 @@
 export class QueueUpdatedEvent {
   constructor(
     public readonly tenantId: string,
-    public readonly equipmentId: string
+    public readonly equipmentId: string,
   ) {}
 }

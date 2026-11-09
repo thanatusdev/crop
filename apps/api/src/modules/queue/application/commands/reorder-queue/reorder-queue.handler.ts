@@ -10,8 +10,7 @@ import { QueueUpdatedEvent } from "../../events/queue-updated.event.js";
 import { ReorderQueueCommand } from "./reorder-queue.command.js";
 
 const REORDER_ERROR_MESSAGE: Record<"INCLUDES_NON_WAITING" | "STALE_SET", string> = {
-  INCLUDES_NON_WAITING:
-    "Um destes pacientes não está mais aguardando (já está na sala ou o exame foi concluído). Recarregue a fila.",
+  INCLUDES_NON_WAITING: "Um destes pacientes não está mais aguardando (já está na sala ou o exame foi concluído). Recarregue a fila.",
   STALE_SET: "A fila desta sala mudou desde que você a carregou. Recarregue e tente reordenar novamente.",
 };
 
@@ -21,7 +20,7 @@ export class ReorderQueueHandler implements ICommandHandler<ReorderQueueCommand,
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: ReorderQueueCommand): Promise<void> {
@@ -67,7 +66,7 @@ export class ReorderQueueHandler implements ICommandHandler<ReorderQueueCommand,
         // Ids only, never patientFirstName -- same PHI rule as every other queue audit row
         // (see CreateQueueEntryHandler's own comment).
         details: { equipmentId: command.equipmentId, previousOrder, newOrder: [...command.orderedIds] },
-      })
+      }),
     );
 
     this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, command.equipmentId));

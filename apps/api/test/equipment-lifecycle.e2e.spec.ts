@@ -30,7 +30,9 @@ describe("Equipment lifecycle: edit and maintenance mode", () => {
 
     tenantId = (await createTenant(prisma, `EqLifecycle-${crypto.randomUUID()}`)).id;
     adminToken = (await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN })).accessToken;
-    operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "eq-lifecycle-op" })).accessToken;
+    operatorToken = (
+      await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "eq-lifecycle-op" })
+    ).accessToken;
 
     const res = await http
       .post("/equipment")
@@ -60,7 +62,11 @@ describe("Equipment lifecycle: edit and maintenance mode", () => {
   it("leaves the stored password unchanged when omitted, and actually changes it when provided", async () => {
     const before = await prisma.equipment.findUniqueOrThrow({ where: { id: equipmentId } });
 
-    await http.patch(`/equipment/${equipmentId}`).set("Authorization", `Bearer ${adminToken}`).send({ name: "No password change" }).expect(200);
+    await http
+      .patch(`/equipment/${equipmentId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "No password change" })
+      .expect(200);
     const afterNoop = await prisma.equipment.findUniqueOrThrow({ where: { id: equipmentId } });
     expect(afterNoop.pikvmPasswordCiphertext).toBe(before.pikvmPasswordCiphertext);
 
@@ -103,11 +109,7 @@ describe("Equipment lifecycle: edit and maintenance mode", () => {
 
     // A session can't be started against MAINTENANCE equipment -- same "must be ONLINE" rule
     // that already blocks OFFLINE/DEGRADED equipment, no special-casing needed for this.
-    const sessionAttempt = await http
-      .post("/sessions")
-      .set("Authorization", `Bearer ${operatorToken}`)
-      .send({ equipmentId })
-      .expect(409);
+    const sessionAttempt = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId }).expect(409);
     expect(sessionAttempt.body.code).toBe("CONFLICT");
 
     await http.post(`/equipment/${equipmentId}/maintenance/clear`).set("Authorization", `Bearer ${adminToken}`).expect(204);
@@ -138,7 +140,8 @@ describe("Equipment lifecycle: edit and maintenance mode", () => {
     // The two maintenance-toggle rows must be attributed to the acting admin, not null/system
     // -- distinguishing this from PiKvmHealthPoller's own automatic (userId: null) updates.
     const maintenanceLogs = logs.filter(
-      (l) => (l.details as { newStatus?: string }).newStatus === "MAINTENANCE" || (l.details as { newStatus?: string }).newStatus === "OFFLINE"
+      (l) =>
+        (l.details as { newStatus?: string }).newStatus === "MAINTENANCE" || (l.details as { newStatus?: string }).newStatus === "OFFLINE",
     );
     expect(maintenanceLogs.every((l) => l.userId !== null)).toBe(true);
   });

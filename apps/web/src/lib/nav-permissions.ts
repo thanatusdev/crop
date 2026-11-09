@@ -67,10 +67,7 @@ export function computeNavPermissions(role: UserRole | undefined): NavPermission
     // it's its own flag because no other nav permission's role set matches it (NURSING is
     // here but not in any of the above; LOCAL_IT is in canManageEquipment but not here).
     canManageQueue:
-      role === UserRole.NURSING ||
-      role === UserRole.LOCAL_SUPERVISOR ||
-      role === UserRole.CLINIC_ADMIN ||
-      role === UserRole.PLATFORM_ADMIN,
+      role === UserRole.NURSING || role === UserRole.LOCAL_SUPERVISOR || role === UserRole.CLINIC_ADMIN || role === UserRole.PLATFORM_ADMIN,
     // Mirrors AgreementsController's @Roles -- the administrator of each side of the contract, plus
     // PLATFORM_ADMIN. Deliberately excludes OPERATOR/OPERATIONAL_SUPERVISOR: running exams and
     // supervising sessions are not the same authority as signing or ending the commercial

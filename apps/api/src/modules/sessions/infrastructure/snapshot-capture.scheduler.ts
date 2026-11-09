@@ -18,7 +18,7 @@ export class SnapshotCaptureScheduler implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   onModuleInit(): void {
@@ -38,8 +38,8 @@ export class SnapshotCaptureScheduler implements OnModuleInit, OnModuleDestroy {
       activeSessions.map((session) =>
         this.commandBus
           .execute(new CaptureSessionSnapshotCommand(session.id, session.tenantId, session.equipmentId))
-          .catch((err: Error) => this.logger.warn(`Snapshot capture failed for session ${session.id}: ${err.message}`))
-      )
+          .catch((err: Error) => this.logger.warn(`Snapshot capture failed for session ${session.id}: ${err.message}`)),
+      ),
     );
   }
 }

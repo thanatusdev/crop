@@ -4,6 +4,6 @@ export class SetEquipmentDeactivatedCommand {
     public readonly tenantId: string,
     public readonly actingUserId: string,
     /** `true` retires the device from service; `false` returns it. */
-    public readonly deactivated: boolean
+    public readonly deactivated: boolean,
   ) {}
 }

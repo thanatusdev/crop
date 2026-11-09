@@ -2,7 +2,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma, clinicPayload, operatorPayload, unitPayload, equipmentPayload } from "./helpers.js";
+import {
+  createTestApp,
+  createLoggedInUser,
+  createTenant,
+  testPrisma,
+  clinicPayload,
+  operatorPayload,
+  unitPayload,
+  equipmentPayload,
+} from "./helpers.js";
 
 /**
  * The clinic registry: a clinic's institutional identity (CNPJ, contact, registered
@@ -30,8 +39,9 @@ describe("Clinics registry", () => {
     platformAdminToken = (await createLoggedInUser(app, { tenantId: platformTenantId, role: UserRole.PLATFORM_ADMIN })).accessToken;
 
     clinicAdminTenantId = (await createTenant(prisma, `ClinicRegistryOwn-${crypto.randomUUID()}`)).id;
-    clinicAdminToken = (await createLoggedInUser(app, { tenantId: clinicAdminTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-registry-own" }))
-      .accessToken;
+    clinicAdminToken = (
+      await createLoggedInUser(app, { tenantId: clinicAdminTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-registry-own" })
+    ).accessToken;
   });
 
   afterAll(async () => {
@@ -86,7 +96,7 @@ describe("Clinics registry", () => {
         const payload = clinicPayload({ name: `Registry-Missing-${field}` });
         delete payload[field];
         await http.post("/tenants").set("Authorization", `Bearer ${platformAdminToken}`).send(payload).expect(400);
-      }
+      },
     );
 
     it("rejects a CNPJ that fails the check-digit algorithm", async () => {
@@ -130,7 +140,11 @@ describe("Clinics registry", () => {
     });
 
     it("rejects a CLINIC_ADMIN registering a clinic", async () => {
-      await http.post("/tenants").set("Authorization", `Bearer ${clinicAdminToken}`).send(clinicPayload({ name: "Should Not Be Created" })).expect(403);
+      await http
+        .post("/tenants")
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send(clinicPayload({ name: "Should Not Be Created" }))
+        .expect(403);
     });
   });
 
@@ -149,7 +163,11 @@ describe("Clinics registry", () => {
   describe("responsible manager eligibility", () => {
     it("rejects a responsible manager who belongs to a different clinic", async () => {
       const clinic = await registerClinic({ name: "Registry-RM-Wrong-Clinic" });
-      const outsider = await createLoggedInUser(app, { tenantId: clinicAdminTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-rm-outsider" });
+      const outsider = await createLoggedInUser(app, {
+        tenantId: clinicAdminTenantId,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "clinic-rm-outsider",
+      });
 
       const res = await http
         .patch(`/tenants/${clinic.id as string}`)
@@ -161,7 +179,11 @@ describe("Clinics registry", () => {
 
     it("rejects a responsible manager whose role isn't CLINIC_ADMIN", async () => {
       const clinic = await registerClinic({ name: "Registry-RM-Wrong-Role" });
-      const nurse = await createLoggedInUser(app, { tenantId: clinic.id as string, role: UserRole.NURSING, emailPrefix: "clinic-rm-nurse" });
+      const nurse = await createLoggedInUser(app, {
+        tenantId: clinic.id as string,
+        role: UserRole.NURSING,
+        emailPrefix: "clinic-rm-nurse",
+      });
 
       const res = await http
         .patch(`/tenants/${clinic.id as string}`)
@@ -173,7 +195,11 @@ describe("Clinics registry", () => {
 
     it("accepts a CLINIC_ADMIN belonging to the same clinic", async () => {
       const clinic = await registerClinic({ name: "Registry-RM-Valid" });
-      const admin = await createLoggedInUser(app, { tenantId: clinic.id as string, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-rm-valid" });
+      const admin = await createLoggedInUser(app, {
+        tenantId: clinic.id as string,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "clinic-rm-valid",
+      });
 
       const res = await http
         .patch(`/tenants/${clinic.id as string}`)
@@ -205,7 +231,11 @@ describe("Clinics registry", () => {
     });
 
     it("silently ignores a responsibleManagerId sent on create -- the field doesn't exist on that contract", async () => {
-      const admin = await createLoggedInUser(app, { tenantId: clinicAdminTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-rm-create-ignored" });
+      const admin = await createLoggedInUser(app, {
+        tenantId: clinicAdminTenantId,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "clinic-rm-create-ignored",
+      });
       const payload = clinicPayload({ name: "Registry-RM-Create-Ignored", responsibleManagerId: admin.userId });
       const res = await http.post("/tenants").set("Authorization", `Bearer ${platformAdminToken}`).send(payload).expect(201);
       expect(res.body.responsibleManagerId).toBeNull();
@@ -213,7 +243,11 @@ describe("Clinics registry", () => {
 
     it("GET /tenants/responsible-manager-options lists only CLINIC_ADMIN, activated, unlocked users of the given clinic", async () => {
       const clinic = await registerClinic({ name: "Registry-RM-Options" });
-      const admin = await createLoggedInUser(app, { tenantId: clinic.id as string, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-rm-options-admin" });
+      const admin = await createLoggedInUser(app, {
+        tenantId: clinic.id as string,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "clinic-rm-options-admin",
+      });
       const supervisor = await createLoggedInUser(app, {
         tenantId: clinic.id as string,
         role: UserRole.LOCAL_SUPERVISOR,
@@ -239,9 +273,17 @@ describe("Clinics registry", () => {
     });
 
     it("GET /tenants/responsible-manager-options lists OPERATOR_ADMINs for an OPERATOR_PROVIDER tenant, not CLINIC_ADMINs", async () => {
-      const operatorRes = await http.post("/tenants").set("Authorization", `Bearer ${platformAdminToken}`).send(operatorPayload()).expect(201);
+      const operatorRes = await http
+        .post("/tenants")
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .send(operatorPayload())
+        .expect(201);
       const operatorId = operatorRes.body.id as string;
-      const opAdmin = await createLoggedInUser(app, { tenantId: operatorId, role: UserRole.OPERATOR_ADMIN, emailPrefix: "operator-rm-options-admin" });
+      const opAdmin = await createLoggedInUser(app, {
+        tenantId: operatorId,
+        role: UserRole.OPERATOR_ADMIN,
+        emailPrefix: "operator-rm-options-admin",
+      });
       const operatorStaff = await createLoggedInUser(app, {
         tenantId: operatorId,
         role: UserRole.OPERATOR,
@@ -272,12 +314,20 @@ describe("Clinics registry", () => {
 
     it("refuses to blank out a required-on-create field", async () => {
       const created = await registerClinic({ name: "Registry-No-Blanking" });
-      await http.patch(`/tenants/${created.id as string}`).set("Authorization", `Bearer ${platformAdminToken}`).send({ street: null }).expect(400);
+      await http
+        .patch(`/tenants/${created.id as string}`)
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .send({ street: null })
+        .expect(400);
     });
 
     it("allows unassigning the responsible manager, unlike every other required-on-create field", async () => {
       const created = await registerClinic({ name: "Registry-Unassign-RM" });
-      const admin = await createLoggedInUser(app, { tenantId: created.id as string, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-unassign-rm" });
+      const admin = await createLoggedInUser(app, {
+        tenantId: created.id as string,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "clinic-unassign-rm",
+      });
       await http
         .patch(`/tenants/${created.id as string}`)
         .set("Authorization", `Bearer ${platformAdminToken}`)
@@ -307,12 +357,20 @@ describe("Clinics registry", () => {
 
     it("rejects a CLINIC_ADMIN editing a clinic", async () => {
       const created = await registerClinic({ name: "Registry-Operator-Edit-Blocked" });
-      await http.patch(`/tenants/${created.id as string}`).set("Authorization", `Bearer ${clinicAdminToken}`).send({ city: "Blocked" }).expect(403);
+      await http
+        .patch(`/tenants/${created.id as string}`)
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ city: "Blocked" })
+        .expect(403);
     });
 
     it("audits every edit under TENANT_UPDATED, attributing the acting platform admin", async () => {
       const created = await registerClinic({ name: "Registry-Edit-Audited" });
-      await http.patch(`/tenants/${created.id as string}`).set("Authorization", `Bearer ${platformAdminToken}`).send({ city: "Audited-City" }).expect(200);
+      await http
+        .patch(`/tenants/${created.id as string}`)
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .send({ city: "Audited-City" })
+        .expect(200);
       const log = await prisma.auditLog.findFirstOrThrow({ where: { resourceId: created.id as string, action: "TENANT_UPDATED" } });
       expect((log.details as { changedFields?: string[] }).changedFields).toEqual(["city"]);
     });
@@ -321,10 +379,18 @@ describe("Clinics registry", () => {
   describe("equipment/unit counts", () => {
     it("counts equipment and units, and lists distinct modalities from non-retired equipment", async () => {
       const clinic = await registerClinic({ name: "Registry-Counts-Clinic" });
-      const admin = await createLoggedInUser(app, { tenantId: clinic.id as string, role: UserRole.CLINIC_ADMIN, emailPrefix: "clinic-counts-admin" });
+      const admin = await createLoggedInUser(app, {
+        tenantId: clinic.id as string,
+        role: UserRole.CLINIC_ADMIN,
+        emailPrefix: "clinic-counts-admin",
+      });
       const clinicToken = admin.accessToken;
 
-      await http.post("/units").set("Authorization", `Bearer ${clinicToken}`).send(unitPayload(admin.userId, { name: "Registry-Counts-Unit" })).expect(201);
+      await http
+        .post("/units")
+        .set("Authorization", `Bearer ${clinicToken}`)
+        .send(unitPayload(admin.userId, { name: "Registry-Counts-Unit" }))
+        .expect(201);
 
       const mriRes = await http
         .post("/equipment")
@@ -341,9 +407,15 @@ describe("Clinics registry", () => {
         .set("Authorization", `Bearer ${clinicToken}`)
         .send(equipmentPayload({ name: "Registry-Counts-Retired", modality: "ULTRASOUND" }))
         .expect(201);
-      await http.post(`/equipment/${retiredRes.body.id as string}/deactivate`).set("Authorization", `Bearer ${clinicToken}`).expect(201);
+      await http
+        .post(`/equipment/${retiredRes.body.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${clinicToken}`)
+        .expect(201);
 
-      const res = await http.get(`/tenants/${clinic.id as string}`).set("Authorization", `Bearer ${platformAdminToken}`).expect(200);
+      const res = await http
+        .get(`/tenants/${clinic.id as string}`)
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .expect(200);
       expect(res.body.equipmentCount).toBe(3); // includes the retired device
       expect(res.body.unitCount).toBe(1);
       expect(res.body.modalities.sort()).toEqual(["CT", "MRI"]); // excludes ULTRASOUND, whose only equipment is retired
@@ -359,13 +431,20 @@ describe("Clinics registry", () => {
 
     it("rejects a CLINIC_ADMIN reading any clinic by id", async () => {
       const created = await registerClinic({ name: "Registry-Get-Blocked" });
-      await http.get(`/tenants/${created.id as string}`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(403);
+      await http
+        .get(`/tenants/${created.id as string}`)
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .expect(403);
     });
   });
 
   describe("operadora registry (OPERATOR_PROVIDER)", () => {
     async function registerOperator(overrides: Record<string, unknown> = {}) {
-      const res = await http.post("/tenants").set("Authorization", `Bearer ${platformAdminToken}`).send(operatorPayload(overrides)).expect(201);
+      const res = await http
+        .post("/tenants")
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .send(operatorPayload(overrides))
+        .expect(201);
       return res.body as Record<string, unknown>;
     }
 
@@ -389,11 +468,20 @@ describe("Clinics registry", () => {
         emailPrefix: "operator-deactivate-admin",
       });
 
-      await http.post(`/tenants/${operator.id as string}/deactivate`).set("Authorization", `Bearer ${platformAdminToken}`).expect(204);
+      await http
+        .post(`/tenants/${operator.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .expect(204);
       await http.post("/auth/refresh").send({ refreshToken: opAdmin.refreshToken }).expect(403);
 
-      await http.post(`/tenants/${operator.id as string}/reactivate`).set("Authorization", `Bearer ${platformAdminToken}`).expect(204);
-      const res = await http.get(`/tenants/${operator.id as string}`).set("Authorization", `Bearer ${platformAdminToken}`).expect(200);
+      await http
+        .post(`/tenants/${operator.id as string}/reactivate`)
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .expect(204);
+      const res = await http
+        .get(`/tenants/${operator.id as string}`)
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .expect(200);
       expect(res.body.deactivated).toBe(false);
     });
 
@@ -419,7 +507,10 @@ describe("Clinics registry", () => {
         .expect(201);
       await http.post(`/agreements/${proposed.body.id}/accept`).set("Authorization", `Bearer ${opAdmin.accessToken}`).expect(201);
 
-      const res = await http.get(`/tenants/${operator.id as string}`).set("Authorization", `Bearer ${platformAdminToken}`).expect(200);
+      const res = await http
+        .get(`/tenants/${operator.id as string}`)
+        .set("Authorization", `Bearer ${platformAdminToken}`)
+        .expect(200);
       expect(res.body.activeAgreementCount).toBe(1);
       expect(res.body.userCount).toBe(2); // the staff member plus the admin who accepted
       expect(res.body.equipmentCount).toBe(0);
@@ -430,8 +521,15 @@ describe("Clinics registry", () => {
     it("rejects a CLINIC_ADMIN registering, editing, or reading an operadora -- same PLATFORM_ADMIN-only gate as a clinic", async () => {
       await http.post("/tenants").set("Authorization", `Bearer ${clinicAdminToken}`).send(operatorPayload()).expect(403);
       const operator = await registerOperator({ name: "Registry-Operator-RBAC" });
-      await http.get(`/tenants/${operator.id as string}`).set("Authorization", `Bearer ${clinicAdminToken}`).expect(403);
-      await http.patch(`/tenants/${operator.id as string}`).set("Authorization", `Bearer ${clinicAdminToken}`).send({ city: "Blocked" }).expect(403);
+      await http
+        .get(`/tenants/${operator.id as string}`)
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .expect(403);
+      await http
+        .patch(`/tenants/${operator.id as string}`)
+        .set("Authorization", `Bearer ${clinicAdminToken}`)
+        .send({ city: "Blocked" })
+        .expect(403);
     });
   });
 });

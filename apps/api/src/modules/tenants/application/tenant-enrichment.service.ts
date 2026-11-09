@@ -49,7 +49,7 @@ export class TenantEnrichmentService {
       modalities: clinicSummaries[tenant.id]?.modalities ?? [],
       activeAgreementCount: operatorSummaries[tenant.id]?.activeAgreementCount ?? 0,
       userCount: operatorSummaries[tenant.id]?.userCount ?? 0,
-      responsibleManager: tenant.responsibleManagerId ? managerSummaries[tenant.responsibleManagerId] ?? null : null,
+      responsibleManager: tenant.responsibleManagerId ? (managerSummaries[tenant.responsibleManagerId] ?? null) : null,
     }));
   }
 

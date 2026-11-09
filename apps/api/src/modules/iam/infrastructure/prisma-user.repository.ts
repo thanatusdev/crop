@@ -9,7 +9,7 @@ import type { CreateUserData, UpdateUserData, UserRepositoryPort } from "../appl
 export class PrismaUserRepository implements UserRepositoryPort {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {

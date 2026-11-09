@@ -10,7 +10,7 @@ import { ClearMaintenanceCommand } from "./clear-maintenance.command.js";
 export class ClearMaintenanceHandler implements ICommandHandler<ClearMaintenanceCommand, void> {
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ClearMaintenanceCommand): Promise<void> {

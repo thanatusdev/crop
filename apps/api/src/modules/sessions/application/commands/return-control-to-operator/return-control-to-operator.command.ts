@@ -5,6 +5,6 @@ export class ReturnControlToOperatorCommand {
     public readonly sessionId: string,
     public readonly tenantId: string,
     public readonly actingUserId: string,
-    public readonly actingUserRole: UserRole
+    public readonly actingUserRole: UserRole,
   ) {}
 }

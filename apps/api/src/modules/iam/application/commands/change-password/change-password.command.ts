@@ -1,7 +1,7 @@
 export class ChangePasswordCommand {
   constructor(
     public readonly changeToken: string,
-    public readonly newPassword: string
+    public readonly newPassword: string,
   ) {}
 }
 

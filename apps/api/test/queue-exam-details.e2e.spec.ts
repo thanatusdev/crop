@@ -20,7 +20,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -51,8 +51,7 @@ describe("Queue entry exam details (nursing editable patient/exam fields)", () =
     const otherTenant = await createTenant(prisma, `QueueDetailsOther-${crypto.randomUUID()}`);
 
     adminToken = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.CLINIC_ADMIN })).accessToken;
-    nurseToken = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "nurse" }))
-      .accessToken;
+    nurseToken = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "nurse" })).accessToken;
     operatorToken = (
       await createContractedOperator(app, prisma, { clinicTenantId: tenant.id, role: UserRole.OPERATOR, emailPrefix: "operator" })
     ).accessToken;
@@ -69,11 +68,7 @@ describe("Queue entry exam details (nursing editable patient/exam fields)", () =
   });
 
   async function createQueueEntry(patientFirstName: string): Promise<string> {
-    const res = await http
-      .post("/queue")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ equipmentId, patientFirstName })
-      .expect(201);
+    const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201);
     return res.body.id;
   }
 
@@ -126,17 +121,9 @@ describe("Queue entry exam details (nursing editable patient/exam fields)", () =
   it("an explicit null clears a previously-set field", async () => {
     const queueEntryId = await createQueueEntry("Clear-Field-Patient");
 
-    await http
-      .patch(`/queue/${queueEntryId}`)
-      .set("Authorization", `Bearer ${nurseToken}`)
-      .send({ patientWeightKg: 70 })
-      .expect(204);
+    await http.patch(`/queue/${queueEntryId}`).set("Authorization", `Bearer ${nurseToken}`).send({ patientWeightKg: 70 }).expect(204);
 
-    await http
-      .patch(`/queue/${queueEntryId}`)
-      .set("Authorization", `Bearer ${nurseToken}`)
-      .send({ patientWeightKg: null })
-      .expect(204);
+    await http.patch(`/queue/${queueEntryId}`).set("Authorization", `Bearer ${nurseToken}`).send({ patientWeightKg: null }).expect(204);
 
     const res = await http.get(`/queue/${queueEntryId}`).set("Authorization", `Bearer ${nurseToken}`).expect(200);
     expect(res.body.patientWeightKg).toBeNull();
@@ -146,11 +133,7 @@ describe("Queue entry exam details (nursing editable patient/exam fields)", () =
     const queueEntryId = await createQueueEntry("Invalid-Patch-Patient");
 
     await http.patch(`/queue/${queueEntryId}`).set("Authorization", `Bearer ${nurseToken}`).send({}).expect(400);
-    await http
-      .patch(`/queue/${queueEntryId}`)
-      .set("Authorization", `Bearer ${nurseToken}`)
-      .send({ patientWeightKg: 0 })
-      .expect(400);
+    await http.patch(`/queue/${queueEntryId}`).set("Authorization", `Bearer ${nurseToken}`).send({ patientWeightKg: 0 }).expect(400);
     await http
       .patch(`/queue/${queueEntryId}`)
       .set("Authorization", `Bearer ${nurseToken}`)
@@ -202,7 +185,7 @@ describe("Queue entry exam details (nursing editable patient/exam fields)", () =
     const auditRes = await http.get(`/audit?limit=500`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const denied = auditRes.body.find(
       (e: { action: string; details: { path?: string } }) =>
-        e.action === "PERMISSION_DENIED" && e.details.path === `/queue/${queueEntryId}`
+        e.action === "PERMISSION_DENIED" && e.details.path === `/queue/${queueEntryId}`,
     );
     expect(denied).toBeTruthy();
     expect(denied.details.requiredRoles).toContain("NURSING");
@@ -219,7 +202,7 @@ describe("Queue entry exam details (nursing editable patient/exam fields)", () =
 
     const auditRes = await http.get(`/audit?limit=500`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const event = auditRes.body.find(
-      (e: { action: string; resourceId: string }) => e.action === "QUEUE_ENTRY_UPDATED" && e.resourceId === queueEntryId
+      (e: { action: string; resourceId: string }) => e.action === "QUEUE_ENTRY_UPDATED" && e.resourceId === queueEntryId,
     );
     expect(event).toBeTruthy();
     expect(event.details.changedFields.sort()).toEqual(["patientSex", "patientWeightKg", "preparationNotes"]);

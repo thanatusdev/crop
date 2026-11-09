@@ -19,7 +19,7 @@ export class LogoutHandler implements ICommandHandler<LogoutCommand, void> {
   constructor(
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: LogoutCommand): Promise<void> {
@@ -37,7 +37,7 @@ export class LogoutHandler implements ICommandHandler<LogoutCommand, void> {
         resourceType: "User",
         resourceId: claims.sub,
         details: {},
-      })
+      }),
     );
   }
 }

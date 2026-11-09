@@ -22,7 +22,7 @@ export class UpdateTeleoperationNotesHandler implements ICommandHandler<UpdateTe
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(command: UpdateTeleoperationNotesCommand): Promise<void> {
@@ -51,7 +51,7 @@ export class UpdateTeleoperationNotesHandler implements ICommandHandler<UpdateTe
         // row in this codebase already follows (see QUEUE_REORDERED's own docstring): the
         // field name identifies *what* changed, never the free-text clinical content itself.
         details: { equipmentId: entry.equipmentId, changedFields: ["teleoperationNotes"] },
-      })
+      }),
     );
 
     this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, entry.equipmentId));

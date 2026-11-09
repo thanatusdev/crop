@@ -37,10 +37,7 @@ export class PiKvmRestClient {
    * are combined here rather than pushing this split onto every caller.
    */
   async getInfo(): Promise<PiKvmInfo> {
-    const [hid, info] = await Promise.all([
-      this.get<PiKvmInfo["hid"]>("/api/hid"),
-      this.get<Pick<PiKvmInfo, "hw">>("/api/info?fields=hw"),
-    ]);
+    const [hid, info] = await Promise.all([this.get<PiKvmInfo["hid"]>("/api/hid"), this.get<Pick<PiKvmInfo, "hw">>("/api/info?fields=hw")]);
     return { hid, hw: info.hw };
   }
 
@@ -100,7 +97,7 @@ export class PiKvmRequestError extends Error {
   constructor(
     public readonly path: string,
     public readonly statusCode: number,
-    public readonly body: string
+    public readonly body: string,
   ) {
     super(`PiKVM request to ${path} failed with ${statusCode}: ${body}`);
   }

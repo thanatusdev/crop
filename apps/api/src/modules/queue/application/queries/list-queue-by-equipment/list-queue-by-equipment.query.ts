@@ -16,6 +16,6 @@ export class ListQueueByEquipmentQuery {
     /** The HTTP caller, when there is one -- see GetEquipmentQuery.actor. Present means the
      * agreement scope is checked too, which matters here more than almost anywhere else: this
      * route returns patient first names. */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

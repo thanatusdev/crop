@@ -26,6 +26,6 @@ export class UpdateUnitCommand {
   constructor(
     public readonly unitId: string,
     public readonly actor: { userId: string; tenantId: string; role: UserRole },
-    public readonly changes: UnitChanges
+    public readonly changes: UnitChanges,
   ) {}
 }

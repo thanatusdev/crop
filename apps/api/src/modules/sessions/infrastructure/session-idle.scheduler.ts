@@ -21,7 +21,7 @@ export class SessionIdleScheduler implements OnModuleInit, OnModuleDestroy {
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     private readonly commandBus: CommandBus,
     private readonly gateway: SessionsGateway,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   onModuleInit(): void {

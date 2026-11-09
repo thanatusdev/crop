@@ -71,7 +71,7 @@ import { toQueueEntryDocumentDto } from "./queue-document.dto.js";
  * dedicated service class for a single-field, single-repository lookup. */
 async function resolveDetailsUpdatedByNames(
   users: UserRepositoryPort,
-  entries: readonly QueueEntry[]
+  entries: readonly QueueEntry[],
 ): Promise<Map<string, string | null>> {
   const userIds = [...new Set(entries.map((entry) => entry.detailsUpdatedByUserId).filter((id): id is string => !!id))];
   if (userIds.length === 0) return new Map();
@@ -87,7 +87,7 @@ async function resolveDetailsUpdatedByNames(
 async function resolveDocumentsByQueueEntry(
   documents: QueueDocumentRepositoryPort,
   users: UserRepositoryPort,
-  entries: readonly QueueEntry[]
+  entries: readonly QueueEntry[],
 ): Promise<Map<string, QueueEntryDocumentDto[]>> {
   const rows = await documents.listByQueueEntries(entries.map((entry) => entry.id));
   const uploaderIds = [...new Set(rows.map((row) => row.uploadedByUserId))];
@@ -102,7 +102,6 @@ async function resolveDocumentsByQueueEntry(
   }
   return byEntry;
 }
-
 
 // This module had no @Roles at all until the clinic role family (NURSING, LOCAL_SUPERVISOR,
 // LOCAL_IT, CLINIC_ADMIN -- see packages/shared/src/roles.ts) was introduced: any
@@ -129,7 +128,7 @@ async function resolveDocumentsByQueueEntry(
   UserRole.OPERATOR,
   UserRole.OPERATIONAL_SUPERVISOR,
   UserRole.OPERATOR_ADMIN,
-  UserRole.AUDITOR
+  UserRole.AUDITOR,
 )
 export class QueueController {
   constructor(
@@ -138,13 +137,13 @@ export class QueueController {
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
     @Inject(QUEUE_DOCUMENT_REPOSITORY) private readonly documents: QueueDocumentRepositoryPort,
     @Inject(QUEUE_DOCUMENT_STORAGE) private readonly documentStorage: QueueDocumentStoragePort,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   @Post()
   async create(
     @CurrentUser() user: AccessTokenClaims,
-    @Body(new ZodValidationPipe(CreateQueueEntryRequestSchema)) body: CreateQueueEntryRequest
+    @Body(new ZodValidationPipe(CreateQueueEntryRequestSchema)) body: CreateQueueEntryRequest,
   ) {
     const entry: QueueEntry = await this.commandBus.execute(
       new CreateQueueEntryCommand(
@@ -153,8 +152,8 @@ export class QueueController {
         body.equipmentId,
         body.patientFirstName,
         body.scheduledAt ? new Date(body.scheduledAt) : null,
-        user
-      )
+        user,
+      ),
     );
     // A brand-new entry has no documents yet -- no need to hit resolveDocumentsByQueueEntry
     // for a list that is guaranteed empty.
@@ -177,9 +176,9 @@ export class QueueController {
     return entries.map((entry) =>
       toQueueEntryDto(
         entry,
-        entry.detailsUpdatedByUserId ? names.get(entry.detailsUpdatedByUserId) ?? null : null,
-        documentsByEntry.get(entry.id) ?? []
-      )
+        entry.detailsUpdatedByUserId ? (names.get(entry.detailsUpdatedByUserId) ?? null) : null,
+        documentsByEntry.get(entry.id) ?? [],
+      ),
     );
   }
 
@@ -194,8 +193,8 @@ export class QueueController {
     const documentsByEntry = await resolveDocumentsByQueueEntry(this.documents, this.users, [entry]);
     return toQueueEntryDto(
       entry,
-      entry.detailsUpdatedByUserId ? names.get(entry.detailsUpdatedByUserId) ?? null : null,
-      documentsByEntry.get(entry.id) ?? []
+      entry.detailsUpdatedByUserId ? (names.get(entry.detailsUpdatedByUserId) ?? null) : null,
+      documentsByEntry.get(entry.id) ?? [],
     );
   }
 
@@ -213,7 +212,7 @@ export class QueueController {
   async updateStatus(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdateQueueStatusRequestSchema)) body: UpdateQueueStatusRequest
+    @Body(new ZodValidationPipe(UpdateQueueStatusRequestSchema)) body: UpdateQueueStatusRequest,
   ): Promise<void> {
     await this.commandBus.execute(new UpdateQueueStatusCommand(user.tenantId, user.sub, id, body.status, user));
   }
@@ -229,7 +228,7 @@ export class QueueController {
   async updatePreparation(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdatePreparationStatusRequestSchema)) body: UpdatePreparationStatusRequest
+    @Body(new ZodValidationPipe(UpdatePreparationStatusRequestSchema)) body: UpdatePreparationStatusRequest,
   ): Promise<void> {
     await this.commandBus.execute(new UpdatePreparationStatusCommand(user.tenantId, user.sub, id, body.status));
   }
@@ -244,7 +243,7 @@ export class QueueController {
   @Roles(UserRole.NURSING, UserRole.LOCAL_SUPERVISOR, UserRole.CLINIC_ADMIN, UserRole.PLATFORM_ADMIN)
   async reorder(
     @CurrentUser() user: AccessTokenClaims,
-    @Body(new ZodValidationPipe(ReorderQueueRequestSchema)) body: ReorderQueueRequest
+    @Body(new ZodValidationPipe(ReorderQueueRequestSchema)) body: ReorderQueueRequest,
   ): Promise<void> {
     await this.commandBus.execute(new ReorderQueueCommand(user.tenantId, user.sub, body.equipmentId, body.orderedIds));
   }
@@ -258,7 +257,7 @@ export class QueueController {
   async updateDetails(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdateQueueEntryDetailsRequestSchema)) body: UpdateQueueEntryDetailsRequest
+    @Body(new ZodValidationPipe(UpdateQueueEntryDetailsRequestSchema)) body: UpdateQueueEntryDetailsRequest,
   ): Promise<void> {
     // Same three-way undefined/null/value convention as the schema itself: undefined ("key
     // omitted") must survive as undefined here too, not get coerced by a `? :` that can't
@@ -283,8 +282,8 @@ export class QueueController {
         body.allergyNotes,
         body.contrastVolumeMl,
         body.metforminUse,
-        body.anticoagulantUse
-      )
+        body.anticoagulantUse,
+      ),
     );
   }
 
@@ -302,7 +301,7 @@ export class QueueController {
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
     @Body() body: unknown,
-    @UploadedFile() file?: Express.Multer.File
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     if (!file) throw new ValidationError("Selecione um arquivo.");
 
@@ -327,8 +326,8 @@ export class QueueController {
         parsed.data.kind ?? QueueDocumentKind.PEDIDO_MEDICO,
         file.originalname,
         file.mimetype,
-        file.buffer
-      )
+        file.buffer,
+      ),
     );
     // The uploader is always the caller themselves (UploadQueueDocumentCommand stamps
     // `uploadedByUserId: user.sub`) -- one lookup, not the batched resolveDocumentsByQueueEntry
@@ -362,7 +361,7 @@ export class QueueController {
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
     @Param("docId") docId: string,
-    @Res() res: Response
+    @Res() res: Response,
   ): Promise<void> {
     const document: QueueEntryDocument = await this.queryBus.execute(new GetQueueDocumentQuery(id, docId, user.tenantId, user));
     const data = await this.documentStorage.read(document.path);
@@ -384,11 +383,8 @@ export class QueueController {
   async updateTeleoperationNotes(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdateTeleoperationNotesRequestSchema)) body: UpdateTeleoperationNotesRequest
+    @Body(new ZodValidationPipe(UpdateTeleoperationNotesRequestSchema)) body: UpdateTeleoperationNotesRequest,
   ): Promise<void> {
-    await this.commandBus.execute(
-      new UpdateTeleoperationNotesCommand(user.tenantId, user.sub, id, body.teleoperationNotes, user)
-    );
+    await this.commandBus.execute(new UpdateTeleoperationNotesCommand(user.tenantId, user.sub, id, body.teleoperationNotes, user));
   }
 }
-

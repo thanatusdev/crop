@@ -71,7 +71,7 @@ export function RadioCardGroup<T extends string>({
               "flex items-start gap-2.5 rounded-[10px] border border-input p-3.5 font-normal",
               "has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent",
               "has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-primary has-[:focus-visible]:outline-offset-2",
-              disabled ? "cursor-default opacity-60" : "cursor-pointer hover:border-primary"
+              disabled ? "cursor-default opacity-60" : "cursor-pointer hover:border-primary",
             )}
           >
             <RadioGroupItem value={option.value} id={`${name}-${option.value}`} className="mt-0.5" />

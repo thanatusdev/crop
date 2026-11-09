@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  DEFAULT_KEYMAP,
-  ExamModality,
-  PIKVM_KEYMAPS,
-  TargetOs,
-  type EquipmentDto,
-  type UnitDto,
-} from "@crop/shared";
+import { DEFAULT_KEYMAP, ExamModality, PIKVM_KEYMAPS, TargetOs, type EquipmentDto, type UnitDto } from "@crop/shared";
 import { api, ApiError } from "../lib/api-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
 import { RadioCardGroup, type RadioCardOption } from "../components/RadioCardGroup.js";
@@ -206,7 +199,7 @@ export default function EquipmentFormPage() {
         title: t(MODALITY_LABEL_KEY[modality]),
         hint: t(MODALITY_HINT_KEY[modality]),
       })),
-    [t]
+    [t],
   );
 
   /**
@@ -301,11 +294,20 @@ export default function EquipmentFormPage() {
     }
   }
 
-  const title = mode === "create" ? t("equipmentForm:createTitle") : mode === "edit" ? t("equipmentForm:editTitle") : t("equipmentForm:viewTitle");
+  const title =
+    mode === "create" ? t("equipmentForm:createTitle") : mode === "edit" ? t("equipmentForm:editTitle") : t("equipmentForm:viewTitle");
   const subtitle =
-    mode === "create" ? t("equipmentForm:createSubtitle") : mode === "edit" ? t("equipmentForm:editSubtitle") : t("equipmentForm:viewSubtitle");
+    mode === "create"
+      ? t("equipmentForm:createSubtitle")
+      : mode === "edit"
+        ? t("equipmentForm:editSubtitle")
+        : t("equipmentForm:viewSubtitle");
   const breadcrumbLeaf =
-    mode === "create" ? t("equipmentForm:breadcrumbNew") : mode === "edit" ? t("equipmentForm:breadcrumbEdit") : t("equipmentForm:breadcrumbView");
+    mode === "create"
+      ? t("equipmentForm:breadcrumbNew")
+      : mode === "edit"
+        ? t("equipmentForm:breadcrumbEdit")
+        : t("equipmentForm:breadcrumbView");
 
   if (loading) {
     return (
@@ -609,7 +611,13 @@ export default function EquipmentFormPage() {
                 <RequiredLabel required={!readOnly} htmlFor="eq-pikvm-user">
                   {t("equipmentForm:pikvmUserLabel")}
                 </RequiredLabel>
-                <Input id="eq-pikvm-user" value={form.pikvmUser} onChange={(e) => update("pikvmUser", e.target.value)} required disabled={readOnly} />
+                <Input
+                  id="eq-pikvm-user"
+                  value={form.pikvmUser}
+                  onChange={(e) => update("pikvmUser", e.target.value)}
+                  required
+                  disabled={readOnly}
+                />
               </div>
               {/* Never rendered in view mode at all: there is nothing to show (the API never
                   returns it) and no reason to offer a write-only field on a read-only page. */}

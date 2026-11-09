@@ -8,6 +8,6 @@ export class CreateQueueEntryCommand {
     public readonly patientFirstName: string,
     public readonly scheduledAt: Date | null,
     /** See GetEquipmentQuery.actor. */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

@@ -2,10 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { QueueDocumentKind } from "@crop/shared";
 import { PrismaService } from "../../../shared/infrastructure/prisma/prisma.service.js";
 import { QueueEntryDocument } from "../domain/queue-entry-document.entity.js";
-import type {
-  CreateQueueDocumentData,
-  QueueDocumentRepositoryPort,
-} from "../application/ports/queue-document-repository.port.js";
+import type { CreateQueueDocumentData, QueueDocumentRepositoryPort } from "../application/ports/queue-document-repository.port.js";
 
 /** `queueEntry.equipment.tenantId` -- the same two-hop "derive it, don't store it
  * redundantly" choice `PrismaExamMessageRepository` makes for `ExamMessage.tenantId`, just

@@ -22,7 +22,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -68,11 +68,7 @@ describe("Queue safety questionnaire + exam-detail attribution", () => {
   });
 
   async function createQueueEntry(patientFirstName: string): Promise<string> {
-    const res = await http
-      .post("/queue")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ equipmentId, patientFirstName })
-      .expect(201);
+    const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201);
     return res.body.id;
   }
 
@@ -166,11 +162,11 @@ describe("Queue safety questionnaire + exam-detail attribution", () => {
 
     const auditRes = await http.get(`/audit?limit=500`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const event = auditRes.body.find(
-      (e: { action: string; resourceId: string }) => e.action === "QUEUE_ENTRY_UPDATED" && e.resourceId === queueEntryId
+      (e: { action: string; resourceId: string }) => e.action === "QUEUE_ENTRY_UPDATED" && e.resourceId === queueEntryId,
     );
     expect(event).toBeTruthy();
     expect(event.details.changedFields.sort()).toEqual(
-      ["allergyNotes", "allergyStatus", "contrastVolumeMl", "creatinineMgDl", "fastingConfirmed", "fastingHours"].sort()
+      ["allergyNotes", "allergyStatus", "contrastVolumeMl", "creatinineMgDl", "fastingConfirmed", "fastingHours"].sort(),
     );
     expect(Object.keys(event.details).sort()).toEqual(["changedFields", "equipmentId"]);
     expect(JSON.stringify(event.details)).not.toContain("Claustrofobia");

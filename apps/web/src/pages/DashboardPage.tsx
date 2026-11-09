@@ -199,7 +199,7 @@ export default function DashboardPage() {
           // An empty queue is the honest fallback: "can't see this room's patients," not
           // "this room doesn't exist."
           queue: await api.get<QueueEntryDto[]>(`/queue?equipmentId=${e.id}`).catch(() => []),
-        }))
+        })),
       );
       setEquipment(withQueue);
       setActiveSessions(sessions);
@@ -220,8 +220,11 @@ export default function DashboardPage() {
             ? Promise.all(
                 equipmentList.map(
                   async (e) =>
-                    [e.id, await api.get<QueueEntryDto[]>(`/queue?equipmentId=${e.id}&date=${todayClinicDayString()}`).catch(() => [])] as const
-                )
+                    [
+                      e.id,
+                      await api.get<QueueEntryDto[]>(`/queue?equipmentId=${e.id}&date=${todayClinicDayString()}`).catch(() => []),
+                    ] as const,
+                ),
               )
             : Promise.resolve(undefined),
           nav.canManageUsers ? api.get<UserDto[]>("/users").catch(() => undefined) : Promise.resolve(undefined),
@@ -287,8 +290,8 @@ export default function DashboardPage() {
     }
   }
 
-  const scopedRoom = scopedEquipmentId ? equipment.find((e) => e.id === scopedEquipmentId) ?? null : null;
-  const scopedUnit = scopedRoom?.unitId ? units.find((u) => u.id === scopedRoom.unitId) ?? null : null;
+  const scopedRoom = scopedEquipmentId ? (equipment.find((e) => e.id === scopedEquipmentId) ?? null) : null;
+  const scopedUnit = scopedRoom?.unitId ? (units.find((u) => u.id === scopedRoom.unitId) ?? null) : null;
   // Reached via a stale link (e.g. the room was retired since it was bookmarked) rather
   // than one the equipment list actually contains -- distinct from "tenant has no
   // equipment at all" below, which is a different, unscoped state.
@@ -368,7 +371,9 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="text-sm text-muted-foreground">{t("dashboard:statsAgreementsLabel")}</div>
                 <div className="text-2xl font-semibold">{stats.agreementsActive}</div>
-                <p className="mt-1 text-xs text-muted-foreground">{t("dashboard:statsAgreementsNote", { count: stats.agreementsPending ?? 0 })}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("dashboard:statsAgreementsNote", { count: stats.agreementsPending ?? 0 })}
+                </p>
               </CardContent>
             </Card>
           )}
@@ -464,11 +469,17 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     {activeSession ? (
-                      <Button onClick={() => navigate(`/exame?equipmentId=${activeSession.equipmentId}`)}>{t("dashboard:rejoinSession")}</Button>
+                      <Button onClick={() => navigate(`/exame?equipmentId=${activeSession.equipmentId}`)}>
+                        {t("dashboard:rejoinSession")}
+                      </Button>
                     ) : (
                       <Button
                         disabled={item.status !== "ONLINE" || startingId === item.id}
-                        title={item.status !== "ONLINE" ? t("dashboard:equipmentOfflineTitle", { status: t(statusLabelKeyOf(status)) }) : undefined}
+                        title={
+                          item.status !== "ONLINE"
+                            ? t("dashboard:equipmentOfflineTitle", { status: t(statusLabelKeyOf(status)) })
+                            : undefined
+                        }
                         onClick={() => startSession(item.id, nextPatient?.id)}
                       >
                         {startingId === item.id && <Loader2 className="animate-spin" />}
@@ -544,4 +555,3 @@ export default function DashboardPage() {
     </ConsoleShell>
   );
 }
-

@@ -37,14 +37,14 @@ describe("CreateEquipmentRequestSchema -- clinical identity is mandatory for a n
     (field) => {
       const { [field]: _omitted, ...withoutField } = validCreate;
       expect(CreateEquipmentRequestSchema.safeParse(withoutField).success).toBe(false);
-    }
+    },
   );
 
   it.each(["brand", "model", "serialNumber", "roomLabel"] as const)(
     "rejects whitespace-only %s -- a blank string would satisfy a naive required check while carrying no information",
     (field) => {
       expect(CreateEquipmentRequestSchema.safeParse({ ...validCreate, [field]: "   " }).success).toBe(false);
-    }
+    },
   );
 
   it("trims the free-text clinical fields rather than storing the operator's stray spaces", () => {
@@ -95,7 +95,7 @@ describe("CreateEquipmentRequestSchema -- DICOM metadata is optional but still v
     (field) => {
       const result = CreateEquipmentRequestSchema.safeParse({ ...validCreate, [field]: null });
       expect(result.success).toBe(true);
-    }
+    },
   );
 
   it("rejects an AE Title over DICOM's 16-character limit -- storing a value the external PACS would reject is worse than storing nothing", () => {
@@ -129,13 +129,13 @@ describe("UpdateEquipmentRequestSchema", () => {
     "refuses to null out %s: an update may leave a clinical field alone but may not walk a row back into the historical-null set",
     (field) => {
       expect(UpdateEquipmentRequestSchema.safeParse({ [field]: null }).success).toBe(false);
-    }
+    },
   );
 
   it.each(["aeTitle", "dicomIp", "dicomPort"] as const)(
     "does allow nulling out %s, because 'this device has no PACS entry after all' is a legitimate correction",
     (field) => {
       expect(UpdateEquipmentRequestSchema.safeParse({ [field]: null }).success).toBe(true);
-    }
+    },
   );
 });

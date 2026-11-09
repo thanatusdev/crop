@@ -3,7 +3,7 @@ import type { UserRole } from "@crop/shared";
 export class VerifyMfaCommand {
   constructor(
     public readonly mfaToken: string,
-    public readonly code: string
+    public readonly code: string,
   ) {}
 }
 

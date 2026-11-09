@@ -40,7 +40,9 @@ describe("Equipment registry: clinical identity and deactivation", () => {
 
     tenantId = (await createTenant(prisma, `EqRegistry-${crypto.randomUUID()}`)).id;
     adminToken = (await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN })).accessToken;
-    operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "eq-registry-op" })).accessToken;
+    operatorToken = (
+      await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "eq-registry-op" })
+    ).accessToken;
   });
 
   afterAll(async () => {
@@ -49,11 +51,7 @@ describe("Equipment registry: clinical identity and deactivation", () => {
   });
 
   async function register(overrides: Record<string, unknown> = {}) {
-    const res = await http
-      .post("/equipment")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send(equipmentPayload(overrides))
-      .expect(201);
+    const res = await http.post("/equipment").set("Authorization", `Bearer ${adminToken}`).send(equipmentPayload(overrides)).expect(201);
     return res.body as Record<string, unknown>;
   }
 
@@ -101,7 +99,7 @@ describe("Equipment registry: clinical identity and deactivation", () => {
         const payload = equipmentPayload({ name: `Registry-Missing-${field}` });
         delete payload[field];
         await http.post("/equipment").set("Authorization", `Bearer ${adminToken}`).send(payload).expect(400);
-      }
+      },
     );
 
     it("rejects an unknown modality", async () => {
@@ -152,7 +150,11 @@ describe("Equipment registry: clinical identity and deactivation", () => {
         .set("Authorization", `Bearer ${adminToken}`)
         .send({ brand: null })
         .expect(400);
-      await http.patch(`/equipment/${created.id as string}`).set("Authorization", `Bearer ${adminToken}`).send({ brand: "   " }).expect(400);
+      await http
+        .patch(`/equipment/${created.id as string}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ brand: "   " })
+        .expect(400);
     });
 
     it("does allow clearing the DICOM fields, since 'no PACS entry after all' is a real correction", async () => {
@@ -233,7 +235,10 @@ describe("Equipment registry: clinical identity and deactivation", () => {
 
     it("rejects an OPERATOR retiring equipment", async () => {
       const created = await register({ name: "Registry-Operator-Blocked" });
-      await http.post(`/equipment/${created.id as string}/deactivate`).set("Authorization", `Bearer ${operatorToken}`).expect(403);
+      await http
+        .post(`/equipment/${created.id as string}/deactivate`)
+        .set("Authorization", `Bearer ${operatorToken}`)
+        .expect(403);
     });
 
     it("rejects retiring another tenant's equipment", async () => {

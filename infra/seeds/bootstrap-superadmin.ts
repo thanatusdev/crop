@@ -63,7 +63,7 @@ async function main(): Promise<void> {
     // directActivation: {password} -- same reasoning as seed.ts's registerAndEnroll: this
     // script auto-confirms MFA a few lines down, simulating an already-onboarded account
     // rather than sending it through the invitation-link flow.
-    new RegisterUserCommand(platformTenant.id, email, UserRole.PLATFORM_ADMIN, "Super", "Admin", null, null, null, [], true, { password })
+    new RegisterUserCommand(platformTenant.id, email, UserRole.PLATFORM_ADMIN, "Super", "Admin", null, null, null, [], true, { password }),
   );
   const totpSecret = extractSecret(provisioningUri);
   const code = new OTPAuth.TOTP({ secret: totpSecret }).generate();

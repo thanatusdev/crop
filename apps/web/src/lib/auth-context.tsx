@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await api.post<{ accessToken: string; refreshToken: string }>(
           "/auth/password-change",
           { changeToken, newPassword },
-          { auth: false }
+          { auth: false },
         );
         tokenStore.setTokens(result.accessToken, result.refreshToken);
         const claims = decodeJwtPayload<AccessTokenClaims>(result.accessToken);
@@ -153,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user]
+    [user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
