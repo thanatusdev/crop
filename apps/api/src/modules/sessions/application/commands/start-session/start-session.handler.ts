@@ -1,12 +1,13 @@
 import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, EventBus, QueryBus, type ICommandHandler } from "@nestjs/cqrs";
 import { ConfigService } from "@nestjs/config";
-import { AuditAction } from "@crop/shared";
-import { ConflictError, ForbiddenError } from "../../../../../shared/domain/errors.js";
+import { AuditAction, QueueStatus } from "@crop/shared";
+import { ConflictError, ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { MetricsService } from "../../../../../shared/infrastructure/metrics/metrics.service.js";
 import { GetEquipmentQuery } from "../../../../equipment/application/queries/get-equipment/get-equipment.query.js";
 import { GetEquipmentConnectionSecretsQuery } from "../../../../equipment/application/queries/get-equipment-credentials/get-equipment-connection-secrets.query.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
+import { QUEUE_REPOSITORY, type QueueRepositoryPort } from "../../../../queue/application/ports/queue-repository.port.js";
 import { QueueUpdatedEvent } from "../../../../queue/application/events/queue-updated.event.js";
 import { UNIT_REPOSITORY, type UnitRepositoryPort } from "../../../../units/application/ports/unit-repository.port.js";
 import { Session } from "../../../domain/session.entity.js";
@@ -22,6 +23,7 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(SESSION_RUNTIME) private readonly runtime: SessionRuntimePort,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
+    @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
@@ -56,6 +58,19 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
       const unit = await this.units.findById(equipment.unitId);
       if (unit?.isDeactivated()) {
         throw new ConflictError(`A unidade do equipamento ${equipment.name} foi desativada.`);
+      }
+    }
+
+    // The patient must be waiting in *this* room's queue. Without this check any queue entry
+    // id was accepted -- another clinic's included -- and marked IN_PROGRESS. Same rule as
+    // AssignSessionPatientHandler, and the same 404 for an entry that isn't this room's.
+    if (command.queueEntryId) {
+      const entry = await this.queue.findById(command.queueEntryId);
+      if (!entry || entry.tenantId !== equipment.tenantId || entry.equipmentId !== equipment.id) {
+        throw new NotFoundError("QueueEntry", command.queueEntryId);
+      }
+      if (entry.status !== QueueStatus.WAITING) {
+        throw new ConflictError("Este paciente não está mais aguardando na fila.");
       }
     }
 

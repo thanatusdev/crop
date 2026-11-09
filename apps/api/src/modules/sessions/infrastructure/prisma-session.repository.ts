@@ -27,7 +27,13 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
           include: WITH_TENANT,
         });
         if (data.queueEntryId) {
-          await tx.queueEntry.update({ where: { id: data.queueEntryId }, data: { status: QueueStatus.IN_PROGRESS } });
+          // Conditional, like assignQueueEntry: a patient cancelled since StartSessionHandler
+          // checked must not end up in this session.
+          const moved = await tx.queueEntry.updateMany({
+            where: { id: data.queueEntryId, status: QueueStatus.WAITING },
+            data: { status: QueueStatus.IN_PROGRESS },
+          });
+          if (moved.count !== 1) throw new ConflictError("Este paciente não está mais aguardando na fila.");
         }
         return created;
       });

@@ -225,6 +225,13 @@ describe("Session lifecycle", () => {
     const secondId = await addPatient(dedicatedEquipmentId, "Bruno");
     const otherRoomId = await addPatient(otherEquipmentId, "Clara");
 
+    // Starting with a patient from another room's queue is refused, and leaves that patient waiting.
+    await http
+      .post("/sessions")
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .send({ equipmentId: dedicatedEquipmentId, queueEntryId: otherRoomId })
+      .expect(404);
+
     const sessionRes = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: dedicatedEquipmentId }).expect(201);
     const sessionId = sessionRes.body.id;
     expect(sessionRes.body.queueEntryId).toBeNull();
@@ -252,6 +259,8 @@ describe("Session lifecycle", () => {
     const statusOf = (id: string) => queue.body.find((e: { id: string }) => e.id === id).status;
     expect(statusOf(secondId)).toBe("IN_PROGRESS");
     expect(statusOf(firstId)).toBe("WAITING");
+    const otherQueue = await http.get(`/queue?equipmentId=${otherEquipmentId}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+    expect(otherQueue.body.find((e: { id: string }) => e.id === otherRoomId).status).toBe("WAITING");
 
     await http.post(`/sessions/${sessionId}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
     const afterEnd = await http.get(`/queue?equipmentId=${dedicatedEquipmentId}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
