@@ -31,6 +31,14 @@ export function toAbsoluteHidCoordinates(pos: Point, geo: StreamGeometry): Point
   };
 }
 
+/** Clamps a point to PiKVM's absolute HID range. Kept separate from
+ * `toAbsoluteHidCoordinates`, which extrapolates on purpose: a pointer on the canvas's last
+ * (fractional) pixel maps just past 32767, which the gateway's schema rejects. */
+export function clampAbsoluteHid(point: Point): Point {
+  const clamp = (v: number) => Math.min(Math.max(-32768, v), 32767);
+  return { x: clamp(point.x), y: clamp(point.y) };
+}
+
 /** Relative mouse deltas must be clamped to a signed byte, per PiKVM's USB relative HID report. */
 export function clampRelativeDelta(delta: number): number {
   return Math.min(Math.max(-127, Math.floor(delta)), 127);

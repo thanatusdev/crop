@@ -9,7 +9,9 @@ export type MouseButton = "left" | "middle" | "right" | "up" | "down";
 export interface HidState {
   online: boolean;
   keyboard: { online: boolean; leds: { caps: boolean; num: boolean; scroll: boolean } };
-  mouse: { online: boolean; absolute: boolean };
+  // `outputs` is what a real kvmd 4.x sends (e.g. `{ active: "usb_rel", available: ["usb", "usb_rel"] }`);
+  // optional because the mock PiKVM and older kvmd don't.
+  mouse: { online: boolean; absolute: boolean; outputs?: { active: string; available: string[] } };
 }
 
 interface PiKvmHidClientEvents {

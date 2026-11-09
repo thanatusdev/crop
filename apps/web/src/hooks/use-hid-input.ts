@@ -4,6 +4,7 @@ import {
   RT_EVENTS,
   decideAltGrCtrl,
   fixIsoBackquote,
+  clampAbsoluteHid,
   toAbsoluteHidCoordinates,
   toScrollStep,
   type HidInputEvent,
@@ -36,6 +37,14 @@ function buttonNameFor(button: number): MouseButtonName | null {
  * browser-side capture quirks that have nothing to do with the target: the AltGr phantom
  * Ctrl on Windows, the ISO backquote misreport, and macOS's missing keyup events after a
  * Cmd release. See docs/pikvm-integration.md for all three.
+ *
+ * Mouse is click-driven: hovering sends nothing; each click first moves the remote cursor
+ * (absolute, so the PiKVM must be in absolute mode -- see PiKvmConnectionRegistry) to where it
+ * landed on the canvas, then presses there. While a button is held, moves are streamed
+ * (throttled to one per 16ms, like PiKVM's own client) so click-and-drag works, tracked on
+ * `window` so a drag survives leaving the canvas and pins at the screen edge. Hover-driving
+ * was dropped deliberately: with a PiKVM plugged back into the operator's own computer, every
+ * hover move dragged the operator's own cursor out from under them.
  */
 export function useHidInput(params: {
   socket: Socket | null;
@@ -69,11 +78,6 @@ export function useHidInput(params: {
       send({ type: "key", code, state, ts: performance.now() });
     };
 
-    const flushPendingMove = () => {
-      if (!pendingMove) return;
-      send({ type: "mouse_move", x: pendingMove.x, y: pendingMove.y, ts: performance.now() });
-      pendingMove = null;
-    };
 
     const handleKeyEvent = (rawCode: string, key: string, state: boolean) => {
       const code = fixIsoBackquote(rawCode, key);
@@ -124,14 +128,58 @@ export function useHidInput(params: {
       handleKeyEvent(ev.code, ev.key, false);
     };
 
-    const onMouseMove = (ev: MouseEvent) => {
+
+    // No letterboxing in this layout -- the canvas's CSS box always matches its intrinsic aspect
+    // ratio (width:100%, height:auto) -- so the geometry offset is always zero. The clamp also
+    // pins a drag that leaves the canvas to the remote screen's edge.
+    const toHid = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      // No letterboxing in this layout: the canvas's CSS box always matches its intrinsic
-      // aspect ratio (width:100%, height:auto), so the geometry offset is always zero.
-      pendingMove = toAbsoluteHidCoordinates(
-        { x: ev.clientX - rect.left, y: ev.clientY - rect.top },
-        { x: 0, y: 0, width: rect.width, height: rect.height }
+      return clampAbsoluteHid(
+        toAbsoluteHidCoordinates(
+          { x: clientX - rect.left, y: clientY - rect.top },
+          { x: 0, y: 0, width: rect.width, height: rect.height }
+        )
       );
+    };
+
+    const flushPendingMove = () => {
+      if (!pendingMove) return;
+      send({ type: "mouse_move", x: pendingMove.x, y: pendingMove.y, ts: performance.now() });
+      pendingMove = null;
+    };
+
+    // Drag tracking lives on `window` while any button is held, so it keeps following the
+    // pointer outside the canvas -- and the release is seen wherever it happens, which is also
+    // what covers pikvm/pikvm#1653 (a button released off the canvas never fired mouseup here).
+    const onDragMove = (ev: MouseEvent) => {
+      pendingMove = toHid(ev.clientX, ev.clientY);
+    };
+    const onDragEnd = (ev: MouseEvent) => {
+      const button = buttonNameFor(ev.button);
+      if (!button || !pressedButtons.has(button)) return;
+      pendingMove = toHid(ev.clientX, ev.clientY);
+      flushPendingMove(); // the release must land where the pointer actually is
+      pressedButtons.delete(button);
+      send({ type: "mouse_button", button, state: false, ts: performance.now() });
+      if (pressedButtons.size === 0) stopDragTracking();
+    };
+    const startDragTracking = () => {
+      window.addEventListener("mousemove", onDragMove);
+      window.addEventListener("mouseup", onDragEnd);
+    };
+    const stopDragTracking = () => {
+      window.removeEventListener("mousemove", onDragMove);
+      window.removeEventListener("mouseup", onDragEnd);
+    };
+    // A release outside the whole browser window (or a tab switch mid-drag) never reaches
+    // `window` either: losing focus releases everything rather than leaving a button stuck.
+    const releaseAllButtons = () => {
+      flushPendingMove();
+      for (const button of pressedButtons) {
+        send({ type: "mouse_button", button, state: false, ts: performance.now() });
+      }
+      pressedButtons.clear();
+      stopDragTracking();
     };
 
     const onMouseDown = (ev: MouseEvent) => {
@@ -146,17 +194,12 @@ export function useHidInput(params: {
       container.focus();
       const button = buttonNameFor(ev.button);
       if (!button) return;
-      flushPendingMove(); // the click must land where the cursor actually is, not a stale position
+      // The click must land where it was clicked: move the remote cursor there first.
+      pendingMove = toHid(ev.clientX, ev.clientY);
+      flushPendingMove();
+      if (pressedButtons.size === 0) startDragTracking();
       pressedButtons.add(button);
       send({ type: "mouse_button", button, state: true, ts: performance.now() });
-    };
-
-    const onMouseUp = (ev: MouseEvent) => {
-      ev.preventDefault();
-      const button = buttonNameFor(ev.button);
-      if (!button) return;
-      pressedButtons.delete(button);
-      send({ type: "mouse_button", button, state: false, ts: performance.now() });
     };
 
     const onWheel = (ev: WheelEvent) => {
@@ -168,38 +211,25 @@ export function useHidInput(params: {
 
     const onContextMenu = (ev: MouseEvent) => ev.preventDefault();
 
-    // pikvm/pikvm#1653: a button released outside the window never fires mouseup here.
-    // Releasing everything on re-entry (if the physical button state changed) avoids a stuck
-    // "button held" state for the rest of the session.
-    const onMouseLeave = () => {
-      for (const button of pressedButtons) {
-        send({ type: "mouse_button", button, state: false, ts: performance.now() });
-      }
-      pressedButtons.clear();
-    };
-
     const flushTimer = setInterval(flushPendingMove, 16);
 
     container.addEventListener("keydown", onKeyDown);
     container.addEventListener("keyup", onKeyUp);
-    canvas.addEventListener("mousemove", onMouseMove);
     canvas.addEventListener("mousedown", onMouseDown);
-    canvas.addEventListener("mouseup", onMouseUp);
     canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("contextmenu", onContextMenu);
-    canvas.addEventListener("mouseleave", onMouseLeave);
+    window.addEventListener("blur", releaseAllButtons);
 
     return () => {
+      releaseAllButtons();
       clearInterval(flushTimer);
+      window.removeEventListener("blur", releaseAllButtons);
       if (altGrTimer) clearTimeout(altGrTimer);
       container.removeEventListener("keydown", onKeyDown);
       container.removeEventListener("keyup", onKeyUp);
-      canvas.removeEventListener("mousemove", onMouseMove);
       canvas.removeEventListener("mousedown", onMouseDown);
-      canvas.removeEventListener("mouseup", onMouseUp);
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", onContextMenu);
-      canvas.removeEventListener("mouseleave", onMouseLeave);
     };
     // Deliberately `canvasRef.current`/`containerRef.current`, not the ref objects
     // themselves: ExamPage creates the Socket.io connection (fast, synchronous) before

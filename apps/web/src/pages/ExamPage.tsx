@@ -258,7 +258,12 @@ export default function ExamPage() {
   useEffect(() => {
     if (!socket || !session?.id) return;
     const sessionId = session.id;
-    socket.emit(RT_EVENTS.JOIN_SESSION, { sessionId });
+    // Re-joined on every (re)connect, not just once: the server forgets a socket's session
+    // when it reconnects, and then silently drops every HID input from it (see
+    // SessionsGateway.onHidInput) while the latency ping keeps answering.
+    const join = () => socket.emit(RT_EVENTS.JOIN_SESSION, { sessionId });
+    join();
+    socket.on("connect", join);
 
     const onControllerChanged = (payload: ControllerChangedEvent) => {
       setSession((prev) => (prev ? { ...prev, controllerUserId: payload.controllerUserId } : prev));
@@ -283,6 +288,7 @@ export default function ExamPage() {
     socket.on(RT_EVENTS.SESSION_STATE, onSessionState);
     socket.on(RT_EVENTS.SESSION_ENDED, onSessionEnded);
     return () => {
+      socket.off("connect", join);
       socket.off(RT_EVENTS.CONTROLLER_CHANGED, onControllerChanged);
       socket.off(RT_EVENTS.CONTROL_SUSPENDED, onControlSuspended);
       setSuspension(null);

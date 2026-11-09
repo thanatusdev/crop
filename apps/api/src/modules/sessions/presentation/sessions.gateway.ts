@@ -5,6 +5,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -22,6 +23,7 @@ import {
   type EquipmentStatus,
   type ExamMessageDto,
   type HidInputEvent,
+  type HidStatusEvent,
   type PatientPreparationUpdatedEvent,
   type TargetOs,
 } from "@crop/shared";
@@ -48,10 +50,18 @@ interface JoinedSessionContext {
 interface SocketData {
   user: AccessTokenClaims;
   session?: JoinedSessionContext;
+  /** Reasons this socket's HID input was already logged as dropped -- once each, not per event. */
+  loggedHidDrops?: Set<string>;
 }
 
 function room(sessionId: string): string {
   return `session:${sessionId}`;
+}
+
+/** Every socket joined to a session on this equipment -- what HID_STATUS is broadcast to, since
+ * the PiKVM registry knows equipment, not sessions. */
+function hidStatusRoom(equipmentId: string): string {
+  return `hid:${equipmentId}`;
 }
 
 function tenantRoom(tenantId: string): string {
@@ -116,7 +126,7 @@ const VIEW_ALLOWED_ROLES: readonly UserRole[] = [
   // compression-negotiation mismatch, despite how the original symptom looked.
   perMessageDeflate: false,
 })
-export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class SessionsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() private readonly server!: Server;
   private readonly logger = new Logger(SessionsGateway.name);
 
@@ -128,6 +138,12 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly queryBus: QueryBus,
     private readonly participantNames: SessionParticipantNameService
   ) {}
+
+  afterInit(): void {
+    this.pikvm.onHidStatus((status: HidStatusEvent) => {
+      this.server.to(hidStatusRoom(status.equipmentId)).emit(RT_EVENTS.HID_STATUS, status);
+    });
+  }
 
   handleConnection(client: Socket): void {
     const token = client.handshake.auth?.token as string | undefined;
@@ -180,6 +196,7 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     await this.joinRoom(client, data, session.id, session.equipmentId, data.user.tenantId);
+    client.emit(RT_EVENTS.HID_STATUS, this.pikvm.getHidStatus(session.equipmentId));
 
     // A suspension happened while this socket was away (a reload, a dropped connection): tell it
     // again, or the page would show its user as in control while every input is refused.
@@ -193,14 +210,24 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage(RT_EVENTS.HID_INPUT)
   async onHidInput(@ConnectedSocket() client: Socket, @MessageBody() body: unknown): Promise<void> {
     const data = client.data as SocketData;
-    if (!data.session) return;
+    if (!data.session) {
+      this.logHidDrop(client, data, "socket has not joined a session");
+      return;
+    }
 
     const parsed = HidInputEventSchema.safeParse(body);
-    if (!parsed.success) return;
+    if (!parsed.success) {
+      const type = (body as { type?: unknown } | null)?.type;
+      this.logHidDrop(client, data, `invalid ${String(type)} payload: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+      return;
+    }
 
     // Gate BEFORE dispatching a command: at up to 60 events/sec, this avoids both the
     // CommandBus overhead and an error emission for every event once someone loses control.
-    if (this.runtime.getController(data.session.sessionId) !== data.user.sub) return;
+    if (this.runtime.getController(data.session.sessionId) !== data.user.sub) {
+      this.logHidDrop(client, data, `not the controller of session ${data.session.sessionId}`);
+      return;
+    }
 
     const event: HidInputEvent = parsed.data;
     await this.commandBus.execute(
@@ -406,6 +433,17 @@ export class SessionsGateway implements OnGatewayConnection, OnGatewayDisconnect
   private async joinRoom(client: Socket, data: SocketData, sessionId: string, equipmentId: string, tenantId: string): Promise<void> {
     const equipment = await this.queryBus.execute(new GetEquipmentQuery(equipmentId, tenantId));
     data.session = { sessionId, equipmentId, targetOs: equipment.targetOs, keymap: equipment.keymap };
-    await client.join(room(sessionId));
+    data.loggedHidDrops?.clear();
+    await client.join([room(sessionId), hidStatusRoom(equipmentId)]);
+  }
+
+  /** HID input is dropped silently on purpose (no per-event error at 60 events/sec), which once
+   * hid a client that never rejoined its session after reconnecting -- so log each reason once
+   * per socket (and again after it rejoins), enough to see it without flooding the log. */
+  private logHidDrop(client: Socket, data: SocketData, reason: string): void {
+    data.loggedHidDrops ??= new Set();
+    if (data.loggedHidDrops.has(reason)) return;
+    data.loggedHidDrops.add(reason);
+    this.logger.warn(`Dropping HID input from user ${data.user.sub} (socket ${client.id}): ${reason}`);
   }
 }

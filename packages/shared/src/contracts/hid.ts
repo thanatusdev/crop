@@ -56,3 +56,19 @@ export const PrintTextRequestSchema = z.object({
   text: z.string().min(1).max(1024),
 });
 export type PrintTextRequest = z.infer<typeof PrintTextRequestSchema>;
+
+/**
+ * The PiKVM's own view of its USB HID gadget, pushed to `session:<id>` on every change and to
+ * a socket when it joins (`RT_EVENTS.HID_STATUS`). Without it, every way input can fail --
+ * PiKVM's HID socket down, the USB gadget not attached to the target, the mouse in relative
+ * mode (which ignores the absolute moves this app sends) -- looked exactly like it working.
+ * `connected` is our own socket to the PiKVM; the other three are what PiKVM reports.
+ */
+export const HidStatusEventSchema = z.object({
+  equipmentId: z.string(),
+  connected: z.boolean(),
+  keyboardOnline: z.boolean(),
+  mouseOnline: z.boolean(),
+  mouseAbsolute: z.boolean(),
+});
+export type HidStatusEvent = z.infer<typeof HidStatusEventSchema>;

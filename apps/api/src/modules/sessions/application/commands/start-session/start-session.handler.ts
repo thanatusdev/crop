@@ -81,7 +81,7 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     }
 
     const secrets = await this.queryBus.execute(new GetEquipmentConnectionSecretsQuery(command.equipmentId));
-    await this.pikvm.acquire(command.equipmentId, secrets);
+    await this.pikvm.acquire(command.equipmentId, secrets, equipment.mouseMode);
 
     const session = await this.sessions.create({
       equipmentId: command.equipmentId,
