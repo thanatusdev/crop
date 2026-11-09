@@ -24,7 +24,10 @@ import { AdminResetPasswordCommand } from "../application/commands/admin-reset-p
 import { RegisterUserCommand, type RegisterUserResult } from "../application/commands/register-user/register-user.command.js";
 import { SendInvitationCommand } from "../application/commands/send-invitation/send-invitation.command.js";
 import { UpdateUserCommand } from "../application/commands/update-user/update-user.command.js";
-import { USER_CLINIC_MEMBERSHIP_REPOSITORY, type UserClinicMembershipRepositoryPort } from "../application/ports/user-clinic-membership.port.js";
+import {
+  USER_CLINIC_MEMBERSHIP_REPOSITORY,
+  type UserClinicMembershipRepositoryPort,
+} from "../application/ports/user-clinic-membership.port.js";
 import { toUserDto } from "./user.dto.js";
 
 /**
@@ -58,7 +61,7 @@ export class UsersController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort
+    @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort,
   ) {}
 
   @Get()
@@ -96,10 +99,10 @@ export class UsersController {
         body.professionalRegistration ?? null,
         admin.role,
         body.clinicTenantIds ?? [],
-        body.active
+        body.active,
         // directActivation stays null: every HTTP-created account goes through the
         // invitation flow below, never an admin-typed password.
-      )
+      ),
     );
 
     // Composed here, not inside RegisterUserHandler: registration and "send the activation
@@ -126,11 +129,9 @@ export class UsersController {
   async update(
     @CurrentUser() admin: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdateUserRequestSchema)) body: UpdateUserRequest
+    @Body(new ZodValidationPipe(UpdateUserRequestSchema)) body: UpdateUserRequest,
   ) {
-    const user = await this.commandBus.execute(
-      new UpdateUserCommand(id, admin.sub, admin.tenantId, admin.role, body)
-    );
+    const user = await this.commandBus.execute(new UpdateUserCommand(id, admin.sub, admin.tenantId, admin.role, body));
     const clinicTenantIds = await this.memberships.listClinicIdsForUser(user.id);
     return toUserDto(user, clinicTenantIds);
   }
@@ -152,7 +153,7 @@ export class UsersController {
   async resetPassword(
     @CurrentUser() admin: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(AdminResetPasswordRequestSchema)) body: AdminResetPasswordRequest
+    @Body(new ZodValidationPipe(AdminResetPasswordRequestSchema)) body: AdminResetPasswordRequest,
   ): Promise<void> {
     await this.commandBus.execute(new AdminResetPasswordCommand(id, body.newPassword, admin.sub, admin.tenantId));
   }

@@ -7,6 +7,6 @@ export class ListAgreementsQuery {
      * clinic's context. `null` means every agreement on the platform -- `PLATFORM_ADMIN` only,
      * whose home tenant is party to none of them (see `AgreementsController.partyScopeOf`). */
     public readonly tenantId: string | null,
-    public readonly status?: AgreementStatus
+    public readonly status?: AgreementStatus,
   ) {}
 }

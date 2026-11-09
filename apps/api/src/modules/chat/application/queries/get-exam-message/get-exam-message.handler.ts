@@ -12,7 +12,7 @@ export class GetExamMessageHandler implements IQueryHandler<GetExamMessageQuery,
   constructor(
     @Inject(EXAM_MESSAGE_REPOSITORY) private readonly messages: ExamMessageRepositoryPort,
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: GetExamMessageQuery): Promise<ExamMessage> {

@@ -20,7 +20,7 @@ import { VerifyAuditChainQuery } from "../application/queries/verify-audit-chain
   UserRole.PLATFORM_ADMIN,
   UserRole.OPERATIONAL_SUPERVISOR,
   UserRole.LOCAL_SUPERVISOR,
-  UserRole.OPERATOR_ADMIN
+  UserRole.OPERATOR_ADMIN,
 )
 export class AuditController {
   constructor(private readonly queryBus: QueryBus) {}
@@ -31,11 +31,9 @@ export class AuditController {
     @Query("sessionId") sessionId?: string,
     @Query("userId") userId?: string,
     @Query("limit") limit = "100",
-    @Query("offset") offset = "0"
+    @Query("offset") offset = "0",
   ) {
-    return this.queryBus.execute(
-      new ListAuditLogsQuery(user.tenantId, sessionId, userId, Number(limit), Number(offset))
-    );
+    return this.queryBus.execute(new ListAuditLogsQuery(user.tenantId, sessionId, userId, Number(limit), Number(offset)));
   }
 
   @Get("verify")

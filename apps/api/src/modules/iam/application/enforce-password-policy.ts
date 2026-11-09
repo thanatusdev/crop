@@ -29,7 +29,7 @@ function joinPtBr(items: string[]): string {
 
 export function assertPasswordPolicy(
   password: string,
-  context: { email: string; firstName?: string | null; lastName?: string | null }
+  context: { email: string; firstName?: string | null; lastName?: string | null },
 ): void {
   const evaluation = evaluatePassword(password, context);
   if (!evaluation.ok) {
@@ -47,7 +47,7 @@ export async function assertPasswordNotReused(
   password: string,
   userId: string,
   deps: { users: UserRepositoryPort; hasher: PasswordHasherPort },
-  historyDepth: number
+  historyDepth: number,
 ): Promise<void> {
   const recentHashes = await deps.users.recentPasswordHashes(userId, historyDepth);
   for (const hash of recentHashes) {

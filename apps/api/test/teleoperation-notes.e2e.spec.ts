@@ -57,11 +57,7 @@ describe("Queue entry teleoperation notes (the remote operator's own procedural 
   });
 
   async function createQueueEntry(patientFirstName: string): Promise<string> {
-    const res = await http
-      .post("/queue")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ equipmentId, patientFirstName })
-      .expect(201);
+    const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201);
     return res.body.id;
   }
 
@@ -89,7 +85,11 @@ describe("Queue entry teleoperation notes (the remote operator's own procedural 
 
   it("refuses to edit a DONE queue entry's teleoperation notes -- history stays history", async () => {
     queueEntryId = await createQueueEntry("Teleop-Patient-B");
-    await http.post(`/queue/${queueEntryId}/status`).set("Authorization", `Bearer ${operatorToken}`).send({ status: "CANCELLED" }).expect(204);
+    await http
+      .post(`/queue/${queueEntryId}/status`)
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .send({ status: "CANCELLED" })
+      .expect(204);
 
     const res = await http
       .patch(`/queue/${queueEntryId}/teleoperation-notes`)
@@ -149,7 +149,7 @@ describe("Queue entry teleoperation notes (the remote operator's own procedural 
 
     const auditRes = await http.get("/audit?limit=500").set("Authorization", `Bearer ${adminToken}`).expect(200);
     const row = auditRes.body.find(
-      (e: { action: string; resourceId: string }) => e.action === "QUEUE_ENTRY_UPDATED" && e.resourceId === queueEntryId
+      (e: { action: string; resourceId: string }) => e.action === "QUEUE_ENTRY_UPDATED" && e.resourceId === queueEntryId,
     );
     expect(row).toBeTruthy();
     expect(row.details.changedFields).toEqual(["teleoperationNotes"]);

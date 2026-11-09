@@ -10,7 +10,7 @@ import { ReactivateTenantCommand } from "./reactivate-tenant.command.js";
 export class ReactivateTenantHandler implements ICommandHandler<ReactivateTenantCommand, void> {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ReactivateTenantCommand): Promise<void> {
@@ -29,7 +29,7 @@ export class ReactivateTenantHandler implements ICommandHandler<ReactivateTenant
         resourceType: "Tenant",
         resourceId: tenant.id,
         details: { name: tenant.name },
-      })
+      }),
     );
   }
 }

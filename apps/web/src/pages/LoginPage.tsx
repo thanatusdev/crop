@@ -14,9 +14,7 @@ import { Label } from "../components/ui/label.js";
 import { Alert, AlertDescription } from "../components/ui/alert.js";
 
 type Step =
-  | { name: "credentials" }
-  | { name: "mfa"; mfaToken: string }
-  | { name: "enroll"; enrollmentToken: string; provisioningUri: string };
+  { name: "credentials" } | { name: "mfa"; mfaToken: string } | { name: "enroll"; enrollmentToken: string; provisioningUri: string };
 
 export default function LoginPage() {
   const { t } = useTranslation(["auth", "common"]);
@@ -210,4 +208,3 @@ export default function LoginPage() {
     </AuthCard>
   );
 }
-

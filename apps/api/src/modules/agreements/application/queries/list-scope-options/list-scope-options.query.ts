@@ -8,6 +8,6 @@
 export class ListScopeOptionsQuery {
   constructor(
     public readonly agreementId: string,
-    public readonly actorTenantId: string
+    public readonly actorTenantId: string,
   ) {}
 }

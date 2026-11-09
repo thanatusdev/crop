@@ -9,7 +9,7 @@ import { ListEquipmentQuery } from "./list-equipment.query.js";
 export class ListEquipmentHandler implements IQueryHandler<ListEquipmentQuery, Equipment[]> {
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: ListEquipmentQuery): Promise<Equipment[]> {

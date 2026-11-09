@@ -24,7 +24,7 @@ export class FlushAuditBufferHandler implements ICommandHandler<FlushAuditBuffer
   constructor(
     @Inject(AUDIT_BUFFER) private readonly buffer: AuditBufferPort,
     @Inject(AUDIT_REPOSITORY) private readonly repository: AuditRepositoryPort,
-    private readonly metrics: MetricsService
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(): Promise<void> {

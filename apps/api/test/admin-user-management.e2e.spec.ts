@@ -3,7 +3,15 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import * as OTPAuth from "otpauth";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createContractedOperator, createTenant, testPrisma, readLatestMailTo, extractResetToken } from "./helpers.js";
+import {
+  createTestApp,
+  createLoggedInUser,
+  createContractedOperator,
+  createTenant,
+  testPrisma,
+  readLatestMailTo,
+  extractResetToken,
+} from "./helpers.js";
 
 /**
  * Covers the gap found live-demoing the app: CLINIC_ADMIN saw the exact same dashboard as
@@ -59,7 +67,9 @@ describe("Admin user management: listing and creation", () => {
   });
 
   it("rejects a non-admin trying to list users", async () => {
-    const operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "list-rbac" })).accessToken;
+    const operatorToken = (
+      await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "list-rbac" })
+    ).accessToken;
     await http.get("/users").set("Authorization", `Bearer ${operatorToken}`).expect(403);
   });
 
@@ -84,11 +94,19 @@ describe("Admin user management: listing and creation", () => {
   });
 
   it("rejects a non-admin trying to create a user", async () => {
-    const operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "create-rbac" })).accessToken;
+    const operatorToken = (
+      await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR, emailPrefix: "create-rbac" })
+    ).accessToken;
     await http
       .post("/users")
       .set("Authorization", `Bearer ${operatorToken}`)
-      .send({ email: `blocked-${crypto.randomUUID()}@test.crop.health`, password: "Whatever123!", role: "OPERATOR", firstName: "Blocked", lastName: "Attempt" })
+      .send({
+        email: `blocked-${crypto.randomUUID()}@test.crop.health`,
+        password: "Whatever123!",
+        role: "OPERATOR",
+        firstName: "Blocked",
+        lastName: "Attempt",
+      })
       .expect(403);
   });
 
@@ -96,7 +114,13 @@ describe("Admin user management: listing and creation", () => {
     const res = await http
       .post("/users")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ email: `escalation-${crypto.randomUUID()}@test.crop.health`, password: "Whatever123!", role: "PLATFORM_ADMIN", firstName: "Escalation", lastName: "Attempt" })
+      .send({
+        email: `escalation-${crypto.randomUUID()}@test.crop.health`,
+        password: "Whatever123!",
+        role: "PLATFORM_ADMIN",
+        firstName: "Escalation",
+        lastName: "Attempt",
+      })
       .expect(400);
     // Nest's BadRequestException wraps ZodValidationPipe's rejection as { message: [...Zod
     // issues], error, statusCode } -- confirming the one issue is specifically about `role`
@@ -129,10 +153,7 @@ describe("Admin user management: listing and creation", () => {
 
     const secret = (await prisma.user.findUniqueOrThrow({ where: { id: createRes.body.userId } })).mfaSecret!;
     const code = new OTPAuth.TOTP({ secret }).generate();
-    await http
-      .post("/auth/mfa/enroll/confirm")
-      .send({ enrollmentToken: loginRes.body.enrollmentToken, code })
-      .expect(204);
+    await http.post("/auth/mfa/enroll/confirm").send({ enrollmentToken: loginRes.body.enrollmentToken, code }).expect(204);
 
     // Enrollment is done -- logging in again now goes down the normal mfa_required path,
     // not another enrollment prompt.

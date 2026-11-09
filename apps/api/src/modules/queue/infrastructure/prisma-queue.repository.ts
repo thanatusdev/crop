@@ -3,7 +3,12 @@ import { PreparationStatus, QueueStatus } from "@crop/shared";
 import { PrismaService } from "../../../shared/infrastructure/prisma/prisma.service.js";
 import { QueueEntry } from "../domain/queue-entry.entity.js";
 import type { QueueReorderAssignment } from "../domain/queue-order.js";
-import type { CreateQueueEntryData, DayBounds, QueueRepositoryPort, UpdateQueueEntryDetailsData } from "../application/ports/queue-repository.port.js";
+import type {
+  CreateQueueEntryData,
+  DayBounds,
+  QueueRepositoryPort,
+  UpdateQueueEntryDetailsData,
+} from "../application/ports/queue-repository.port.js";
 
 const WITH_TENANT = { equipment: { select: { tenantId: true } } } as const;
 
@@ -90,8 +95,8 @@ export class PrismaQueueRepository implements QueueRepositoryPort {
   async reorder(assignments: readonly QueueReorderAssignment[]): Promise<void> {
     await this.prisma.$transaction(
       assignments.map((assignment) =>
-        this.prisma.queueEntry.update({ where: { id: assignment.id }, data: { position: assignment.position } })
-      )
+        this.prisma.queueEntry.update({ where: { id: assignment.id }, data: { position: assignment.position } }),
+      ),
     );
   }
 

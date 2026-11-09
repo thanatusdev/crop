@@ -15,7 +15,7 @@ import { CanAccessEquipmentChatQuery } from "./can-access-equipment-chat.query.j
 export class CanAccessEquipmentChatHandler implements IQueryHandler<CanAccessEquipmentChatQuery, void> {
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: CanAccessEquipmentChatQuery): Promise<void> {

@@ -42,7 +42,7 @@ export class ListMyClinicsHandler implements IQueryHandler<ListMyClinicsQuery, M
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: ListMyClinicsQuery): Promise<MyClinicSummary[]> {
@@ -60,7 +60,7 @@ export class ListMyClinicsHandler implements IQueryHandler<ListMyClinicsQuery, M
       .filter(
         (tenant) =>
           tenant.type === TenantType.CLINIC &&
-          (tenant.id === query.homeTenantId || membershipIds.has(tenant.id) || contractedIds.has(tenant.id))
+          (tenant.id === query.homeTenantId || membershipIds.has(tenant.id) || contractedIds.has(tenant.id)),
       )
       .map((tenant) => ({
         id: tenant.id,

@@ -23,7 +23,10 @@ const AeTitleSchema = z
  * exactly what `new Date("2025-12-21")` parsed as local time would do.
  */
 const CalendarDateSchema = z.union([
-  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato AAAA-MM-DD").transform((value) => new Date(`${value}T00:00:00.000Z`)),
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato AAAA-MM-DD")
+    .transform((value) => new Date(`${value}T00:00:00.000Z`)),
   z.coerce.date(),
 ]);
 

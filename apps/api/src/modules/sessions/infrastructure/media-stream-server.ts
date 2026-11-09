@@ -39,7 +39,7 @@ export class MediaStreamServer implements OnApplicationBootstrap {
     private readonly httpAdapterHost: HttpAdapterHost,
     private readonly ticketService: MediaStreamTicketService,
     private readonly queryBus: QueryBus,
-    @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort
+    @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
   ) {}
 
   onApplicationBootstrap(): void {

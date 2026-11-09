@@ -30,11 +30,7 @@ export default function ActivateAccountPage() {
 }
 
 type ActivationState =
-  | { kind: "loading" }
-  | { kind: "invalid" }
-  | { kind: "expired" }
-  | { kind: "valid"; data: InvitationPreview }
-  | { kind: "done" };
+  { kind: "loading" } | { kind: "invalid" } | { kind: "expired" } | { kind: "valid"; data: InvitationPreview } | { kind: "done" };
 
 function ActivationForm({ token }: { token: string }) {
   const { t } = useTranslation(["activation", "password"]);
@@ -111,9 +107,9 @@ function ActivationForm({ token }: { token: string }) {
       />
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        {t("activation:expiryLabel")}: <ExpiryCountdown expiresAt={new Date(data.expiresAt)} onExpire={() => setState({ kind: "expired" })} />
+        {t("activation:expiryLabel")}:{" "}
+        <ExpiryCountdown expiresAt={new Date(data.expiresAt)} onExpire={() => setState({ kind: "expired" })} />
       </p>
     </div>
   );
 }
-

@@ -30,15 +30,23 @@ describe("Account lockout and admin password reset", () => {
   it("blocks login, then restores it, across a lock/unlock cycle", async () => {
     const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-cycle" });
 
-    await http.get(`/users/${target.userId}`).set("Authorization", `Bearer ${adminToken}`).expect(200).then((res) => {
-      expect(res.body.locked).toBe(false);
-    });
+    await http
+      .get(`/users/${target.userId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200)
+      .then((res) => {
+        expect(res.body.locked).toBe(false);
+      });
 
     await http.post(`/users/${target.userId}/lock`).set("Authorization", `Bearer ${adminToken}`).expect(204);
 
-    await http.get(`/users/${target.userId}`).set("Authorization", `Bearer ${adminToken}`).expect(200).then((res) => {
-      expect(res.body.locked).toBe(true);
-    });
+    await http
+      .get(`/users/${target.userId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200)
+      .then((res) => {
+        expect(res.body.locked).toBe(true);
+      });
 
     const lockedLogin = await http
       .post("/auth/login")
@@ -52,10 +60,7 @@ describe("Account lockout and admin password reset", () => {
 
     await http.post(`/users/${target.userId}/unlock`).set("Authorization", `Bearer ${adminToken}`).expect(204);
 
-    await http
-      .post("/auth/login")
-      .send({ email: target.email, password: "TestPassword123!", clientOs: "MACOS" })
-      .expect(200);
+    await http.post("/auth/login").send({ email: target.email, password: "TestPassword123!", clientOs: "MACOS" }).expect(200);
   });
 
   it("rejects completing MFA verification for an account locked mid-flow", async () => {
@@ -77,9 +82,8 @@ describe("Account lockout and admin password reset", () => {
 
   it("rejects a non-admin trying to lock another user", async () => {
     const target = await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-rbac-target" });
-    const nonAdminToken = (
-      await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-rbac-actor" })
-    ).accessToken;
+    const nonAdminToken = (await createLoggedInUser(app, { tenantId, role: UserRole.LOCAL_IT, emailPrefix: "lock-rbac-actor" }))
+      .accessToken;
 
     await http.post(`/users/${target.userId}/lock`).set("Authorization", `Bearer ${nonAdminToken}`).expect(403);
   });
@@ -104,15 +108,9 @@ describe("Account lockout and admin password reset", () => {
       .send({ newPassword: "BrandNewPassword456!" })
       .expect(204);
 
-    await http
-      .post("/auth/login")
-      .send({ email: target.email, password: "TestPassword123!", clientOs: "MACOS" })
-      .expect(401);
+    await http.post("/auth/login").send({ email: target.email, password: "TestPassword123!", clientOs: "MACOS" }).expect(401);
 
-    await http
-      .post("/auth/login")
-      .send({ email: target.email, password: "BrandNewPassword456!", clientOs: "MACOS" })
-      .expect(200);
+    await http.post("/auth/login").send({ email: target.email, password: "BrandNewPassword456!", clientOs: "MACOS" }).expect(200);
   });
 
   it("never leaks passwordHash or mfaSecret through GET /users/:id", async () => {

@@ -26,7 +26,7 @@ export class UpdatePreparationStatusHandler implements ICommandHandler<UpdatePre
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: UpdatePreparationStatusCommand): Promise<void> {
@@ -54,7 +54,7 @@ export class UpdatePreparationStatusHandler implements ICommandHandler<UpdatePre
     // before the operator started one) still has to be let go of the screen.
     if (command.status === PreparationStatus.RELEASED && session?.isActive()) {
       throw new ConflictError(
-        "Não é possível liberar o paciente enquanto o exame está em andamento. Aguarde o Operador Biomédico encerrar a sessão."
+        "Não é possível liberar o paciente enquanto o exame está em andamento. Aguarde o Operador Biomédico encerrar a sessão.",
       );
     }
 
@@ -72,11 +72,9 @@ export class UpdatePreparationStatusHandler implements ICommandHandler<UpdatePre
         // Deliberately no patientFirstName -- same reasoning as CreateQueueEntryHandler and
         // UpdateQueueStatusHandler; see queue-tenant-isolation.e2e.spec.ts's PHI assertion.
         details: { equipmentId: entry.equipmentId, previousPreparationStatus },
-      })
+      }),
     );
 
-    this.eventBus.publish(
-      new PatientPreparationUpdatedEvent(command.tenantId, entry.equipmentId, entry.id, session?.id ?? null)
-    );
+    this.eventBus.publish(new PatientPreparationUpdatedEvent(command.tenantId, entry.equipmentId, entry.id, session?.id ?? null));
   }
 }

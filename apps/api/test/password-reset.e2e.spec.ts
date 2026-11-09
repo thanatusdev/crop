@@ -43,10 +43,7 @@ describe("Password reset via email", () => {
     await http.post("/auth/password-reset/confirm").send({ token, newPassword: "BrandNewPassword123!" }).expect(204);
 
     // Old password no longer works.
-    await http
-      .post("/auth/login")
-      .send({ email: user.email, password: "TestPassword123!", clientOs: "MACOS" })
-      .expect(401);
+    await http.post("/auth/login").send({ email: user.email, password: "TestPassword123!", clientOs: "MACOS" }).expect(401);
 
     // New password reaches the normal mfa_required step -- 2FA still gates login even
     // though the reset link alone set the password (see RequestPasswordResetHandler's
@@ -114,8 +111,16 @@ describe("Password reset via email", () => {
   it("silently no-ops for a user in a deactivated tenant", async () => {
     const deactivatedTenant = await createTenant(prisma, `PwReset-Deactivated-${crypto.randomUUID()}`);
     const platformTenant = await createTenant(prisma, `PwReset-Platform-${crypto.randomUUID()}`, "PLATFORM");
-    const platformAdmin = await createLoggedInUser(app, { tenantId: platformTenant.id, role: UserRole.PLATFORM_ADMIN, emailPrefix: "reset-deactivate-admin" });
-    const target = await createLoggedInUser(app, { tenantId: deactivatedTenant.id, role: UserRole.LOCAL_IT, emailPrefix: "reset-deactivated" });
+    const platformAdmin = await createLoggedInUser(app, {
+      tenantId: platformTenant.id,
+      role: UserRole.PLATFORM_ADMIN,
+      emailPrefix: "reset-deactivate-admin",
+    });
+    const target = await createLoggedInUser(app, {
+      tenantId: deactivatedTenant.id,
+      role: UserRole.LOCAL_IT,
+      emailPrefix: "reset-deactivated",
+    });
 
     await http.post(`/tenants/${deactivatedTenant.id}/deactivate`).set("Authorization", `Bearer ${platformAdmin.accessToken}`).expect(204);
 
@@ -131,10 +136,7 @@ describe("Password reset via email", () => {
 
     await http.post("/auth/password-reset/confirm").send({ token, newPassword: "FirstNewPassword123!" }).expect(204);
 
-    const secondAttempt = await http
-      .post("/auth/password-reset/confirm")
-      .send({ token, newPassword: "SecondNewPassword123!" })
-      .expect(401);
+    const secondAttempt = await http.post("/auth/password-reset/confirm").send({ token, newPassword: "SecondNewPassword123!" }).expect(401);
     expect(secondAttempt.body.code).toBe("UNAUTHORIZED");
   });
 
@@ -217,10 +219,7 @@ describe("Password reset via email", () => {
 
     await http.post("/auth/password-reset/request").send({ email: user.email }).expect(200);
     const secondToken = extractResetToken((await readLatestMailTo(user.email))!);
-    const res = await http
-      .post("/auth/password-reset/confirm")
-      .send({ token: secondToken, newPassword: "ReusableSecret123!" })
-      .expect(400);
+    const res = await http.post("/auth/password-reset/confirm").send({ token: secondToken, newPassword: "ReusableSecret123!" }).expect(400);
     expect(res.body.code).toBe("PASSWORD_REUSED");
   });
 });

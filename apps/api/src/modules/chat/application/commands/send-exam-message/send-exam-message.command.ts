@@ -25,6 +25,6 @@ export class SendExamMessageCommand {
     public readonly equipmentId: string,
     public readonly actor: AccessTokenClaims,
     public readonly body: string,
-    public readonly attachment: SendExamMessageAttachment | null
+    public readonly attachment: SendExamMessageAttachment | null,
   ) {}
 }

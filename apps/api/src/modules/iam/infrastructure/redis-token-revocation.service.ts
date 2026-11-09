@@ -4,7 +4,8 @@ import { REDIS_CLIENT } from "../../../shared/infrastructure/redis/redis.tokens.
 import type { RevocationKind, TokenRevocationPort } from "../application/ports/token-revocation.port.js";
 
 function key(jti: string, kind: RevocationKind): string {
-  const prefix = kind === "password_reset" ? "pwreset" : kind === "password_change" ? "pwchange" : kind === "account_invitation" ? "invite" : "refresh";
+  const prefix =
+    kind === "password_reset" ? "pwreset" : kind === "password_change" ? "pwchange" : kind === "account_invitation" ? "invite" : "refresh";
   return `revoked:${prefix}:${jti}`;
 }
 

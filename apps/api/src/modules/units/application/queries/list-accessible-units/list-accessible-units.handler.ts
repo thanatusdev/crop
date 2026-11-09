@@ -30,7 +30,7 @@ export class ListAccessibleUnitsHandler implements IQueryHandler<ListAccessibleU
     @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort,
     private readonly enrichment: UnitEnrichmentService,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: ListAccessibleUnitsQuery): Promise<EnrichedUnit[]> {

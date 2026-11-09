@@ -3,7 +3,15 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import * as OTPAuth from "otpauth";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma, equipmentPayload, extractResetToken, readLatestMailTo } from "./helpers.js";
+import {
+  createTestApp,
+  createLoggedInUser,
+  createTenant,
+  testPrisma,
+  equipmentPayload,
+  extractResetToken,
+  readLatestMailTo,
+} from "./helpers.js";
 
 /**
  * The business rule this whole feature is built around:
@@ -62,7 +70,13 @@ describe("Clinic membership and the Manager/Supervisor/Nursing registration rule
     const res = await http
       .post("/users")
       .set("Authorization", `Bearer ${platformAdmin.accessToken}`)
-      .send({ email: `orphan-supervisor-${crypto.randomUUID()}@test.crop.health`, role: "LOCAL_SUPERVISOR", firstName: "Orphan", lastName: "Supervisor", clinicTenantIds: [clinicC] })
+      .send({
+        email: `orphan-supervisor-${crypto.randomUUID()}@test.crop.health`,
+        role: "LOCAL_SUPERVISOR",
+        firstName: "Orphan",
+        lastName: "Supervisor",
+        clinicTenantIds: [clinicC],
+      })
       .expect(403);
     expect(res.body.code).toBe("FORBIDDEN");
   });
@@ -83,7 +97,13 @@ describe("Clinic membership and the Manager/Supervisor/Nursing registration rule
     const res = await http
       .post("/users")
       .set("Authorization", `Bearer ${platformAdmin.accessToken}`)
-      .send({ email: `supervisor-for-c-${crypto.randomUUID()}@test.crop.health`, role: "LOCAL_SUPERVISOR", firstName: "Real", lastName: "Supervisor", clinicTenantIds: [clinicC] })
+      .send({
+        email: `supervisor-for-c-${crypto.randomUUID()}@test.crop.health`,
+        role: "LOCAL_SUPERVISOR",
+        firstName: "Real",
+        lastName: "Supervisor",
+        clinicTenantIds: [clinicC],
+      })
       .expect(201);
     const created = await prisma.user.findUniqueOrThrow({ where: { id: res.body.userId } });
     expect(created.role).toBe("LOCAL_SUPERVISOR");
@@ -95,7 +115,13 @@ describe("Clinic membership and the Manager/Supervisor/Nursing registration rule
     const byManager = await http
       .post("/users")
       .set("Authorization", `Bearer ${managerLogin.accessToken}`)
-      .send({ email: `sup-by-manager-${crypto.randomUUID()}@test.crop.health`, role: "LOCAL_SUPERVISOR", firstName: "Second", lastName: "Supervisor", clinicTenantIds: [clinicC] })
+      .send({
+        email: `sup-by-manager-${crypto.randomUUID()}@test.crop.health`,
+        role: "LOCAL_SUPERVISOR",
+        firstName: "Second",
+        lastName: "Supervisor",
+        clinicTenantIds: [clinicC],
+      })
       .expect(201);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: byManager.body.userId } })).role).toBe("LOCAL_SUPERVISOR");
 
@@ -104,11 +130,21 @@ describe("Clinic membership and the Manager/Supervisor/Nursing registration rule
     // precise difference between the two privileged clinic roles, so both halves are
     // asserted -- a supervisor who could create neither would pass a "rejects a peer" test
     // for the wrong reason.
-    const supervisorLogin = await createLoggedInUser(app, { tenantId: clinicC, role: UserRole.LOCAL_SUPERVISOR, emailPrefix: "supervisor-acting" });
+    const supervisorLogin = await createLoggedInUser(app, {
+      tenantId: clinicC,
+      role: UserRole.LOCAL_SUPERVISOR,
+      emailPrefix: "supervisor-acting",
+    });
     const nurseBySupervisor = await http
       .post("/users")
       .set("Authorization", `Bearer ${supervisorLogin.accessToken}`)
-      .send({ email: `nurse-by-sup-${crypto.randomUUID()}@test.crop.health`, role: "NURSING", firstName: "Staffed", lastName: "Nurse", clinicTenantIds: [clinicC] })
+      .send({
+        email: `nurse-by-sup-${crypto.randomUUID()}@test.crop.health`,
+        role: "NURSING",
+        firstName: "Staffed",
+        lastName: "Nurse",
+        clinicTenantIds: [clinicC],
+      })
       .expect(201);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: nurseBySupervisor.body.userId } })).role).toBe("NURSING");
 
@@ -138,7 +174,13 @@ describe("Clinic membership and the Manager/Supervisor/Nursing registration rule
     await http
       .post("/users")
       .set("Authorization", `Bearer ${platformAdmin.accessToken}`)
-      .send({ email: `nurse-in-b-${crypto.randomUUID()}@test.crop.health`, role: "NURSING", firstName: "Nurse", lastName: "InB", clinicTenantIds: [clinicB] })
+      .send({
+        email: `nurse-in-b-${crypto.randomUUID()}@test.crop.health`,
+        role: "NURSING",
+        firstName: "Nurse",
+        lastName: "InB",
+        clinicTenantIds: [clinicB],
+      })
       .expect(201);
 
     // Equipment of clinicB's own, for the identical reason -- and specifically the regression

@@ -30,4 +30,3 @@ export function QrCode({ value, size = 200 }: { value: string; size?: number }) 
 
   return <img src={dataUrl} width={size} height={size} alt="" className="rounded-lg bg-white p-2" />;
 }
-

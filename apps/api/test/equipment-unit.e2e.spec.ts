@@ -2,7 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { UserRole } from "@crop/shared";
-import { createTestApp, createLoggedInUser, createTenant, testPrisma, equipmentPayload, unitPayload, decodeAccessToken } from "./helpers.js";
+import {
+  createTestApp,
+  createLoggedInUser,
+  createTenant,
+  testPrisma,
+  equipmentPayload,
+  unitPayload,
+  decodeAccessToken,
+} from "./helpers.js";
 
 /**
  * `Equipment.unitId` existed as a backfilled Prisma column with zero application-layer
@@ -87,7 +95,11 @@ describe("Equipment <-> Unit wiring", () => {
   });
 
   it("rejects an explicit unitId belonging to a different tenant, both on create and update", async () => {
-    const otherAdmin = await createLoggedInUser(app, { tenantId: otherTenantId, role: UserRole.CLINIC_ADMIN, emailPrefix: "eq-unit-other" });
+    const otherAdmin = await createLoggedInUser(app, {
+      tenantId: otherTenantId,
+      role: UserRole.CLINIC_ADMIN,
+      emailPrefix: "eq-unit-other",
+    });
     const otherUnit = await http
       .post("/units")
       .set("Authorization", `Bearer ${otherAdmin.accessToken}`)

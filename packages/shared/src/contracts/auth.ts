@@ -47,13 +47,19 @@ export type LoginResponse = z.infer<typeof LoginResponseSchema>;
 
 export const MfaVerifyRequestSchema = z.object({
   mfaToken: z.string(),
-  code: z.string().length(6).regex(/^\d{6}$/),
+  code: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
 });
 export type MfaVerifyRequest = z.infer<typeof MfaVerifyRequestSchema>;
 
 export const MfaEnrollConfirmRequestSchema = z.object({
   enrollmentToken: z.string(),
-  code: z.string().length(6).regex(/^\d{6}$/),
+  code: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
 });
 export type MfaEnrollConfirmRequest = z.infer<typeof MfaEnrollConfirmRequestSchema>;
 

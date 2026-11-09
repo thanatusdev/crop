@@ -32,7 +32,7 @@ export class AdminResetPasswordHandler implements ICommandHandler<AdminResetPass
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
     @Inject(PASSWORD_HASHER) private readonly hasher: PasswordHasherPort,
     private readonly config: ConfigService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: AdminResetPasswordCommand): Promise<void> {
@@ -64,7 +64,7 @@ export class AdminResetPasswordHandler implements ICommandHandler<AdminResetPass
         resourceType: "User",
         resourceId: target.id,
         details: { targetEmail: target.email },
-      })
+      }),
     );
   }
 }

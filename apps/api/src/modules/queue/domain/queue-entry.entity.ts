@@ -56,10 +56,7 @@ const VALID_PREPARATION_TRANSITIONS: Record<PreparationStatus, PreparationStatus
  * place (queue entry cancelled before the nurse touched it) still has to be let go of the
  * screen; UpdatePreparationStatusHandler's session-active gate is the real safety check for
  * release, not this. */
-const PREPARATION_STATUSES_REQUIRING_OPEN_SLOT: readonly PreparationStatus[] = [
-  PreparationStatus.POSITIONED,
-  PreparationStatus.INJECTED,
-];
+const PREPARATION_STATUSES_REQUIRING_OPEN_SLOT: readonly PreparationStatus[] = [PreparationStatus.POSITIONED, PreparationStatus.INJECTED];
 
 export class QueueEntry {
   constructor(private readonly props: QueueEntryProps) {}
@@ -175,7 +172,9 @@ export class QueueEntry {
   /** A patient can't go from DONE/CANCELLED back to WAITING, or skip straight to DONE. */
   assertCanTransitionTo(next: QueueStatus): void {
     if (!VALID_TRANSITIONS[this.props.status].includes(next)) {
-      throw new ConflictError(`Não é possível alterar o status do paciente de "${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}" para "${labelOf(QUEUE_STATUS_LABELS_PT_BR, next)}".`);
+      throw new ConflictError(
+        `Não é possível alterar o status do paciente de "${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}" para "${labelOf(QUEUE_STATUS_LABELS_PT_BR, next)}".`,
+      );
     }
   }
 
@@ -183,14 +182,18 @@ export class QueueEntry {
    * UpdatePreparationStatusHandler, the only caller. */
   assertCanTransitionPreparationTo(next: PreparationStatus): void {
     if (!VALID_PREPARATION_TRANSITIONS[this.props.preparationStatus].includes(next)) {
-      throw new ConflictError(`Não é possível alterar o preparo do paciente de "${labelOf(PREPARATION_STATUS_LABELS_PT_BR, this.props.preparationStatus)}" para "${labelOf(PREPARATION_STATUS_LABELS_PT_BR, next)}".`);
+      throw new ConflictError(
+        `Não é possível alterar o preparo do paciente de "${labelOf(PREPARATION_STATUS_LABELS_PT_BR, this.props.preparationStatus)}" para "${labelOf(PREPARATION_STATUS_LABELS_PT_BR, next)}".`,
+      );
     }
     if (
       PREPARATION_STATUSES_REQUIRING_OPEN_SLOT.includes(next) &&
       this.props.status !== QueueStatus.WAITING &&
       this.props.status !== QueueStatus.IN_PROGRESS
     ) {
-      throw new ConflictError(`Não é possível posicionar ou injetar um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`);
+      throw new ConflictError(
+        `Não é possível posicionar ou injetar um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`,
+      );
     }
   }
 
@@ -209,7 +212,9 @@ export class QueueEntry {
    * terminal statuses are locked out. See UpdateQueueEntryDetailsHandler, the only caller. */
   assertDetailsEditable(): void {
     if (this.props.status !== QueueStatus.WAITING && this.props.status !== QueueStatus.IN_PROGRESS) {
-      throw new ConflictError(`Não é possível editar os detalhes do exame de um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`);
+      throw new ConflictError(
+        `Não é possível editar os detalhes do exame de um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`,
+      );
     }
   }
 
@@ -222,7 +227,9 @@ export class QueueEntry {
    * record either. See UpdateTeleoperationNotesHandler, the only caller. */
   assertTeleoperationNotesEditable(): void {
     if (this.props.status !== QueueStatus.WAITING && this.props.status !== QueueStatus.IN_PROGRESS) {
-      throw new ConflictError(`Não é possível editar as notas de teleoperação de um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`);
+      throw new ConflictError(
+        `Não é possível editar as notas de teleoperação de um paciente com atendimento ${labelOf(QUEUE_STATUS_LABELS_PT_BR, this.props.status)}.`,
+      );
     }
   }
 }

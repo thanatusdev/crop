@@ -28,7 +28,7 @@ export class SessionParticipantNameService {
     if (uniqueIds.length === 0) return new Map();
     const profiles = await this.users.summarizeProfiles(uniqueIds);
     return new Map(
-      uniqueIds.map((id) => [id, { name: profiles[id]?.name ?? null, registration: profiles[id]?.professionalRegistration ?? null }])
+      uniqueIds.map((id) => [id, { name: profiles[id]?.name ?? null, registration: profiles[id]?.professionalRegistration ?? null }]),
     );
   }
 

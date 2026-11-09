@@ -17,7 +17,7 @@ export class CreateEquipmentHandler implements ICommandHandler<CreateEquipmentCo
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
     private readonly encryption: EncryptionService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: CreateEquipmentCommand): Promise<Equipment> {
@@ -72,7 +72,7 @@ export class CreateEquipmentHandler implements ICommandHandler<CreateEquipmentCo
           targetOs: equipment.targetOs,
           unitId: equipment.unitId,
         },
-      })
+      }),
     );
 
     return equipment;

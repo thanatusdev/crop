@@ -16,7 +16,7 @@ export class CreateUnitHandler implements ICommandHandler<CreateUnitCommand, Enr
     private readonly technicalManagers: TechnicalManagerValidator,
     private readonly enrichment: UnitEnrichmentService,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: CreateUnitCommand): Promise<EnrichedUnit> {
@@ -27,7 +27,7 @@ export class CreateUnitHandler implements ICommandHandler<CreateUnitCommand, Enr
       command.clinicTenantId,
       command.actingAdminId && command.actingAdminTenantId && command.actingRole
         ? { userId: command.actingAdminId, tenantId: command.actingAdminTenantId, role: command.actingRole }
-        : null
+        : null,
     );
 
     await this.technicalManagers.assertEligible(command.unit.technicalManagerId, command.clinicTenantId);
@@ -71,7 +71,7 @@ export class CreateUnitHandler implements ICommandHandler<CreateUnitCommand, Enr
           declaredModalities: unit.declaredModalities,
           technicalManagerId: unit.technicalManagerId,
         },
-      })
+      }),
     );
 
     return this.enrichment.enrichOne(unit);

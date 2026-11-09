@@ -10,7 +10,8 @@ import { SESSION_REPOSITORY, type SessionRepositoryPort } from "../ports/session
 import { SESSION_RUNTIME, type SessionRuntimePort } from "../ports/session-runtime.port.js";
 
 const SUSPENDED_MESSAGE: Record<AgreementAccessReducedEvent["reason"], string> = {
-  agreement_revoked: "O contrato da empresa operadora com esta clínica foi encerrado. A empresa não tem mais o controle desta sessão; a equipe da clínica pode assumir o controle.",
+  agreement_revoked:
+    "O contrato da empresa operadora com esta clínica foi encerrado. A empresa não tem mais o controle desta sessão; a equipe da clínica pode assumir o controle.",
   agreement_scope_reduced:
     "Este equipamento foi retirado do contrato da empresa operadora. A empresa não tem mais o controle desta sessão; a equipe da clínica pode assumir o controle.",
 };
@@ -40,7 +41,7 @@ export class SuspendOutsideControlHandler implements IEventHandler<AgreementAcce
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly gateway: SessionsGateway
+    private readonly gateway: SessionsGateway,
   ) {}
 
   async handle(event: AgreementAccessReducedEvent): Promise<void> {
@@ -76,7 +77,7 @@ export class SuspendOutsideControlHandler implements IEventHandler<AgreementAcce
           resourceType: "Session",
           resourceId: session.id,
           details: { reason: event.reason, operatorTenantId: event.operatorTenantId, suspendedUserIds: outsideUserIds },
-        })
+        }),
       );
 
       this.gateway.broadcastControlSuspended(session.id, outsideUserIds, message);

@@ -22,7 +22,7 @@ import { GetQueueDocumentQuery } from "./get-queue-document.query.js";
 export class GetQueueDocumentHandler implements IQueryHandler<GetQueueDocumentQuery, QueueEntryDocument> {
   constructor(
     @Inject(QUEUE_DOCUMENT_REPOSITORY) private readonly documents: QueueDocumentRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: GetQueueDocumentQuery): Promise<QueueEntryDocument> {

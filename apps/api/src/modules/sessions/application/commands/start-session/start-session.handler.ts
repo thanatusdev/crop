@@ -30,7 +30,7 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
     private readonly config: ConfigService,
-    private readonly metrics: MetricsService
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(command: StartSessionCommand): Promise<Session> {
@@ -42,7 +42,7 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
     // status forever and would have passed a status-only check indefinitely.
     if (!equipment.isAvailableForSession()) {
       throw new ConflictError(
-        equipment.isDeactivated() ? `O equipamento ${equipment.name} foi desativado.` : `O equipamento ${equipment.name} não está online.`
+        equipment.isDeactivated() ? `O equipamento ${equipment.name} foi desativado.` : `O equipamento ${equipment.name} não está online.`,
       );
     }
 
@@ -123,7 +123,7 @@ export class StartSessionHandler implements ICommandHandler<StartSessionCommand,
         resourceType: "Equipment",
         resourceId: command.equipmentId,
         details: { queueEntryId: command.queueEntryId },
-      })
+      }),
     );
 
     return session;

@@ -31,7 +31,7 @@ export class RegisterUserCommand {
     // all, and the account cannot log in until its invitation link is redeemed (see
     // SendInvitationHandler / ActivateAccountHandler) -- the "Enviar Convite Seguro" flow,
     // replacing what used to be an admin-typed temp password.
-    public readonly directActivation: { password: string } | null = null
+    public readonly directActivation: { password: string } | null = null,
   ) {}
 }
 

@@ -6,6 +6,6 @@ export class ReorderQueueCommand {
     public readonly tenantId: string,
     public readonly actingUserId: string,
     public readonly equipmentId: string,
-    public readonly orderedIds: readonly string[]
+    public readonly orderedIds: readonly string[],
   ) {}
 }

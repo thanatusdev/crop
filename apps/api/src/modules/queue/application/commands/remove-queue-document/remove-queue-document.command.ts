@@ -9,6 +9,6 @@ export class RemoveQueueDocumentCommand {
     public readonly tenantId: string,
     public readonly actingUserId: string,
     public readonly queueEntryId: string,
-    public readonly documentId: string
+    public readonly documentId: string,
   ) {}
 }

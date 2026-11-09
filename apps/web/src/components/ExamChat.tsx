@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ALLOWED_DOCUMENT_MIME_TYPES, formatClinicTime, todayClinicDayString, type ExamMessageDto, type MessageShortcutDto } from "@crop/shared";
+import {
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  formatClinicTime,
+  todayClinicDayString,
+  type ExamMessageDto,
+  type MessageShortcutDto,
+} from "@crop/shared";
 import { cn } from "cn";
 import { Download, FileText, Paperclip, Send, X } from "lucide-react";
 import { ShortcutChips } from "./ShortcutChips.js";
@@ -14,7 +20,6 @@ import { api } from "../lib/api-client.js";
 import { humanFileSize } from "../lib/file-display.js";
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-
 
 /** One message's attachment, rendered as an inline thumbnail for an image or a
  * click-to-download chip for anything else (a PDF) -- both go through
@@ -168,7 +173,14 @@ export function ExamChat({
           {t("exam:historyLabel")}
         </label>
         <div className="flex items-center gap-1.5">
-          <Input id="exam-chat-day" type="date" max={today} value={day} onChange={(e) => onDayChange(e.target.value)} className="h-8 w-auto text-[12px]" />
+          <Input
+            id="exam-chat-day"
+            type="date"
+            max={today}
+            value={day}
+            onChange={(e) => onDayChange(e.target.value)}
+            className="h-8 w-auto text-[12px]"
+          />
           {day !== today && (
             <Button type="button" variant="outline" size="sm" onClick={() => onDayChange(today)}>
               {t("exam:historyToday")}
@@ -197,7 +209,7 @@ export function ExamChat({
               key={message.id}
               className={cn(
                 "flex max-w-[85%] flex-col gap-0.5 rounded-xl px-3 py-2 text-[13px] shadow-sm",
-                message.authorUserId === currentUserId ? "self-end bg-accent" : "self-start bg-secondary"
+                message.authorUserId === currentUserId ? "self-end bg-accent" : "self-start bg-secondary",
               )}
             >
               <div className="mb-0.5 flex items-baseline gap-1.5 text-[11px] text-muted-foreground">
@@ -302,7 +314,12 @@ export function ExamChat({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button type="submit" size="icon" aria-label={sending ? t("exam:sending") : t("exam:send")} disabled={sending || (!draft.trim() && !file)}>
+              <Button
+                type="submit"
+                size="icon"
+                aria-label={sending ? t("exam:sending") : t("exam:send")}
+                disabled={sending || (!draft.trim() && !file)}
+              >
                 <Send />
               </Button>
             </TooltipTrigger>

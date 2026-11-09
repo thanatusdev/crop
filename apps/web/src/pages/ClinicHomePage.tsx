@@ -45,8 +45,8 @@ export default function ClinicHomePage() {
           <CardContent>
             <p>Patient queue and clinic management screens for this role are not built yet.</p>
             <p className="text-muted-foreground">
-              Your account and permissions are already set up -- this is just a placeholder home
-              screen until the clinic-side surface exists.
+              Your account and permissions are already set up -- this is just a placeholder home screen until the clinic-side surface
+              exists.
             </p>
           </CardContent>
         </Card>
@@ -54,4 +54,3 @@ export default function ClinicHomePage() {
     </div>
   );
 }
-

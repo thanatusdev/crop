@@ -10,7 +10,7 @@ import { UnlockUserCommand } from "./unlock-user.command.js";
 export class UnlockUserHandler implements ICommandHandler<UnlockUserCommand, void> {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: UnlockUserCommand): Promise<void> {
@@ -33,7 +33,7 @@ export class UnlockUserHandler implements ICommandHandler<UnlockUserCommand, voi
         resourceType: "User",
         resourceId: target.id,
         details: { targetEmail: target.email },
-      })
+      }),
     );
   }
 }

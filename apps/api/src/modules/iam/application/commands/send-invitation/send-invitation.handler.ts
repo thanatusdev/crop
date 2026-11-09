@@ -28,7 +28,7 @@ export class SendInvitationHandler implements ICommandHandler<SendInvitationComm
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(MAILER) private readonly mailer: MailerPort,
     private readonly config: ConfigService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: SendInvitationCommand): Promise<void> {
@@ -75,7 +75,7 @@ export class SendInvitationHandler implements ICommandHandler<SendInvitationComm
         resourceType: "User",
         resourceId: user.id,
         details: { email: user.email },
-      })
+      }),
     );
   }
 }

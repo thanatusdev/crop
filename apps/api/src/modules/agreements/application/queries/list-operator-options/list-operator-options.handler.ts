@@ -18,14 +18,16 @@ import { ListOperatorOptionsQuery } from "./list-operator-options.query.js";
 export class ListOperatorOptionsHandler implements IQueryHandler<ListOperatorOptionsQuery, AgreementCounterpartyOption[]> {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
-    @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort
+    @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
   ) {}
 
   async execute(query: ListOperatorOptionsQuery): Promise<AgreementCounterpartyOption[]> {
     const [allTenants, ownAgreements] = await Promise.all([this.tenants.listAll(), this.agreements.listForTenant(query.clinicTenantId)]);
 
     const unavailableOperatorIds = new Set(
-      ownAgreements.filter((a) => a.status === AgreementStatus.PENDING || a.status === AgreementStatus.ACTIVE).map((a) => a.operatorTenantId)
+      ownAgreements
+        .filter((a) => a.status === AgreementStatus.PENDING || a.status === AgreementStatus.ACTIVE)
+        .map((a) => a.operatorTenantId),
     );
 
     return allTenants

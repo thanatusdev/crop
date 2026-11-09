@@ -15,8 +15,9 @@ import { GetQueueEntryQuery } from "./get-queue-entry.query.js";
  */
 @QueryHandler(GetQueueEntryQuery)
 export class GetQueueEntryHandler implements IQueryHandler<GetQueueEntryQuery, QueueEntry> {
-  constructor(@Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+  constructor(
+    @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: GetQueueEntryQuery): Promise<QueueEntry> {

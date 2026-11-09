@@ -9,7 +9,7 @@ import { GetTenantQuery } from "./get-tenant.query.js";
 export class GetTenantHandler implements IQueryHandler<GetTenantQuery, EnrichedTenant> {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
-    private readonly enrichment: TenantEnrichmentService
+    private readonly enrichment: TenantEnrichmentService,
   ) {}
 
   async execute(query: GetTenantQuery): Promise<EnrichedTenant> {

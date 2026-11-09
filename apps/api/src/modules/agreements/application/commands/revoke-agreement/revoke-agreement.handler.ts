@@ -27,7 +27,7 @@ export class RevokeAgreementHandler implements ICommandHandler<RevokeAgreementCo
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: RevokeAgreementCommand): Promise<OperatorAgreement> {
@@ -55,7 +55,7 @@ export class RevokeAgreementHandler implements ICommandHandler<RevokeAgreementCo
           revokedByTenantId: revokerTenantId,
           revokedByClinic: revokerTenantId === existing.clinicTenantId,
         },
-      })
+      }),
     );
 
     // After the audit row, so the trail reads "revoked" before any "control suspended" it causes.

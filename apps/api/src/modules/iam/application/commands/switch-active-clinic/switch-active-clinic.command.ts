@@ -4,7 +4,7 @@ export class SwitchActiveClinicCommand {
   constructor(
     public readonly userId: string,
     public readonly targetClinicTenantId: string,
-    public readonly clientOs: TargetOs
+    public readonly clientOs: TargetOs,
   ) {}
 }
 

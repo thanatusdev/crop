@@ -8,6 +8,6 @@ export class ProcessHidInputCommand {
     public readonly userId: string,
     public readonly clientOs: TargetOs,
     public readonly targetOs: TargetOs,
-    public readonly event: HidInputEvent
+    public readonly event: HidInputEvent,
   ) {}
 }

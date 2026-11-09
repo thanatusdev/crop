@@ -60,7 +60,7 @@ export default function AdminUnitsPage() {
       isSuperadmin
         ? tenants.filter((tenant) => tenant.type === "CLINIC").map((tenant) => ({ id: tenant.id, name: tenant.name }))
         : myClinics.map((clinic) => ({ id: clinic.id, name: clinic.name })),
-    [isSuperadmin, tenants, myClinics]
+    [isSuperadmin, tenants, myClinics],
   );
   const clinicNameById = useMemo(() => new Map(clinicOptions.map((clinic) => [clinic.id, clinic.name])), [clinicOptions]);
 
@@ -185,7 +185,7 @@ export default function AdminUnitsPage() {
         unit.declaredModalities.map((modality) => MODALITY_ABBREVIATION[modality]).join("/"),
       ]
         .map(escape)
-        .join(",")
+        .join(","),
     );
     const csv = `\uFEFF${[columns.map(escape).join(","), ...rows].join("\r\n")}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -375,16 +375,20 @@ export default function AdminUnitsPage() {
                       <TableRow key={unit.id}>
                         <TableCell>
                           <div className="font-medium">{unit.name}</div>
-                          <div className="text-xs text-muted-foreground">{unit.cnesCode ? `CNES ${unit.cnesCode}` : t("adminUnits:notRecorded")}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {unit.cnesCode ? `CNES ${unit.cnesCode}` : t("adminUnits:notRecorded")}
+                          </div>
                         </TableCell>
                         <TableCell>{clinicName(unit.clinicTenantId)}</TableCell>
-                        <TableCell>{unit.establishmentType ? t(ESTABLISHMENT_TYPE_LABEL_KEY[unit.establishmentType]) : t("adminUnits:notRecorded")}</TableCell>
+                        <TableCell>
+                          {unit.establishmentType ? t(ESTABLISHMENT_TYPE_LABEL_KEY[unit.establishmentType]) : t("adminUnits:notRecorded")}
+                        </TableCell>
                         <TableCell>{cityState ?? t("adminUnits:notRecorded")}</TableCell>
                         <TableCell>
                           <Badge
                             className={cn(
                               "border-transparent",
-                              unit.deactivated ? "bg-[#3d1d1d] text-[#ff8b8b]" : "bg-[#1d3d2b] text-[#5fdc8a]"
+                              unit.deactivated ? "bg-[#3d1d1d] text-[#ff8b8b]" : "bg-[#1d3d2b] text-[#5fdc8a]",
                             )}
                           >
                             {unit.deactivated ? t("adminUnits:statusInactive") : t("adminUnits:statusActive")}

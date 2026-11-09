@@ -46,6 +46,6 @@ export class CreateEquipmentCommand {
   constructor(
     public readonly tenantId: string,
     public readonly actingUserId: string,
-    public readonly equipment: NewEquipment
+    public readonly equipment: NewEquipment,
   ) {}
 }

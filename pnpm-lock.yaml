@@ -20,6 +20,9 @@ importers:
       globals:
         specifier: ^17.14.0
         version: 17.14.0
+      prettier:
+        specifier: ^3.9.10
+        version: 3.9.10
       railway:
         specifier: ^3.11.0
         version: 3.11.0
@@ -7884,8 +7887,7 @@ snapshots:
 
   prelude-ls@1.2.1: {}
 
-  prettier@3.9.10:
-    optional: true
+  prettier@3.9.10: {}
 
   prisma@6.19.3(typescript@5.9.3):
     dependencies:

@@ -23,7 +23,7 @@ export class MediaStreamTicketService {
 
   constructor(
     private readonly jwt: JwtService,
-    config: ConfigService
+    config: ConfigService,
   ) {
     this.secret = config.getOrThrow<string>("JWT_ACCESS_SECRET");
     this.ttlSeconds = config.get<number>("MEDIA_STREAM_TICKET_TTL_SECONDS", 30);

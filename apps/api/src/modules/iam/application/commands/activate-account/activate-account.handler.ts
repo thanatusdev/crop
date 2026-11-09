@@ -33,7 +33,7 @@ export class ActivateAccountHandler implements ICommandHandler<ActivateAccountCo
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
     @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ActivateAccountCommand): Promise<void> {
@@ -87,7 +87,7 @@ export class ActivateAccountHandler implements ICommandHandler<ActivateAccountCo
         resourceType: "User",
         resourceId: user.id,
         details: {},
-      })
+      }),
     );
   }
 }

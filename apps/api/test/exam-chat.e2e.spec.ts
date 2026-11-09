@@ -53,7 +53,11 @@ describe("Exam-support chat, quick-reply shortcuts, and attachments", () => {
     adminToken = admin.accessToken;
     const nursing = await createLoggedInUser(app, { tenantId: clinicId, role: UserRole.NURSING, emailPrefix: "chat-nursing" });
     nursingToken = nursing.accessToken;
-    const operator = await createContractedOperator(app, prisma, { clinicTenantId: clinicId, role: UserRole.OPERATOR, emailPrefix: "chat-operator" });
+    const operator = await createContractedOperator(app, prisma, {
+      clinicTenantId: clinicId,
+      role: UserRole.OPERATOR,
+      emailPrefix: "chat-operator",
+    });
     operatorToken = operator.accessToken;
 
     const equipmentRes = await http
@@ -170,16 +174,18 @@ describe("Exam-support chat, quick-reply shortcuts, and attachments", () => {
   });
 
   it("rejects a send with neither text nor an attachment", async () => {
-    await http.post("/chat/messages").set("Authorization", `Bearer ${operatorToken}`).field("equipmentId", equipmentId).field("body", "").expect(400);
+    await http
+      .post("/chat/messages")
+      .set("Authorization", `Bearer ${operatorToken}`)
+      .field("equipmentId", equipmentId)
+      .field("body", "")
+      .expect(400);
   });
 
   it("uploads a small PNG attachment, broadcasts and lists it without a body, and lets an authorized reader download the exact bytes back", async () => {
     // A 1x1 transparent PNG, small enough to inline as a fixture rather than reading a file
     // from disk for one pixel of data.
-    const png = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-      "base64"
-    );
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 
     const sendRes = await http
       .post("/chat/messages")
@@ -198,7 +204,11 @@ describe("Exam-support chat, quick-reply shortcuts, and attachments", () => {
     // A different clinic's admin, with no relationship to this room at all, is refused --
     // same tenancy check every other single-resource read in this suite exercises.
     const otherClinic = await createTenant(prisma, `ExamChatAttachmentOther-${crypto.randomUUID()}`);
-    const otherAdmin = await createLoggedInUser(app, { tenantId: otherClinic.id, role: UserRole.CLINIC_ADMIN, emailPrefix: "attachment-other-admin" });
+    const otherAdmin = await createLoggedInUser(app, {
+      tenantId: otherClinic.id,
+      role: UserRole.CLINIC_ADMIN,
+      emailPrefix: "attachment-other-admin",
+    });
     await http.get(`/chat/messages/${messageId}/attachment`).set("Authorization", `Bearer ${otherAdmin.accessToken}`).expect(403);
   });
 
@@ -226,7 +236,10 @@ describe("Exam-support chat, quick-reply shortcuts, and attachments", () => {
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     await prisma.examMessage.update({ where: { id: yesterdayRes.body.id }, data: { createdAt: yesterday } });
 
-    const todayList = await http.get(`/chat/messages?equipmentId=${equipmentId}&date=${today}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
+    const todayList = await http
+      .get(`/chat/messages?equipmentId=${equipmentId}&date=${today}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
     expect(todayList.body.some((m: { body: string }) => m.body === "mensagem de ontem")).toBe(false);
 
     const yesterdayDay = toClinicDayString(new Date(Date.now() - 24 * 60 * 60 * 1000));
@@ -239,7 +252,11 @@ describe("Exam-support chat, quick-reply shortcuts, and attachments", () => {
 
   it("refuses to list or send to another tenant's chat, and refuses a contracted operator reaching a room outside their agreement scope", async () => {
     const otherClinic = await createTenant(prisma, `ExamChatOther-${crypto.randomUUID()}`);
-    const otherAdmin = await createLoggedInUser(app, { tenantId: otherClinic.id, role: UserRole.CLINIC_ADMIN, emailPrefix: "chat-other-admin" });
+    const otherAdmin = await createLoggedInUser(app, {
+      tenantId: otherClinic.id,
+      role: UserRole.CLINIC_ADMIN,
+      emailPrefix: "chat-other-admin",
+    });
     const crossTenant = await http
       .get(`/chat/messages?equipmentId=${equipmentId}`)
       .set("Authorization", `Bearer ${otherAdmin.accessToken}`)
@@ -333,7 +350,7 @@ describe("Exam-support chat, quick-reply shortcuts, and attachments", () => {
 
     const auditRes = await http.get("/audit?limit=500").set("Authorization", `Bearer ${adminToken}`).expect(200);
     const row = auditRes.body.find(
-      (e: { action: string; resourceId: string }) => e.action === "MESSAGE_SHORTCUT_CREATED" && e.resourceId === created.body.id
+      (e: { action: string; resourceId: string }) => e.action === "MESSAGE_SHORTCUT_CREATED" && e.resourceId === created.body.id,
     );
     expect(row).toBeTruthy();
     expect(row.details.code).toBe("CONT");

@@ -74,7 +74,11 @@ describe("SessionState operator name + registration", () => {
   it("is null for an operator with no professionalRegistration on file", async () => {
     const tenant2 = await createTenant(prisma, `OperatorProfileNoReg-${crypto.randomUUID()}`);
     const admin2 = (await createLoggedInUser(app, { tenantId: tenant2.id, role: UserRole.CLINIC_ADMIN })).accessToken;
-    const operator2 = await createContractedOperator(app, prisma, { clinicTenantId: tenant2.id, role: UserRole.OPERATOR, emailPrefix: "no-reg-operator" });
+    const operator2 = await createContractedOperator(app, prisma, {
+      clinicTenantId: tenant2.id,
+      role: UserRole.OPERATOR,
+      emailPrefix: "no-reg-operator",
+    });
     const eqRes = await http
       .post("/equipment")
       .set("Authorization", `Bearer ${admin2}`)

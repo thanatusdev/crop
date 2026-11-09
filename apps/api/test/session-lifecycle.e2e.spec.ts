@@ -11,7 +11,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -47,8 +47,10 @@ describe("Session lifecycle", () => {
 
     adminToken = (await createLoggedInUser(app, { tenantId, role: UserRole.CLINIC_ADMIN })).accessToken;
     operatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR })).accessToken;
-    otherOperatorInSameTenantToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR })).accessToken;
-    otherTenantOperatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: otherTenantId, role: UserRole.OPERATOR })).accessToken;
+    otherOperatorInSameTenantToken = (await createContractedOperator(app, prisma, { clinicTenantId: tenantId, role: UserRole.OPERATOR }))
+      .accessToken;
+    otherTenantOperatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: otherTenantId, role: UserRole.OPERATOR }))
+      .accessToken;
 
     equipmentId = await createOnlineEquipment(http, adminToken, prisma, "Lifecycle-MRI");
   });
@@ -105,11 +107,7 @@ describe("Session lifecycle", () => {
   });
 
   it("starts a session as ACTIVE, with the starting operator as controller", async () => {
-    const res = await http
-      .post("/sessions")
-      .set("Authorization", `Bearer ${operatorToken}`)
-      .send({ equipmentId })
-      .expect(201);
+    const res = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId }).expect(201);
 
     expect(res.body.status).toBe("ACTIVE");
     expect(res.body.operatorId).toBeTruthy();
@@ -132,10 +130,7 @@ describe("Session lifecycle", () => {
     const startRes = await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId }).expect(201);
     const sessionId = startRes.body.id;
 
-    const res = await http
-      .post(`/sessions/${sessionId}/end`)
-      .set("Authorization", `Bearer ${otherOperatorInSameTenantToken}`)
-      .expect(403);
+    const res = await http.post(`/sessions/${sessionId}/end`).set("Authorization", `Bearer ${otherOperatorInSameTenantToken}`).expect(403);
     expect(res.body.code).toBe("FORBIDDEN");
 
     await http.post(`/sessions/${sessionId}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
@@ -143,13 +138,13 @@ describe("Session lifecycle", () => {
 
   it("enforces the per-operator concurrent session limit", async () => {
     const equipmentIds = await Promise.all(
-      Array.from({ length: 4 }, (_, i) => createOnlineEquipment(http, adminToken, prisma, `Limit-Test-${i}-${crypto.randomUUID()}`))
+      Array.from({ length: 4 }, (_, i) => createOnlineEquipment(http, adminToken, prisma, `Limit-Test-${i}-${crypto.randomUUID()}`)),
     );
 
     const startResults = await Promise.all(
-      equipmentIds.slice(0, 3).map((id) =>
-        http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: id }).expect(201)
-      )
+      equipmentIds
+        .slice(0, 3)
+        .map((id) => http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId: id }).expect(201)),
     );
     const startedSessionIds = startResults.map((res) => res.body.id);
 
@@ -162,7 +157,7 @@ describe("Session lifecycle", () => {
     expect(res.body.code).toBe("FORBIDDEN");
 
     await Promise.all(
-      startedSessionIds.map((id) => http.post(`/sessions/${id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201))
+      startedSessionIds.map((id) => http.post(`/sessions/${id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201)),
     );
   });
 
@@ -199,10 +194,7 @@ describe("Session lifecycle", () => {
 
     await http.post(`/sessions/${sessionRes.body.id}/end`).set("Authorization", `Bearer ${operatorToken}`).expect(201);
 
-    const afterEnd = await http
-      .get(`/queue?equipmentId=${dedicatedEquipmentId}`)
-      .set("Authorization", `Bearer ${adminToken}`)
-      .expect(200);
+    const afterEnd = await http.get(`/queue?equipmentId=${dedicatedEquipmentId}`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     expect(afterEnd.body.find((e: { id: string }) => e.id === queueEntryId).status).toBe("DONE");
 
     // The actual regression check: starting a brand new session against the SAME equipment

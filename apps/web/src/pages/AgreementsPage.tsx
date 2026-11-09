@@ -134,7 +134,7 @@ export default function AgreementsPage() {
     setProposeOpen(true);
     try {
       const options = await api.get<AgreementCounterpartyOption[]>(
-        isOperatorSide ? "/agreements/clinic-options" : "/agreements/operator-options"
+        isOperatorSide ? "/agreements/clinic-options" : "/agreements/operator-options",
       );
       setCounterpartyOptions(options);
     } catch (err) {
@@ -243,7 +243,7 @@ export default function AgreementsPage() {
 
   const visible = useMemo(
     () => (statusFilter === "ALL" ? agreements : agreements.filter((agreement) => agreement.status === statusFilter)),
-    [agreements, statusFilter]
+    [agreements, statusFilter],
   );
 
   // Any equipment the picker pre-checked by way of a legacy unit grant rather than a direct
@@ -364,7 +364,10 @@ export default function AgreementsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          className={cn("border-transparent", tailwindBadgeClassOf(agreementStatusBadgeClassOf(agreement.status) as DisplayStatus))}
+                          className={cn(
+                            "border-transparent",
+                            tailwindBadgeClassOf(agreementStatusBadgeClassOf(agreement.status) as DisplayStatus),
+                          )}
                         >
                           {t(agreementStatusLabelKeyFor(agreement, viewerTenantId, isPlatformAdmin))}
                         </Badge>

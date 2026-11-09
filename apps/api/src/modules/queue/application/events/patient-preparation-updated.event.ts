@@ -10,6 +10,6 @@ export class PatientPreparationUpdatedEvent {
     public readonly tenantId: string,
     public readonly equipmentId: string,
     public readonly queueEntryId: string,
-    public readonly sessionId: string | null
+    public readonly sessionId: string | null,
   ) {}
 }

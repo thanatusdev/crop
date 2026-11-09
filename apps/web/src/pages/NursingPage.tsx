@@ -210,7 +210,7 @@ export default function NursingPage() {
   }
 
   const selectedEquipment = equipmentList.find((e) => e.id === selectedEquipmentId) ?? null;
-  const selectedUnit = selectedEquipment?.unitId ? units.find((u) => u.id === selectedEquipment.unitId) ?? null : null;
+  const selectedUnit = selectedEquipment?.unitId ? (units.find((u) => u.id === selectedEquipment.unitId) ?? null) : null;
   const roomHeading = selectedEquipment?.roomLabel ?? selectedEquipment?.name ?? "";
   const roomSubtitle = selectedEquipment
     ? [
@@ -463,7 +463,9 @@ export default function NursingPage() {
     const patient = queue.find((entry) => entry.id === id);
     const position = nextOrder.indexOf(id);
     if (!patient || position < 0) return;
-    setMoveAnnouncement(t("nursing:moveAnnouncement", { patient: patient.patientFirstName, position: position + 1, total: nextOrder.length }));
+    setMoveAnnouncement(
+      t("nursing:moveAnnouncement", { patient: patient.patientFirstName, position: position + 1, total: nextOrder.length }),
+    );
   }
 
   function moveDraft(id: string, direction: -1 | 1) {
@@ -880,7 +882,7 @@ export default function NursingPage() {
                           reorderable && "cursor-grab",
                           draggingId === entry.id && "opacity-50",
                           dropTargetId === entry.id && "outline-2 outline-dashed outline-primary -outline-offset-2",
-                          selected && "border-primary bg-accent"
+                          selected && "border-primary bg-accent",
                         )}
                         draggable={reorderable}
                         onDragStart={() => reorderable && setDraggingId(entry.id)}
@@ -905,7 +907,9 @@ export default function NursingPage() {
                           aria-current={selected ? "true" : undefined}
                           onClick={() => selectEntryForEditing(entry)}
                         >
-                          <span className="text-xs font-medium text-muted-foreground">{t("nursing:cardRank", { position: index + 1 })}</span>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {t("nursing:cardRank", { position: index + 1 })}
+                          </span>
                           <span className="font-semibold">{entry.patientFirstName}</span>
                           {entry.examDescription && <span className="text-sm text-muted-foreground">{entry.examDescription}</span>}
                           {entry.scheduledAt && (
@@ -995,9 +999,7 @@ export default function NursingPage() {
                       </AlertDescription>
                     </Alert>
                   )}
-                  {!isDetailsEditable(selectedEntry) && (
-                    <p className="mb-3 text-sm text-destructive">{t("nursing:detailsLockedNote")}</p>
-                  )}
+                  {!isDetailsEditable(selectedEntry) && <p className="mb-3 text-sm text-destructive">{t("nursing:detailsLockedNote")}</p>}
                   {detailsError && (
                     <Alert variant="destructive" className="mb-3">
                       <AlertDescription>{detailsError}</AlertDescription>
@@ -1060,7 +1062,7 @@ export default function NursingPage() {
                                 "w-fit border-transparent",
                                 selectedEntry.allergyStatus === AllergyStatus.PRESENT
                                   ? "bg-[#3d1d1d] text-[#ff8b8b]"
-                                  : "bg-[#1d3d2b] text-[#5fdc8a]"
+                                  : "bg-[#1d3d2b] text-[#5fdc8a]",
                               )}
                             >
                               {selectedEntry.allergyStatus === AllergyStatus.PRESENT ? (
@@ -1079,7 +1081,11 @@ export default function NursingPage() {
                         </SummaryField>
                         <SummaryField label={t("nursing:metforminUseLabel")}>
                           <span className="font-semibold">
-                            {selectedEntry.metforminUse === null ? notInformed : selectedEntry.metforminUse ? t("nursing:yes") : t("nursing:no")}
+                            {selectedEntry.metforminUse === null
+                              ? notInformed
+                              : selectedEntry.metforminUse
+                                ? t("nursing:yes")
+                                : t("nursing:no")}
                           </span>
                         </SummaryField>
                         <SummaryField label={t("nursing:anticoagulantUseLabel")}>
@@ -1124,7 +1130,9 @@ export default function NursingPage() {
                             value={detailsDraft.examDescription}
                             onChange={(e) => updateDraftField("examDescription", e.target.value)}
                           />
-                          {detailsFieldErrors.examDescription && <p className="text-sm text-destructive">{detailsFieldErrors.examDescription}</p>}
+                          {detailsFieldErrors.examDescription && (
+                            <p className="text-sm text-destructive">{detailsFieldErrors.examDescription}</p>
+                          )}
                         </div>
                         <div className="flex flex-col gap-1.5">
                           <Label htmlFor="details-patient-sex">{t("nursing:patientSexLabel")}</Label>
@@ -1155,7 +1163,9 @@ export default function NursingPage() {
                             value={detailsDraft.patientWeightKg ?? ""}
                             onChange={(e) => updateDraftField("patientWeightKg", e.target.value === "" ? null : Number(e.target.value))}
                           />
-                          {detailsFieldErrors.patientWeightKg && <p className="text-sm text-destructive">{detailsFieldErrors.patientWeightKg}</p>}
+                          {detailsFieldErrors.patientWeightKg && (
+                            <p className="text-sm text-destructive">{detailsFieldErrors.patientWeightKg}</p>
+                          )}
                         </div>
                         <div className="flex flex-col gap-1.5">
                           <Label htmlFor="details-scheduled-at">{t("nursing:scheduledAtLabel")}</Label>
@@ -1230,7 +1240,9 @@ export default function NursingPage() {
                             value={detailsDraft.creatinineMgDl ?? ""}
                             onChange={(e) => updateDraftField("creatinineMgDl", e.target.value === "" ? null : Number(e.target.value))}
                           />
-                          {detailsFieldErrors.creatinineMgDl && <p className="text-sm text-destructive">{detailsFieldErrors.creatinineMgDl}</p>}
+                          {detailsFieldErrors.creatinineMgDl && (
+                            <p className="text-sm text-destructive">{detailsFieldErrors.creatinineMgDl}</p>
+                          )}
                         </div>
                         <div className="flex flex-col gap-1.5">
                           <Label htmlFor="details-allergy-status">{t("nursing:allergyStatusLabel")}</Label>
@@ -1303,7 +1315,9 @@ export default function NursingPage() {
                           value={detailsDraft.preparationNotes}
                           onChange={(e) => updateDraftField("preparationNotes", e.target.value)}
                         />
-                        {detailsFieldErrors.preparationNotes && <p className="text-sm text-destructive">{detailsFieldErrors.preparationNotes}</p>}
+                        {detailsFieldErrors.preparationNotes && (
+                          <p className="text-sm text-destructive">{detailsFieldErrors.preparationNotes}</p>
+                        )}
                       </div>
                     </fieldset>
                   )}
@@ -1580,7 +1594,10 @@ function SummaryField({ label, children }: { label: string; children: React.Reac
 /** `kind` i18n keys -- a literal mapping, not an assembled template, same "keep tsc checking
  * every key against pt-BR.ts's real shape" reasoning `statusLabelKeyOf`/`queueStatusLabelKeyOf`
  * already establish in equipment-display.ts/queue-display.ts. */
-const DOCUMENT_KIND_LABEL_KEY: Record<QueueDocumentKind, "nursing:documentKindPedidoMedico" | "nursing:documentKindLaudoAnterior" | "nursing:documentKindOutro"> = {
+const DOCUMENT_KIND_LABEL_KEY: Record<
+  QueueDocumentKind,
+  "nursing:documentKindPedidoMedico" | "nursing:documentKindLaudoAnterior" | "nursing:documentKindOutro"
+> = {
   [QueueDocumentKind.PEDIDO_MEDICO]: "nursing:documentKindPedidoMedico",
   [QueueDocumentKind.LAUDO_ANTERIOR]: "nursing:documentKindLaudoAnterior",
   [QueueDocumentKind.OUTRO]: "nursing:documentKindOutro",
@@ -1641,7 +1658,10 @@ function QueueDocumentRow({
         {t(DOCUMENT_KIND_LABEL_KEY[document.kind])}
       </Badge>
       <span className="flex-shrink-0 text-xs text-muted-foreground">
-        {t("nursing:documentUploadedBy", { name: document.uploadedByName ?? t("nursing:attributionUnknown"), time: formatClinicTime(document.uploadedAt) })}
+        {t("nursing:documentUploadedBy", {
+          name: document.uploadedByName ?? t("nursing:attributionUnknown"),
+          time: formatClinicTime(document.uploadedAt),
+        })}
       </span>
       {canRemove && (
         <Button
@@ -1659,7 +1679,6 @@ function QueueDocumentRow({
     </li>
   );
 }
-
 
 /** Sentinel for a Radix `Select.Item`'s `value` -- Radix rejects an empty string there (it's
  * reserved to mean "no selection" internally), but `patientSex`/`allergyStatus` are real
@@ -1684,8 +1703,6 @@ function boolToSelectValue(value: boolean | null): string {
 function selectValueToBool(value: string): boolean | null {
   return value === UNSET ? null : value === "true";
 }
-
-
 
 interface DetailsDraft {
   examDescription: string;

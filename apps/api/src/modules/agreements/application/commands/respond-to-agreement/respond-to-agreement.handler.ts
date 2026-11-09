@@ -20,7 +20,7 @@ import { RespondToAgreementCommand } from "./respond-to-agreement.command.js";
 export class RespondToAgreementHandler implements ICommandHandler<RespondToAgreementCommand, OperatorAgreement> {
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: RespondToAgreementCommand): Promise<OperatorAgreement> {
@@ -62,7 +62,7 @@ export class RespondToAgreementHandler implements ICommandHandler<RespondToAgree
           // not have to reconstruct that from a later scope-change event.
           scopeCount: agreement.scopes.length,
         },
-      })
+      }),
     );
 
     return agreement;

@@ -26,7 +26,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -94,7 +94,12 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
       .field("kind", "LAUDO_ANTERIOR")
       .attach("file", PDF_BYTES, { filename: "laudo-anterior.pdf", contentType: "application/pdf" })
       .expect(201);
-    expect(uploadRes.body).toMatchObject({ kind: "LAUDO_ANTERIOR", filename: "laudo-anterior.pdf", mimeType: "application/pdf", sizeBytes: PDF_BYTES.length });
+    expect(uploadRes.body).toMatchObject({
+      kind: "LAUDO_ANTERIOR",
+      filename: "laudo-anterior.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: PDF_BYTES.length,
+    });
     expect(uploadRes.body.uploadedByName).toBeTruthy();
     const documentId = uploadRes.body.id;
 
@@ -102,7 +107,10 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
     expect(entryRes.body.documents).toHaveLength(1);
     expect(entryRes.body.documents[0]).toMatchObject({ id: documentId, kind: "LAUDO_ANTERIOR", filename: "laudo-anterior.pdf" });
 
-    const download = await http.get(`/queue/${queueEntryId}/documents/${documentId}/content`).set("Authorization", `Bearer ${nurseToken}`).expect(200);
+    const download = await http
+      .get(`/queue/${queueEntryId}/documents/${documentId}/content`)
+      .set("Authorization", `Bearer ${nurseToken}`)
+      .expect(200);
     expect(Buffer.compare(download.body, PDF_BYTES)).toBe(0);
     expect(download.headers["content-type"]).toContain("application/pdf");
     expect(download.headers["content-disposition"]).toContain("laudo-anterior.pdf");
@@ -185,7 +193,10 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
       .expect(409);
     expect(uploadAfter.body.code).toBe("CONFLICT");
 
-    const removeAfter = await http.post(`/queue/${queueEntryId}/documents/${documentId}/remove`).set("Authorization", `Bearer ${nurseToken}`).expect(409);
+    const removeAfter = await http
+      .post(`/queue/${queueEntryId}/documents/${documentId}/remove`)
+      .set("Authorization", `Bearer ${nurseToken}`)
+      .expect(409);
     expect(removeAfter.body.code).toBe("CONFLICT");
 
     // The one document route with no status gate at all -- a completed exam's order is
@@ -213,7 +224,10 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
       .set("Authorization", `Bearer ${contractedOperatorToken}`)
       .attach("file", PDF_BYTES, { filename: "sneaky.pdf", contentType: "application/pdf" })
       .expect(403);
-    await http.post(`/queue/${queueEntryId}/documents/${documentId}/remove`).set("Authorization", `Bearer ${contractedOperatorToken}`).expect(403);
+    await http
+      .post(`/queue/${queueEntryId}/documents/${documentId}/remove`)
+      .set("Authorization", `Bearer ${contractedOperatorToken}`)
+      .expect(403);
   });
 
   it("refuses a company with no agreement on this clinic at all, the same scope check GetQueueEntryHandler already enforces", async () => {
@@ -245,8 +259,14 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
       .set("Authorization", `Bearer ${otherTenantNurseToken}`)
       .attach("file", PDF_BYTES, { filename: "intruder.pdf", contentType: "application/pdf" })
       .expect(403);
-    await http.post(`/queue/${queueEntryId}/documents/${documentId}/remove`).set("Authorization", `Bearer ${otherTenantNurseToken}`).expect(403);
-    await http.get(`/queue/${queueEntryId}/documents/${documentId}/content`).set("Authorization", `Bearer ${otherTenantNurseToken}`).expect(403);
+    await http
+      .post(`/queue/${queueEntryId}/documents/${documentId}/remove`)
+      .set("Authorization", `Bearer ${otherTenantNurseToken}`)
+      .expect(403);
+    await http
+      .get(`/queue/${queueEntryId}/documents/${documentId}/content`)
+      .set("Authorization", `Bearer ${otherTenantNurseToken}`)
+      .expect(403);
   });
 
   it("audits both actions with kind/mimeType only -- never the filename, which can itself carry a patient's name", async () => {
@@ -263,10 +283,12 @@ describe("Queue entry documents (the nurse's uploaded Pedido Médico/Laudo Anter
 
     const auditRes = await http.get(`/audit?limit=500`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const attached = auditRes.body.find(
-      (e: { action: string; details: { documentId?: string } }) => e.action === "QUEUE_DOCUMENT_ATTACHED" && e.details.documentId === documentId
+      (e: { action: string; details: { documentId?: string } }) =>
+        e.action === "QUEUE_DOCUMENT_ATTACHED" && e.details.documentId === documentId,
     );
     const removed = auditRes.body.find(
-      (e: { action: string; details: { documentId?: string } }) => e.action === "QUEUE_DOCUMENT_REMOVED" && e.details.documentId === documentId
+      (e: { action: string; details: { documentId?: string } }) =>
+        e.action === "QUEUE_DOCUMENT_REMOVED" && e.details.documentId === documentId,
     );
     expect(attached).toBeTruthy();
     expect(removed).toBeTruthy();

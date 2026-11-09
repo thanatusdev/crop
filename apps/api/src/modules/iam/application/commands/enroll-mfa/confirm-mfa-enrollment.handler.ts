@@ -11,7 +11,7 @@ export class ConfirmMfaEnrollmentHandler implements ICommandHandler<ConfirmMfaEn
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
     @Inject(MFA_SERVICE) private readonly mfa: MfaServicePort,
-    @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort
+    @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
   ) {}
 
   async execute(command: ConfirmMfaEnrollmentCommand): Promise<void> {

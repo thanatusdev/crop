@@ -12,7 +12,7 @@ export class UpdateQueueEntryDetailsHandler implements ICommandHandler<UpdateQue
   constructor(
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: UpdateQueueEntryDetailsCommand): Promise<void> {
@@ -110,7 +110,7 @@ export class UpdateQueueEntryDetailsHandler implements ICommandHandler<UpdateQue
         // copy of it. Mirrors CreateQueueEntryHandler/UpdatePreparationStatusHandler's own
         // "prove the action happened, don't duplicate the patient data" rule.
         details: { equipmentId: entry.equipmentId, changedFields },
-      })
+      }),
     );
 
     this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, entry.equipmentId));

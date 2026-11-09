@@ -6,6 +6,6 @@ export class ListTechnicalManagerOptionsQuery {
     public readonly clinicTenantId: string,
     public readonly requestingUserId: string,
     public readonly requestingTenantId: string,
-    public readonly requestingRole: UserRole
+    public readonly requestingRole: UserRole,
   ) {}
 }

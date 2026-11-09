@@ -40,7 +40,7 @@ describe("CreateTenantRequestSchema -- institutional identity is mandatory for a
     (field) => {
       const { [field]: _omitted, ...withoutField } = validClinic;
       expect(CreateTenantRequestSchema.safeParse(withoutField).success).toBe(false);
-    }
+    },
   );
 
   it("rejects a CNPJ that fails the check-digit algorithm", () => {
@@ -91,7 +91,7 @@ describe("CreateTenantRequestSchema -- institutional identity is mandatory for a
     (field) => {
       const { [field]: _omitted, ...withoutField } = validOperator;
       expect(CreateTenantRequestSchema.safeParse(withoutField).success).toBe(false);
-    }
+    },
   );
 
   it("rejects an OPERATOR_PROVIDER with no name, same as any other tenant", () => {
@@ -112,7 +112,7 @@ describe("UpdateTenantRequestSchema", () => {
     "refuses to null out %s: an update may leave a required-on-create field alone but may not walk it back into the historical-null set",
     (field) => {
       expect(UpdateTenantRequestSchema.safeParse({ [field]: null }).success).toBe(false);
-    }
+    },
   );
 
   it("does allow nulling out responsibleManagerId -- unlike every other required-on-create field, a manager can legitimately become unassigned", () => {

@@ -16,7 +16,7 @@ import { GetEquipmentQuery } from "./get-equipment.query.js";
 export class GetEquipmentHandler implements IQueryHandler<GetEquipmentQuery, Equipment> {
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(query: GetEquipmentQuery): Promise<Equipment> {

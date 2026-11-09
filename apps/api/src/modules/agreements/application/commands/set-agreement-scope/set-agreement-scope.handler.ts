@@ -23,7 +23,7 @@ export class SetAgreementScopeHandler implements ICommandHandler<SetAgreementSco
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: SetAgreementScopeCommand): Promise<OperatorAgreement> {
@@ -60,7 +60,7 @@ export class SetAgreementScopeHandler implements ICommandHandler<SetAgreementSco
           previousScopeCount,
           newScopeCount: agreement.scopes.length,
         },
-      })
+      }),
     );
 
     // Published on every scope save, not only when something was removed: the handler re-checks

@@ -27,7 +27,7 @@ import { toEquipmentDto } from "./equipment.dto.js";
 export class EquipmentController {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly queryBus: QueryBus
+    private readonly queryBus: QueryBus,
   ) {}
 
   @Post()
@@ -42,7 +42,7 @@ export class EquipmentController {
   @Roles(UserRole.PLATFORM_ADMIN, UserRole.CLINIC_ADMIN, UserRole.LOCAL_SUPERVISOR, UserRole.LOCAL_IT)
   async create(
     @CurrentUser() user: AccessTokenClaims,
-    @Body(new ZodValidationPipe(CreateEquipmentRequestSchema)) body: CreateEquipmentRequest
+    @Body(new ZodValidationPipe(CreateEquipmentRequestSchema)) body: CreateEquipmentRequest,
   ) {
     const equipment = await this.commandBus.execute(
       new CreateEquipmentCommand(user.tenantId, user.sub, {
@@ -72,7 +72,7 @@ export class EquipmentController {
         screenWidth: body.screenWidth,
         screenHeight: body.screenHeight,
         cameraUrl: body.cameraUrl ?? null,
-      })
+      }),
     );
     return toEquipmentDto(equipment);
   }
@@ -94,7 +94,7 @@ export class EquipmentController {
   async update(
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(UpdateEquipmentRequestSchema)) body: UpdateEquipmentRequest
+    @Body(new ZodValidationPipe(UpdateEquipmentRequestSchema)) body: UpdateEquipmentRequest,
   ) {
     const equipment = await this.commandBus.execute(new UpdateEquipmentCommand(id, user.tenantId, user.sub, body));
     return toEquipmentDto(equipment);

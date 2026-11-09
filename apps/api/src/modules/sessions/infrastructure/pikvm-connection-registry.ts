@@ -1,10 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { describeError, PiKvmDevice, PiKvmMediaRelay, type MouseButton, type PiKvmCredentials } from "@crop/pikvm";
 import { MetricsService } from "../../../shared/infrastructure/metrics/metrics.service.js";
-import type {
-  EquipmentConnectionSecrets,
-  PiKvmGatewayPort,
-} from "../application/ports/pikvm-gateway.port.js";
+import type { EquipmentConnectionSecrets, PiKvmGatewayPort } from "../application/ports/pikvm-gateway.port.js";
 
 interface RegistryEntry {
   device: PiKvmDevice;

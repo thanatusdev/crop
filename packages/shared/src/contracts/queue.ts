@@ -228,4 +228,3 @@ export const UploadQueueDocumentRequestSchema = z.object({
   kind: z.nativeEnum(QueueDocumentKind).optional(),
 });
 export type UploadQueueDocumentRequest = z.infer<typeof UploadQueueDocumentRequestSchema>;
-

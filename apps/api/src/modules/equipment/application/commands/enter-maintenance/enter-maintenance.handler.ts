@@ -10,7 +10,7 @@ import { EnterMaintenanceCommand } from "./enter-maintenance.command.js";
 export class EnterMaintenanceHandler implements ICommandHandler<EnterMaintenanceCommand, void> {
   constructor(
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: EnterMaintenanceCommand): Promise<void> {

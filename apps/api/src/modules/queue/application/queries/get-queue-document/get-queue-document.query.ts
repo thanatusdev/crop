@@ -9,6 +9,6 @@ export class GetQueueDocumentQuery {
     public readonly queueEntryId: string,
     public readonly documentId: string,
     public readonly tenantId: string,
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }

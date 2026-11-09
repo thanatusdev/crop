@@ -31,7 +31,7 @@ export class AbortIdleSessionHandler implements ICommandHandler<AbortIdleSession
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
-    private readonly metrics: MetricsService
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(command: AbortIdleSessionCommand): Promise<void> {
@@ -76,7 +76,7 @@ export class AbortIdleSessionHandler implements ICommandHandler<AbortIdleSession
         resourceType: "Equipment",
         resourceId: session.equipmentId,
         details: { reason: "idle_timeout" },
-      })
+      }),
     );
   }
 }

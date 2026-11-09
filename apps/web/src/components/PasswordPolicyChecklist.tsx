@@ -42,10 +42,7 @@ export function PasswordPolicyChecklist({ evaluation }: { evaluation: PasswordEv
               </span>
               <span className={satisfied ? "text-foreground" : "text-muted-foreground"}>
                 {ruleCopy[rule]}
-                <span className="sr-only">
-                  {" "}
-                  ({satisfied ? t("password:ruleSatisfied") : t("password:ruleNotSatisfied")})
-                </span>
+                <span className="sr-only"> ({satisfied ? t("password:ruleSatisfied") : t("password:ruleNotSatisfied")})</span>
               </span>
             </li>
           );
@@ -54,4 +51,3 @@ export function PasswordPolicyChecklist({ evaluation }: { evaluation: PasswordEv
     </div>
   );
 }
-

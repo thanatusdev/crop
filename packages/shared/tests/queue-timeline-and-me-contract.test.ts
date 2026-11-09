@@ -43,9 +43,9 @@ describe("QueueTimelineEntrySchema", () => {
   });
 
   it("accepts a null actorName", () => {
-    expect(QueueTimelineEntrySchema.safeParse({ action: "QUEUE_ENTRY_UPDATED", timestamp: "2026-09-28T11:00:00.000Z", actorName: null }).success).toBe(
-      true
-    );
+    expect(
+      QueueTimelineEntrySchema.safeParse({ action: "QUEUE_ENTRY_UPDATED", timestamp: "2026-09-28T11:00:00.000Z", actorName: null }).success,
+    ).toBe(true);
   });
 
   // Deliberately no seq/hash/prevHash -- see this schema's own docstring on why it's

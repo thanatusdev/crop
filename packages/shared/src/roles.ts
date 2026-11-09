@@ -58,12 +58,7 @@ export const ROLE_TENANT_TYPES: Record<UserRole, readonly TenantType[]> = {
  * (e.g. which roles a CLINIC_ADMIN's "create user" form offers), not tenant-type enforcement;
  * see `ROLE_TENANT_TYPES` for the actual invariant.
  */
-export const CLINIC_ROLES: readonly UserRole[] = [
-  UserRole.CLINIC_ADMIN,
-  UserRole.LOCAL_SUPERVISOR,
-  UserRole.NURSING,
-  UserRole.LOCAL_IT,
-];
+export const CLINIC_ROLES: readonly UserRole[] = [UserRole.CLINIC_ADMIN, UserRole.LOCAL_SUPERVISOR, UserRole.NURSING, UserRole.LOCAL_IT];
 
 /**
  * Roles primarily associated with the remote-operation side of the business. Since the
@@ -73,11 +68,7 @@ export const CLINIC_ROLES: readonly UserRole[] = [
  * separate anyway: `ROLE_TENANT_TYPES` is the enforced invariant, this is a UI grouping, and
  * AUDITOR is deliberately in neither (it spans both sides).
  */
-export const OPERATOR_PROVIDER_ROLES: readonly UserRole[] = [
-  UserRole.OPERATOR_ADMIN,
-  UserRole.OPERATIONAL_SUPERVISOR,
-  UserRole.OPERATOR,
-];
+export const OPERATOR_PROVIDER_ROLES: readonly UserRole[] = [UserRole.OPERATOR_ADMIN, UserRole.OPERATIONAL_SUPERVISOR, UserRole.OPERATOR];
 
 /**
  * Every role assignable through `POST /users` -- i.e. everything except `PLATFORM_ADMIN`,

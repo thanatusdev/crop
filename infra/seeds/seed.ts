@@ -11,7 +11,19 @@
 import { NestFactory } from "@nestjs/core";
 import { CommandBus } from "@nestjs/cqrs";
 import * as OTPAuth from "otpauth";
-import { TargetOs, MouseMode, ExamModality, EstablishmentType, TenantType, UserRole, PatientSex, AllergyStatus, clinicTimeToUtcIso, todayClinicDayString, requiresClinicAssignment } from "@crop/shared";
+import {
+  TargetOs,
+  MouseMode,
+  ExamModality,
+  EstablishmentType,
+  TenantType,
+  UserRole,
+  PatientSex,
+  AllergyStatus,
+  clinicTimeToUtcIso,
+  todayClinicDayString,
+  requiresClinicAssignment,
+} from "@crop/shared";
 import { DEMO_PASSWORD } from "./demo-password.js";
 import { AppModule } from "../../apps/api/dist/app.module.js";
 import { RegisterUserCommand } from "../../apps/api/dist/modules/iam/application/commands/register-user/register-user.command.js";
@@ -57,14 +69,16 @@ async function registerAndEnroll(
   // the nursing/operator accounts the day-view feature's own demo data actually displays a
   // registration number for ("Enfª Fernanda Alves · COREN-SP 148209",
   // "Rafael Moura · CRBM 4289").
-  professionalRegistration: string | null = null
+  professionalRegistration: string | null = null,
 ): Promise<SeededUser> {
   const clinicTenantIds = requiresClinicAssignment(role) ? [tenantId, ...extraClinicIds] : [];
   const { userId, enrollmentToken, provisioningUri } = await commandBus.execute(
     // directActivation: {password} -- this script auto-confirms MFA on the seeded user's
     // own behalf a few lines down, i.e. it's simulating an already-onboarded account, not
     // one that has to redeem an invitation link (see RegisterUserCommand's own docstring).
-    new RegisterUserCommand(tenantId, email, role, firstName, lastName, null, professionalRegistration, null, clinicTenantIds, true, { password })
+    new RegisterUserCommand(tenantId, email, role, firstName, lastName, null, professionalRegistration, null, clinicTenantIds, true, {
+      password,
+    }),
   );
   const totpSecret = extractSecret(provisioningUri);
   const code = new OTPAuth.TOTP({ secret: totpSecret }).generate();
@@ -92,7 +106,7 @@ async function main(): Promise<void> {
       district: "Bela Vista",
       city: "São Paulo",
       state: "SP",
-    })
+    }),
   );
   const { tenant: beta } = await commandBus.execute(
     new CreateTenantCommand("Clinica Beta", TenantType.CLINIC, null, {
@@ -106,7 +120,7 @@ async function main(): Promise<void> {
       district: "Centro",
       city: "Campinas",
       state: "SP",
-    })
+    }),
   );
   // The operating company (see packages/shared/src/roles.ts). Since the role-model inversion
   // this is the ONLY place an OPERATOR/OPERATIONAL_SUPERVISOR/OPERATOR_ADMIN account may
@@ -124,18 +138,40 @@ async function main(): Promise<void> {
 
   console.log("Seeding users (registering + auto-confirming MFA)...");
   const users: SeededUser[] = [];
-  users.push(await registerAndEnroll(commandBus, alpha.id, "admin@alpha.crop.health", DEMO_PASSWORD, UserRole.CLINIC_ADMIN, "Ana", "Costa"));
+  users.push(
+    await registerAndEnroll(commandBus, alpha.id, "admin@alpha.crop.health", DEMO_PASSWORD, UserRole.CLINIC_ADMIN, "Ana", "Costa"),
+  );
   users.push(await registerAndEnroll(commandBus, alpha.id, "auditor@alpha.crop.health", DEMO_PASSWORD, UserRole.AUDITOR, "Diego", "Rocha"));
   // Beta's own admin -- added alongside the unit-registration feature, whose
   // "Gestor Técnico Local" needs a real, already-registered user belonging to the *target*
   // clinic (see TechnicalManagerValidator): Beta previously had no CLINIC_ADMIN/
   // LOCAL_SUPERVISOR/LOCAL_IT account at all, so "Unidade Centro" below had no eligible
   // candidate to name.
-  const betaAdmin = await registerAndEnroll(commandBus, beta.id, "admin@beta.crop.health", DEMO_PASSWORD, UserRole.CLINIC_ADMIN, "Karina", "Duarte");
+  const betaAdmin = await registerAndEnroll(
+    commandBus,
+    beta.id,
+    "admin@beta.crop.health",
+    DEMO_PASSWORD,
+    UserRole.CLINIC_ADMIN,
+    "Karina",
+    "Duarte",
+  );
   users.push(betaAdmin);
   // The clinic-side roles (see packages/shared/src/roles.ts) -- all CLINIC-only, all
   // seeded into Clinica Alpha alongside its existing staff.
-  users.push(await registerAndEnroll(commandBus, alpha.id, "enfermagem@alpha.crop.health", DEMO_PASSWORD, UserRole.NURSING, "Fernanda", "Alves", [], "COREN-SP 148209"));
+  users.push(
+    await registerAndEnroll(
+      commandBus,
+      alpha.id,
+      "enfermagem@alpha.crop.health",
+      DEMO_PASSWORD,
+      UserRole.NURSING,
+      "Fernanda",
+      "Alves",
+      [],
+      "COREN-SP 148209",
+    ),
+  );
   users.push(
     await registerAndEnroll(
       commandBus,
@@ -144,12 +180,20 @@ async function main(): Promise<void> {
       DEMO_PASSWORD,
       UserRole.LOCAL_SUPERVISOR,
       "Gabriel",
-      "Pereira"
-    )
+      "Pereira",
+    ),
   );
   // Captured by name, not just pushed -- "Unidade Jardins" below names Helena as its
   // technical manager, demonstrating LOCAL_IT (not just CLINIC_ADMIN) as an eligible role.
-  const alphaLocalIt = await registerAndEnroll(commandBus, alpha.id, "ti@alpha.crop.health", DEMO_PASSWORD, UserRole.LOCAL_IT, "Helena", "Barbosa");
+  const alphaLocalIt = await registerAndEnroll(
+    commandBus,
+    alpha.id,
+    "ti@alpha.crop.health",
+    DEMO_PASSWORD,
+    UserRole.LOCAL_IT,
+    "Helena",
+    "Barbosa",
+  );
   users.push(alphaLocalIt);
 
   // --- Operadora Central's staff: every operator-side account in the system ---------------
@@ -167,11 +211,21 @@ async function main(): Promise<void> {
     DEMO_PASSWORD,
     UserRole.OPERATOR_ADMIN,
     "Igor",
-    "Fernandes"
+    "Fernandes",
   );
   users.push(centralAdmin);
   users.push(
-    await registerAndEnroll(commandBus, central.id, "operator@central.crop.health", DEMO_PASSWORD, UserRole.OPERATOR, "Bruno", "Lima", [], "CRBM-SP 4289")
+    await registerAndEnroll(
+      commandBus,
+      central.id,
+      "operator@central.crop.health",
+      DEMO_PASSWORD,
+      UserRole.OPERATOR,
+      "Bruno",
+      "Lima",
+      [],
+      "CRBM-SP 4289",
+    ),
   );
   users.push(
     await registerAndEnroll(
@@ -181,14 +235,14 @@ async function main(): Promise<void> {
       DEMO_PASSWORD,
       UserRole.OPERATIONAL_SUPERVISOR,
       "Carla",
-      "Souza"
-    )
+      "Souza",
+    ),
   );
   // A second operator, to keep the "two operators, different accounts" demo the old
   // operator@alpha/operator@beta pair provided -- now both employed by the same company,
   // which is what the model actually says.
   users.push(
-    await registerAndEnroll(commandBus, central.id, "operator2@central.crop.health", DEMO_PASSWORD, UserRole.OPERATOR, "Elisa", "Martins")
+    await registerAndEnroll(commandBus, central.id, "operator2@central.crop.health", DEMO_PASSWORD, UserRole.OPERATOR, "Elisa", "Martins"),
   );
 
   // Teleimagem Sul's staff -- the second operating company. Exists so "a clinic contracts more
@@ -201,11 +255,21 @@ async function main(): Promise<void> {
     DEMO_PASSWORD,
     UserRole.OPERATOR_ADMIN,
     "Marcos",
-    "Ribeiro"
+    "Ribeiro",
   );
   users.push(sulAdmin);
   users.push(
-    await registerAndEnroll(commandBus, teleSul.id, "operator@telesul.crop.health", DEMO_PASSWORD, UserRole.OPERATOR, "Priscila", "Gomes", [], "CRBM-PR 8821")
+    await registerAndEnroll(
+      commandBus,
+      teleSul.id,
+      "operator@telesul.crop.health",
+      DEMO_PASSWORD,
+      UserRole.OPERATOR,
+      "Priscila",
+      "Gomes",
+      [],
+      "CRBM-PR 8821",
+    ),
   );
 
   // A Manager linked to more than one clinic ("A Manager is linked to one or more
@@ -214,7 +278,7 @@ async function main(): Promise<void> {
   users.push(
     await registerAndEnroll(commandBus, alpha.id, "gestor.multi@crop.health", DEMO_PASSWORD, UserRole.CLINIC_ADMIN, "Julia", "Nakamura", [
       beta.id,
-    ])
+    ]),
   );
 
   const alphaAdmin = users[0]!; // admin@alpha.crop.health, registered first, above
@@ -256,8 +320,8 @@ async function main(): Promise<void> {
       },
       alphaAdmin.userId,
       alpha.id,
-      UserRole.CLINIC_ADMIN
-    )
+      UserRole.CLINIC_ADMIN,
+    ),
   );
   // A second Alpha unit, existing specifically so agreement scope has something to *exclude*:
   // Operadora Central's contract covers Unidade Jardins only, so the scanner installed here is
@@ -284,8 +348,8 @@ async function main(): Promise<void> {
       },
       alphaAdmin.userId,
       alpha.id,
-      UserRole.CLINIC_ADMIN
-    )
+      UserRole.CLINIC_ADMIN,
+    ),
   );
   const { unit: betaUnit2 } = await commandBus.execute(
     new CreateUnitCommand(
@@ -308,8 +372,8 @@ async function main(): Promise<void> {
       },
       betaAdmin.userId,
       beta.id,
-      UserRole.CLINIC_ADMIN
-    )
+      UserRole.CLINIC_ADMIN,
+    ),
   );
 
   console.log("Seeding equipment (registering MRI-01 against a real or simulated PiKVM)...");
@@ -346,7 +410,7 @@ async function main(): Promise<void> {
       screenWidth: 1920,
       screenHeight: 1080,
       cameraUrl: cctvWhepUrl,
-    })
+    }),
   );
 
   // Alpha's second scanner, in Unidade Paulista -- deliberately outside Operadora Central's
@@ -374,7 +438,7 @@ async function main(): Promise<void> {
       screenWidth: 1920,
       screenHeight: 1080,
       cameraUrl: null,
-    })
+    }),
   );
 
   const ct = await commandBus.execute(
@@ -403,7 +467,7 @@ async function main(): Promise<void> {
       screenWidth: 1920,
       screenHeight: 1080,
       cameraUrl: null,
-    })
+    }),
   );
 
   console.log("Negotiating clinic <-> operator agreements...");
@@ -426,9 +490,7 @@ async function main(): Promise<void> {
   // Scope: MRI-01 directly, by equipment id -- the scope modal's only grant shape now (see
   // AgreementsPage.tsx's own docstring). RX-02, in a different room, stays out of scope,
   // which is what makes the narrowing visible in the demo instead of only being expressible.
-  const alphaCentral = await commandBus.execute(
-    new ProposeAgreementCommand(actorFor(alphaAdmin, alpha.id), central.id, [], [mri.id])
-  );
+  const alphaCentral = await commandBus.execute(new ProposeAgreementCommand(actorFor(alphaAdmin, alpha.id), central.id, [], [mri.id]));
   await commandBus.execute(new RespondToAgreementCommand(actorFor(centralAdmin, central.id), alphaCentral.id, true));
 
   // --- Alpha <-> Teleimagem Sul: proposed by the *company*, accepted by the clinic -----------
@@ -445,9 +507,7 @@ async function main(): Promise<void> {
   // One company serving two clinics, the direction the old column *could* express -- kept so
   // nothing that relied on it is lost. Scope: CT-01 directly, same equipment-level shape as the
   // Alpha agreements above.
-  const betaCentral = await commandBus.execute(
-    new ProposeAgreementCommand(actorFor(betaAdmin, beta.id), central.id, [], [ct.id])
-  );
+  const betaCentral = await commandBus.execute(new ProposeAgreementCommand(actorFor(betaAdmin, beta.id), central.id, [], [ct.id]));
   await commandBus.execute(new RespondToAgreementCommand(actorFor(centralAdmin, central.id), betaCentral.id, true));
 
   console.log("Seeding patient queue...");
@@ -478,8 +538,8 @@ async function main(): Promise<void> {
       0.9,
       AllergyStatus.NEGATED,
       null,
-      85
-    )
+      85,
+    ),
   );
   const amanda = await commandBus.execute(new CreateQueueEntryCommand(alpha.id, alphaAdmin.userId, mri.id, "Amanda", at("08:30")));
   await commandBus.execute(
@@ -498,8 +558,8 @@ async function main(): Promise<void> {
       undefined,
       AllergyStatus.NEGATED,
       null,
-      undefined
-    )
+      undefined,
+    ),
   );
   // The "Alerta Jejum" case: contrast required, fasting NOT confirmed -- exactly what
   // queueCardChipOf derives its one and only chip from (see its docstring on why this is a
@@ -521,8 +581,8 @@ async function main(): Promise<void> {
       1.1,
       AllergyStatus.PRESENT,
       "Alergia a iodo relatada em exame anterior (reação cutânea leve).",
-      undefined
-    )
+      undefined,
+    ),
   );
   const joao = await commandBus.execute(new CreateQueueEntryCommand(alpha.id, alphaAdmin.userId, mri.id, "Joao", at("09:30")));
   await commandBus.execute(
@@ -541,8 +601,8 @@ async function main(): Promise<void> {
       undefined,
       AllergyStatus.NEGATED,
       null,
-      undefined
-    )
+      undefined,
+    ),
   );
   // Beta's single queue entry, created by Beta's own admin -- adding a patient to the queue is
   // clinic-side work (rule: the nursing team owns everything patient-related), so an operator
@@ -571,7 +631,7 @@ async function main(): Promise<void> {
   console.log(
     cctvWhepUrl
       ? `CCTV: MRI-01's room camera PiP points at ${cctvWhepUrl}\n`
-      : "CCTV: not configured -- set SEED_MEDIAMTX_WHEP_URL to enable the room-camera PiP on MRI-01.\n"
+      : "CCTV: not configured -- set SEED_MEDIAMTX_WHEP_URL to enable the room-camera PiP on MRI-01.\n",
   );
 }
 

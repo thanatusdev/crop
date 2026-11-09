@@ -48,7 +48,7 @@ describe("isValidCnpj -- the actual check-digit algorithm, not just a shape chec
     "rejects the degenerate all-same-digit string %s, even though the checksum alone doesn't rule it out",
     (allSame) => {
       expect(isValidCnpj(allSame)).toBe(false);
-    }
+    },
   );
 });
 

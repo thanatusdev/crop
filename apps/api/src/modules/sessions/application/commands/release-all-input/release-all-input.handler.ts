@@ -19,7 +19,7 @@ export class ReleaseAllInputHandler implements ICommandHandler<ReleaseAllInputCo
   constructor(
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepositoryPort,
     @Inject(PIKVM_GATEWAY) private readonly pikvm: PiKvmGatewayPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ReleaseAllInputCommand): Promise<void> {
@@ -40,7 +40,7 @@ export class ReleaseAllInputHandler implements ICommandHandler<ReleaseAllInputCo
         resourceType: "Equipment",
         resourceId: session.equipmentId,
         details: { trigger: "manual_emergency_release" },
-      })
+      }),
     );
   }
 }

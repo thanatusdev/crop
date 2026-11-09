@@ -36,6 +36,6 @@ export class UpdateEquipmentCommand {
     public readonly equipmentId: string,
     public readonly tenantId: string,
     public readonly actingUserId: string,
-    public readonly changes: EquipmentChanges
+    public readonly changes: EquipmentChanges,
   ) {}
 }

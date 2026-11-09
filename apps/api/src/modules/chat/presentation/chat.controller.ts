@@ -57,7 +57,7 @@ export class ChatController {
     private readonly queryBus: QueryBus,
     @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
     @Inject(CHAT_ATTACHMENT_STORAGE) private readonly attachments: ChatAttachmentStoragePort,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   // `date` defaults to *today* here, unlike `GET /queue`'s own `date` (see
@@ -137,10 +137,10 @@ export class ChatController {
   @Post("shortcuts")
   async createShortcut(
     @CurrentUser() user: AccessTokenClaims,
-    @Body(new ZodValidationPipe(CreateMessageShortcutRequestSchema)) body: CreateMessageShortcutRequest
+    @Body(new ZodValidationPipe(CreateMessageShortcutRequestSchema)) body: CreateMessageShortcutRequest,
   ) {
     const shortcut: MessageShortcut = await this.commandBus.execute(
-      new CreateMessageShortcutCommand(user.tenantId, user.sub, body.code, body.label, body.body)
+      new CreateMessageShortcutCommand(user.tenantId, user.sub, body.code, body.label, body.body),
     );
     return toMessageShortcutDto(shortcut);
   }

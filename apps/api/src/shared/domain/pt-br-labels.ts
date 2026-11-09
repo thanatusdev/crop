@@ -1,11 +1,4 @@
-import {
-  AgreementStatus,
-  PreparationStatus,
-  QueueStatus,
-  SessionStatus,
-  TenantType,
-  UserRole,
-} from "@crop/shared";
+import { AgreementStatus, PreparationStatus, QueueStatus, SessionStatus, TenantType, UserRole } from "@crop/shared";
 
 /**
  * pt-BR wording for the enum values and resource names that error messages interpolate.

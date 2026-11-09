@@ -20,7 +20,7 @@ import { ListTechnicalManagerOptionsQuery } from "./list-technical-manager-optio
 export class ListTechnicalManagerOptionsHandler implements IQueryHandler<ListTechnicalManagerOptionsQuery, TechnicalManagerOption[]> {
   constructor(
     private readonly clinicAccess: ClinicAccessChecker,
-    @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort
+    @Inject(USER_REPOSITORY) private readonly users: UserRepositoryPort,
   ) {}
 
   async execute(query: ListTechnicalManagerOptionsQuery): Promise<TechnicalManagerOption[]> {

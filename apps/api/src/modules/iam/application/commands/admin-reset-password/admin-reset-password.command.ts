@@ -3,6 +3,6 @@ export class AdminResetPasswordCommand {
     public readonly targetUserId: string,
     public readonly newPassword: string,
     public readonly actingAdminId: string,
-    public readonly actingAdminTenantId: string
+    public readonly actingAdminTenantId: string,
   ) {}
 }

@@ -359,7 +359,7 @@ export default function ExamPage() {
       if (printSentTimerRef.current) clearTimeout(printSentTimerRef.current);
       printSentTimerRef.current = setTimeout(() => setPrintSent(false), 2500);
     },
-    [socket, printText]
+    [socket, printText],
   );
 
   useEffect(() => {
@@ -573,7 +573,7 @@ export default function ExamPage() {
             <div
               className={cn(
                 "grid items-start gap-4 max-[1300px]:grid-cols-1",
-                rightCollapsed ? "grid-cols-[380px_minmax(0,1fr)_auto]" : "grid-cols-[380px_minmax(0,1fr)_400px]"
+                rightCollapsed ? "grid-cols-[380px_minmax(0,1fr)_auto]" : "grid-cols-[380px_minmax(0,1fr)_400px]",
               )}
             >
               {/* LEFT: room camera (full-width in its column, bigger than the old sidebar
@@ -625,13 +625,24 @@ export default function ExamPage() {
                   role="group"
                   aria-label={t("exam:consoleAriaLabel", { room: roomHeading })}
                 >
-                  <canvas ref={canvasRef} role="img" aria-label={t("exam:consoleAriaLabel", { room: roomHeading })} className="block w-full" />
-                  <div className="pointer-events-none absolute top-2 left-2 rounded-md bg-black/60 px-2.5 py-1.5 font-mono text-xs text-white" aria-hidden="true">
+                  <canvas
+                    ref={canvasRef}
+                    role="img"
+                    aria-label={t("exam:consoleAriaLabel", { room: roomHeading })}
+                    className="block w-full"
+                  />
+                  <div
+                    className="pointer-events-none absolute top-2 left-2 rounded-md bg-black/60 px-2.5 py-1.5 font-mono text-xs text-white"
+                    aria-hidden="true"
+                  >
                     <div>stream: {streamState.status}</div>
                     <div>input RTT: {rttMs !== null ? `${rttMs} ms` : "—"}</div>
                   </div>
                   {streamState.status === "error" && (
-                    <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-black/60 px-2.5 py-1.5 font-mono text-xs text-white" role="alert">
+                    <div
+                      className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-black/60 px-2.5 py-1.5 font-mono text-xs text-white"
+                      role="alert"
+                    >
                       {streamState.info}
                     </div>
                   )}
@@ -716,7 +727,7 @@ export default function ExamPage() {
                       )}
                     </CardContent>
                   </Card>
-  
+
                   {selectedEntry &&
                     (selectedEntry.allergyStatus ||
                       selectedEntry.fastingConfirmed ||
@@ -745,7 +756,8 @@ export default function ExamPage() {
                           )}
                           {selectedEntry.fastingConfirmed && (
                             <div>
-                              {t("exam:fastingLabel")}: {selectedEntry.fastingHours != null ? `${selectedEntry.fastingHours} h` : t("exam:fastingYes")}
+                              {t("exam:fastingLabel")}:{" "}
+                              {selectedEntry.fastingHours != null ? `${selectedEntry.fastingHours} h` : t("exam:fastingYes")}
                             </div>
                           )}
                           {selectedEntry.creatinineMgDl != null && (
@@ -771,7 +783,7 @@ export default function ExamPage() {
                         </CardContent>
                       </Card>
                     )}
-  
+
                   {selectedEntry && selectedEntry.documents.length > 0 && (
                     <Card>
                       <CardHeader>
@@ -784,8 +796,7 @@ export default function ExamPage() {
                       </CardContent>
                     </Card>
                   )}
-  
-  
+
                   {selectedEntry?.preparationNotes && (
                     <Card>
                       <CardHeader>
@@ -796,7 +807,7 @@ export default function ExamPage() {
                       </CardContent>
                     </Card>
                   )}
-  
+
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-[1.1em]">{t("exam:teleoperationNotesLabel")}</CardTitle>
@@ -818,13 +829,15 @@ export default function ExamPage() {
                       <Button
                         className="mt-2.5"
                         onClick={() => void saveTeleoperationNotes()}
-                        disabled={!selectedEntry || !notesEditable || notesSaving || notesDraft === (selectedEntry?.teleoperationNotes ?? "")}
+                        disabled={
+                          !selectedEntry || !notesEditable || notesSaving || notesDraft === (selectedEntry?.teleoperationNotes ?? "")
+                        }
                       >
                         {notesSaving ? t("exam:saving") : t("exam:save")}
                       </Button>
                     </CardContent>
                   </Card>
-  
+
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-[1.1em]" id="exam-type-text-heading">
@@ -857,7 +870,7 @@ export default function ExamPage() {
                       </form>
                     </CardContent>
                   </Card>
-  
+
                   <Card>
                     <CardContent className="flex flex-col gap-2.5">
                       <Button variant="secondary" onClick={emergencyReleaseAll} disabled={releasing} className="w-full">
@@ -922,4 +935,3 @@ function ExamDocumentRow({ queueEntryId, document }: { queueEntryId: string; doc
     </button>
   );
 }
-

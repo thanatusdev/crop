@@ -31,6 +31,6 @@ export class CreateTenantCommand {
     // Null for the seed script / bootstrap-superadmin.ts, where there is no human admin
     // acting yet -- same reasoning as RegisterUserCommand.actingUserId.
     public readonly actingAdminId: string | null = null,
-    public readonly tenantDetails: NewTenantDetails | null = null
+    public readonly tenantDetails: NewTenantDetails | null = null,
   ) {}
 }

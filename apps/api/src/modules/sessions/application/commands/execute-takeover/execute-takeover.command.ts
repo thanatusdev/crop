@@ -9,6 +9,6 @@ export class ExecuteTakeoverCommand {
     /** The caller's own organisation (`AccessTokenClaims.homeTenantId`). Differs from `tenantId`
      * for an operating company's supervisor switched into the clinic -- which is exactly who
      * must not take control back once that company's control has been suspended. */
-    public readonly supervisorHomeTenantId?: string
+    public readonly supervisorHomeTenantId?: string,
   ) {}
 }

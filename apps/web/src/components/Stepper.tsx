@@ -23,13 +23,17 @@ export function Stepper({ steps }: { steps: StepDefinition[] }) {
         <li
           key={step.label}
           aria-current={step.status === "active" ? "step" : undefined}
-          className={cn("flex items-center gap-1.5", step.status === "pending" ? "text-muted-foreground" : "text-foreground", step.status === "active" && "font-bold")}
+          className={cn(
+            "flex items-center gap-1.5",
+            step.status === "pending" ? "text-muted-foreground" : "text-foreground",
+            step.status === "active" && "font-bold",
+          )}
         >
           <span
             aria-hidden="true"
             className={cn(
               "flex size-5 flex-shrink-0 items-center justify-center rounded-full text-[11px]",
-              step.status === "pending" ? "bg-secondary text-muted-foreground" : "bg-primary text-primary-foreground"
+              step.status === "pending" ? "bg-secondary text-muted-foreground" : "bg-primary text-primary-foreground",
             )}
           >
             {step.status === "complete" ? <Check className="size-3" /> : index + 1}
@@ -47,4 +51,3 @@ export function Stepper({ steps }: { steps: StepDefinition[] }) {
     </ol>
   );
 }
-

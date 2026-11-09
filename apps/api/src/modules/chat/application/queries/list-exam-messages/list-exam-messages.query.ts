@@ -14,6 +14,6 @@ export class ListExamMessagesQuery {
      * stays genuinely unscoped for its own pre-existing callers, this route is new enough
      * (and single-purpose enough) that "today" is the only sensible default rather than
      * "everything". */
-    public readonly day?: string
+    public readonly day?: string,
   ) {}
 }

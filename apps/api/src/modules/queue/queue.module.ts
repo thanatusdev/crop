@@ -73,5 +73,3 @@ const COMMAND_AND_QUERY_HANDLERS = [
   exports: [QUEUE_REPOSITORY],
 })
 export class QueueModule {}
-
-

@@ -31,7 +31,7 @@ export class ListScopeOptionsHandler implements IQueryHandler<ListScopeOptionsQu
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
-    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort
+    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
   ) {}
 
   async execute(query: ListScopeOptionsQuery): Promise<AgreementScopeOption[]> {
@@ -59,7 +59,7 @@ export class ListScopeOptionsHandler implements IQueryHandler<ListScopeOptionsQu
       roomLabel: item.roomLabel,
       modality: item.modality,
       unitId: item.unitId,
-      unitName: item.unitId ? unitNamesById.get(item.unitId) ?? null : null,
+      unitName: item.unitId ? (unitNamesById.get(item.unitId) ?? null) : null,
       granted: grantedEquipmentIds.has(item.id),
       grantedViaUnit: item.unitId !== null && grantedUnitIds.has(item.unitId),
     }));

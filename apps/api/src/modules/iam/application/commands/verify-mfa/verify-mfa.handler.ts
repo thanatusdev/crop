@@ -23,7 +23,7 @@ export class VerifyMfaHandler implements ICommandHandler<VerifyMfaCommand, Verif
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
     private readonly config: ConfigService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: VerifyMfaCommand): Promise<VerifyMfaResult> {
@@ -106,7 +106,7 @@ export class VerifyMfaHandler implements ICommandHandler<VerifyMfaCommand, Verif
         resourceType: "User",
         resourceId: userId,
         details,
-      })
+      }),
     );
   }
 }

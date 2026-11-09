@@ -23,7 +23,7 @@ export class VerifyAuditChainHandler implements IQueryHandler<VerifyAuditChainQu
     const chain = await this.repository.loadChain(query.tenantId);
     const result = await verifyAuditChain(
       chain.map((row) => row.input),
-      chain.map((row) => row.hash)
+      chain.map((row) => row.hash),
     );
 
     return {
@@ -33,4 +33,3 @@ export class VerifyAuditChainHandler implements IQueryHandler<VerifyAuditChainQu
     };
   }
 }
-

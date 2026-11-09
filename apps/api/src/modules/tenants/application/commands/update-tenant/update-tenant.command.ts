@@ -16,6 +16,6 @@ export class UpdateTenantCommand {
   constructor(
     public readonly tenantId: string,
     public readonly actingAdminId: string,
-    public readonly changes: TenantChanges
+    public readonly changes: TenantChanges,
   ) {}
 }

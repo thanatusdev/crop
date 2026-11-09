@@ -16,7 +16,7 @@ export class NotFoundError extends DomainError {
    * a raw UUID in it says nothing to them. */
   constructor(
     public readonly resource: string,
-    public readonly id: string
+    public readonly id: string,
   ) {
     super(RESOURCE_LABELS_PT_BR[resource] ?? "Registro não encontrado");
   }

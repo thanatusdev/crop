@@ -42,7 +42,7 @@ export class ChangePasswordHandler implements ICommandHandler<ChangePasswordComm
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
     @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort,
     private readonly config: ConfigService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ChangePasswordCommand): Promise<ChangePasswordResult> {
@@ -91,7 +91,7 @@ export class ChangePasswordHandler implements ICommandHandler<ChangePasswordComm
         resourceType: "User",
         resourceId: user.id,
         details: {},
-      })
+      }),
     );
 
     // Mints a real session here, not a redirect back to /login -- see class docstring.

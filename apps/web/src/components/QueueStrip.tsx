@@ -51,7 +51,7 @@ export function QueueStrip({
               key={entry.id}
               className={cn(
                 "flex-none rounded-md border-y border-r border-l-4 bg-card",
-                selected ? "border-l-primary bg-accent" : "border-l-transparent border-border"
+                selected ? "border-l-primary bg-accent" : "border-l-transparent border-border",
               )}
             >
               <button
@@ -64,9 +64,7 @@ export function QueueStrip({
                 <span className="flex flex-col leading-tight">
                   <span className="text-[13px] font-semibold whitespace-nowrap">{entry.patientFirstName}</span>
                   <span className="text-[11px] whitespace-nowrap text-muted-foreground">
-                    {[entry.examDescription, entry.scheduledAt ? formatClinicTime(entry.scheduledAt) : null]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {[entry.examDescription, entry.scheduledAt ? formatClinicTime(entry.scheduledAt) : null].filter(Boolean).join(" · ")}
                   </span>
                 </span>
                 <Badge className={cn("ml-1 flex-shrink-0 border-transparent px-1.5 py-0 text-[10px] whitespace-nowrap", chip.badgeClass)}>
@@ -88,7 +86,10 @@ export function QueueStrip({
         return (
           <li
             key={entry.id}
-            className={cn("flex flex-none flex-col gap-1.5 rounded-[10px] border border-border p-2.5", selected && "border-primary bg-accent")}
+            className={cn(
+              "flex flex-none flex-col gap-1.5 rounded-[10px] border border-border p-2.5",
+              selected && "border-primary bg-accent",
+            )}
           >
             <button
               type="button"

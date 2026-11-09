@@ -5,10 +5,7 @@ import { MetricsService } from "../../../../../shared/infrastructure/metrics/met
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { PIKVM_GATEWAY, type PiKvmGatewayPort } from "../../ports/pikvm-gateway.port.js";
 import { SNAPSHOT_STORAGE, type SnapshotStoragePort } from "../../ports/snapshot-storage.port.js";
-import {
-  SESSION_SNAPSHOT_REPOSITORY,
-  type SessionSnapshotRepositoryPort,
-} from "../../ports/session-snapshot-repository.port.js";
+import { SESSION_SNAPSHOT_REPOSITORY, type SessionSnapshotRepositoryPort } from "../../ports/session-snapshot-repository.port.js";
 import { CaptureSessionSnapshotCommand } from "./capture-session-snapshot.command.js";
 
 /**
@@ -26,7 +23,7 @@ export class CaptureSessionSnapshotHandler implements ICommandHandler<CaptureSes
     @Inject(SNAPSHOT_STORAGE) private readonly storage: SnapshotStoragePort,
     @Inject(SESSION_SNAPSHOT_REPOSITORY) private readonly snapshots: SessionSnapshotRepositoryPort,
     private readonly commandBus: CommandBus,
-    private readonly metrics: MetricsService
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(command: CaptureSessionSnapshotCommand): Promise<void> {
@@ -57,7 +54,7 @@ export class CaptureSessionSnapshotHandler implements ICommandHandler<CaptureSes
         resourceType: "Session",
         resourceId: command.sessionId,
         details: { imagePath, sizeBytes: jpeg.length },
-      })
+      }),
     );
   }
 }

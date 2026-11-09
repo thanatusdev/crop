@@ -13,7 +13,7 @@ export class GetUnitHandler implements IQueryHandler<GetUnitQuery, EnrichedUnit>
     private readonly clinicAccess: ClinicAccessChecker,
     private readonly operatorAccess: OperatorAccessService,
     private readonly enrichment: UnitEnrichmentService,
-    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort
+    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
   ) {}
 
   async execute(query: GetUnitQuery): Promise<EnrichedUnit> {

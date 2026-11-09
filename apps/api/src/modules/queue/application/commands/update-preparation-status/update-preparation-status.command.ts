@@ -9,7 +9,6 @@ export class UpdatePreparationStatusCommand {
     public readonly tenantId: string,
     public readonly actingUserId: string,
     public readonly queueEntryId: string,
-    public readonly status: UpdatePreparationStatusRequest["status"]
+    public readonly status: UpdatePreparationStatusRequest["status"],
   ) {}
 }
-

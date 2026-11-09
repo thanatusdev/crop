@@ -13,14 +13,11 @@ import { ROLES_KEY } from "../decorators/roles.decorator.js";
 export class RolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const required = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [context.getHandler(), context.getClass()]);
     if (!required || required.length === 0) return true;
 
     const request = context.switchToHttp().getRequest<Request & { user: AccessTokenClaims }>();
@@ -40,11 +37,10 @@ export class RolesGuard implements CanActivate {
           resourceType: "Route",
           resourceId: null,
           details: { method: request.method, path: request.path, requiredRoles: required, actualRole: user.role },
-        })
+        }),
       );
       throw new ForbiddenError(`Esta ação é restrita aos perfis: ${required.map((role) => labelOf(ROLE_LABELS_PT_BR, role)).join(", ")}.`);
     }
     return true;
   }
 }
-

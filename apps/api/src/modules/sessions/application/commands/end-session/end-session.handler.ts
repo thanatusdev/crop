@@ -22,7 +22,7 @@ export class EndSessionHandler implements ICommandHandler<EndSessionCommand, voi
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
-    private readonly metrics: MetricsService
+    private readonly metrics: MetricsService,
   ) {}
 
   async execute(command: EndSessionCommand): Promise<void> {
@@ -71,7 +71,7 @@ export class EndSessionHandler implements ICommandHandler<EndSessionCommand, voi
         resourceType: "Equipment",
         resourceId: session.equipmentId,
         details: {},
-      })
+      }),
     );
   }
 }

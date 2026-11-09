@@ -17,7 +17,7 @@ export class CreateQueueEntryHandler implements ICommandHandler<CreateQueueEntry
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(command: CreateQueueEntryCommand): Promise<QueueEntry> {
@@ -57,7 +57,7 @@ export class CreateQueueEntryHandler implements ICommandHandler<CreateQueueEntry
         // audit trail should prove the action happened without duplicating patient-
         // identifying data into a second table.
         details: { equipmentId: entry.equipmentId },
-      })
+      }),
     );
 
     this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, entry.equipmentId));

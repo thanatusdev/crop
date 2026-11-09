@@ -14,7 +14,7 @@ export class UpdateQueueStatusHandler implements ICommandHandler<UpdateQueueStat
     @Inject(QUEUE_REPOSITORY) private readonly queue: QueueRepositoryPort,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
   async execute(command: UpdateQueueStatusCommand): Promise<void> {
@@ -39,7 +39,7 @@ export class UpdateQueueStatusHandler implements ICommandHandler<UpdateQueueStat
         resourceType: "QueueEntry",
         resourceId: entry.id,
         details: { equipmentId: entry.equipmentId, previousStatus, newStatus: command.status },
-      })
+      }),
     );
 
     this.eventBus.publish(new QueueUpdatedEvent(command.tenantId, entry.equipmentId));

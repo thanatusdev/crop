@@ -7,10 +7,7 @@ import { AllergyStatus, PatientSex, PreparationStatus, QueueStatus, type QueueEn
  */
 
 export type QueueStatusLabelKey =
-  | "nursing:queueStatusWaiting"
-  | "nursing:queueStatusInProgress"
-  | "nursing:queueStatusDone"
-  | "nursing:queueStatusCancelled";
+  "nursing:queueStatusWaiting" | "nursing:queueStatusInProgress" | "nursing:queueStatusDone" | "nursing:queueStatusCancelled";
 
 /** Fully-qualified translation keys, as a literal union rather than an assembled template --
  * same reasoning as `statusLabelKeyOf` in equipment-display.ts: this keeps `tsc` checking
@@ -41,10 +38,7 @@ export function queueStatusBadgeClass(status: QueueStatus): string {
 }
 
 export type PreparationStatusLabelKey =
-  | "nursing:prepNotStarted"
-  | "nursing:prepPositioned"
-  | "nursing:prepInjected"
-  | "nursing:prepReleased";
+  "nursing:prepNotStarted" | "nursing:prepPositioned" | "nursing:prepInjected" | "nursing:prepReleased";
 
 export function preparationStatusLabelKeyOf(status: PreparationStatus): PreparationStatusLabelKey {
   const byStatus: Record<PreparationStatus, PreparationStatusLabelKey> = {

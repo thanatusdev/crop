@@ -23,7 +23,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -63,11 +63,7 @@ describe("Queue day view (nursing 'N Pacientes Hoje')", () => {
   });
 
   async function createQueueEntry(patientFirstName: string): Promise<string> {
-    const res = await http
-      .post("/queue")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ equipmentId, patientFirstName })
-      .expect(201);
+    const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201);
     return res.body.id;
   }
 
@@ -92,7 +88,10 @@ describe("Queue day view (nursing 'N Pacientes Hoje')", () => {
     const noScheduleCreatedYesterday = await createQueueEntry("NoSchedule-CreatedYesterday");
     await prisma.queueEntry.update({ where: { id: noScheduleCreatedYesterday }, data: { createdAt: yesterdayMidpoint } });
 
-    const todayRes = await http.get(`/queue?equipmentId=${equipmentId}&date=${today}`).set("Authorization", `Bearer ${nurseToken}`).expect(200);
+    const todayRes = await http
+      .get(`/queue?equipmentId=${equipmentId}&date=${today}`)
+      .set("Authorization", `Bearer ${nurseToken}`)
+      .expect(200);
     const todayIds = todayRes.body.map((e: { id: string }) => e.id);
     expect(todayIds).toContain(scheduledToday);
     expect(todayIds).toContain(noScheduleCreatedToday);

@@ -147,7 +147,7 @@ export class PrismaAgreementRepository implements AgreementRepositoryPort {
       // new proposal is accepted -- re-granting equipment the clinic never approved for *this*
       // round, which matters most when it is the operating company re-proposing. A clinic
       // proposer re-supplies its scope right after (see ProposeAgreementHandler).
-      { clearScope: true }
+      { clearScope: true },
     );
   }
 
@@ -164,7 +164,7 @@ export class PrismaAgreementRepository implements AgreementRepositoryPort {
     id: string,
     from: AgreementStatus[],
     data: Prisma.OperatorAgreementUpdateManyMutationInput,
-    options: { clearScope?: boolean } = {}
+    options: { clearScope?: boolean } = {},
   ): Promise<OperatorAgreement> {
     const row = await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.operatorAgreement.updateMany({ where: { id, status: { in: from } }, data });

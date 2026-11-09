@@ -12,7 +12,7 @@ export class ListUnitsByClinicHandler implements IQueryHandler<ListUnitsByClinic
     private readonly clinicAccess: ClinicAccessChecker,
     private readonly operatorAccess: OperatorAccessService,
     private readonly enrichment: UnitEnrichmentService,
-    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort
+    @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
   ) {}
 
   async execute(query: ListUnitsByClinicQuery): Promise<EnrichedUnit[]> {
@@ -24,7 +24,7 @@ export class ListUnitsByClinicHandler implements IQueryHandler<ListUnitsByClinic
       query.clinicTenantId,
       query.requestingUserId && query.requestingTenantId && query.requestingRole
         ? { userId: query.requestingUserId, tenantId: query.requestingTenantId, role: query.requestingRole }
-        : null
+        : null,
     );
 
     const units = await this.units.listByClinic(query.clinicTenantId);

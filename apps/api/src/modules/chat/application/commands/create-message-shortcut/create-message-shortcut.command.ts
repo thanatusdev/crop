@@ -4,6 +4,6 @@ export class CreateMessageShortcutCommand {
     public readonly actingUserId: string,
     public readonly code: string,
     public readonly label: string,
-    public readonly body: string
+    public readonly body: string,
   ) {}
 }

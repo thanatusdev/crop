@@ -8,6 +8,6 @@ export class ProposeAgreementCommand {
      * a contract on someone else's behalf. */
     public readonly counterpartyTenantId: string,
     public readonly unitIds: string[],
-    public readonly equipmentIds: string[]
+    public readonly equipmentIds: string[],
   ) {}
 }

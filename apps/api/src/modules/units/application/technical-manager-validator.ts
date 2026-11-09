@@ -31,7 +31,7 @@ export class TechnicalManagerValidator {
     }
     if (!isEligibleTechnicalManager(user)) {
       throw new ValidationError(
-        `O gestor técnico precisa ter um dos perfis: ${TECHNICAL_MANAGER_ELIGIBLE_ROLES.map((role) => labelOf(ROLE_LABELS_PT_BR, role)).join(", ")}.`
+        `O gestor técnico precisa ter um dos perfis: ${TECHNICAL_MANAGER_ELIGIBLE_ROLES.map((role) => labelOf(ROLE_LABELS_PT_BR, role)).join(", ")}.`,
       );
     }
     if (!user.isActivated()) {

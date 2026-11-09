@@ -13,7 +13,7 @@ import type { AgreementRepositoryPort, ResolvedScopeTarget } from "../../access/
 export function toAgreementDto(
   agreement: OperatorAgreement,
   tenantNames: Record<string, string>,
-  scopes: ResolvedScopeTarget[]
+  scopes: ResolvedScopeTarget[],
 ): OperatorAgreementDto {
   return {
     id: agreement.id,
@@ -44,12 +44,7 @@ export function toAgreementDto(
 
 /** Batches the two lookups `toAgreementDto` needs across a whole list, so a page of N agreements
  * costs one tenant-name query plus one scope query per agreement rather than 2N. */
-export async function toAgreementDtos(
-  agreements: OperatorAgreement[],
-  repo: AgreementRepositoryPort
-): Promise<OperatorAgreementDto[]> {
+export async function toAgreementDtos(agreements: OperatorAgreement[], repo: AgreementRepositoryPort): Promise<OperatorAgreementDto[]> {
   const names = await repo.tenantNames(agreements.flatMap((a) => [a.clinicTenantId, a.operatorTenantId]));
-  return Promise.all(
-    agreements.map(async (agreement) => toAgreementDto(agreement, names, await repo.resolveScopeTargets(agreement.id)))
-  );
+  return Promise.all(agreements.map(async (agreement) => toAgreementDto(agreement, names, await repo.resolveScopeTargets(agreement.id))));
 }

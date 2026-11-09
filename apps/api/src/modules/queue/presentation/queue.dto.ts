@@ -9,7 +9,7 @@ import { QueueEntry } from "../domain/queue-entry.entity.js";
 export function toQueueEntryDto(
   entry: QueueEntry,
   detailsUpdatedByName: string | null = null,
-  documents: QueueEntryDocumentDto[] = []
+  documents: QueueEntryDocumentDto[] = [],
 ): QueueEntryDto {
   return {
     id: entry.id,
@@ -41,4 +41,3 @@ export function toQueueEntryDto(
     documents,
   };
 }
-

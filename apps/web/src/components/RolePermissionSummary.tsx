@@ -40,4 +40,3 @@ export function RolePermissionSummary({ role }: { role: UserRole }) {
     </Card>
   );
 }
-

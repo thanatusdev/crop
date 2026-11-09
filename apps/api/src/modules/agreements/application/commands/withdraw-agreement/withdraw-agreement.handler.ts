@@ -21,7 +21,7 @@ import { WithdrawAgreementCommand } from "./withdraw-agreement.command.js";
 export class WithdrawAgreementHandler implements ICommandHandler<WithdrawAgreementCommand, OperatorAgreement> {
   constructor(
     @Inject(AGREEMENT_REPOSITORY) private readonly agreements: AgreementRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: WithdrawAgreementCommand): Promise<OperatorAgreement> {
@@ -47,7 +47,7 @@ export class WithdrawAgreementHandler implements ICommandHandler<WithdrawAgreeme
           operatorTenantId: existing.operatorTenantId,
           withdrawnByTenantId: withdrawerTenantId,
         },
-      })
+      }),
     );
 
     return agreement;

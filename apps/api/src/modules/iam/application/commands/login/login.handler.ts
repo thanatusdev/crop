@@ -30,7 +30,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
     @Inject(MFA_SERVICE) private readonly mfa: MfaServicePort,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenServicePort,
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: LoginCommand): Promise<LoginResult> {
@@ -120,7 +120,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, LoginResult> 
         resourceType: "User",
         resourceId: userId,
         details,
-      })
+      }),
     );
   }
 }

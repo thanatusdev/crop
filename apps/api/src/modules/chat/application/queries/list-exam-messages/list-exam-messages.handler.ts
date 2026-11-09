@@ -22,7 +22,7 @@ export class ListExamMessagesHandler implements IQueryHandler<ListExamMessagesQu
     @Inject(EXAM_MESSAGE_REPOSITORY) private readonly messages: ExamMessageRepositoryPort,
     @Inject(EQUIPMENT_REPOSITORY) private readonly equipment: EquipmentRepositoryPort,
     private readonly operatorAccess: OperatorAccessService,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   async execute(query: ListExamMessagesQuery): Promise<ExamMessage[]> {

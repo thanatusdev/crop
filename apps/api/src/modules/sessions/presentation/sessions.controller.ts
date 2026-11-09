@@ -48,7 +48,7 @@ export class SessionsController {
     private readonly ticketService: MediaStreamTicketService,
     private readonly gateway: SessionsGateway,
     private readonly participantNames: SessionParticipantNameService,
-    @Inject(SNAPSHOT_STORAGE) private readonly snapshotStorage: SnapshotStoragePort
+    @Inject(SNAPSHOT_STORAGE) private readonly snapshotStorage: SnapshotStoragePort,
   ) {}
 
   // Starting a remote-control session against clinical equipment is the operator company's
@@ -62,12 +62,9 @@ export class SessionsController {
   // end or release-all on a session they took over.
   @Post()
   @Roles(UserRole.OPERATOR, UserRole.OPERATIONAL_SUPERVISOR, UserRole.OPERATOR_ADMIN, UserRole.PLATFORM_ADMIN)
-  async start(
-    @CurrentUser() user: AccessTokenClaims,
-    @Body(new ZodValidationPipe(StartSessionRequestSchema)) body: StartSessionRequest
-  ) {
+  async start(@CurrentUser() user: AccessTokenClaims, @Body(new ZodValidationPipe(StartSessionRequestSchema)) body: StartSessionRequest) {
     const session = await this.commandBus.execute(
-      new StartSessionCommand(user.tenantId, user.sub, body.equipmentId, body.queueEntryId ?? null, user)
+      new StartSessionCommand(user.tenantId, user.sub, body.equipmentId, body.queueEntryId ?? null, user),
     );
     return toSessionDto(session, await this.participantNames.resolveOperatorProfile(session));
   }
@@ -118,7 +115,7 @@ export class SessionsController {
     @CurrentUser() user: AccessTokenClaims,
     @Param("id") id: string,
     @Param("snapshotId") snapshotId: string,
-    @Res() res: Response
+    @Res() res: Response,
   ): Promise<void> {
     await this.assertCanReplay(user, id);
 

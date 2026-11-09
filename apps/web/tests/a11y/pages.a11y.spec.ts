@@ -896,7 +896,9 @@ test("Workstation page: unit with no equipment, and the exam cockpit's start-exa
     .get("http://localhost:3000/agreements", { headers: { Authorization: `Bearer ${adminToken}` } })
     .then((r) => r.json());
   const centralAgreement = agreements.find((a: { operatorName: string }) => a.operatorName === "Operadora Central");
-  const currentUnitIds = centralAgreement.scopes.filter((s: { unitId: string | null }) => s.unitId).map((s: { unitId: string }) => s.unitId);
+  const currentUnitIds = centralAgreement.scopes
+    .filter((s: { unitId: string | null }) => s.unitId)
+    .map((s: { unitId: string }) => s.unitId);
   const currentEquipmentIds = centralAgreement.scopes
     .filter((s: { equipmentId: string | null }) => s.equipmentId)
     .map((s: { equipmentId: string }) => s.equipmentId);
@@ -938,7 +940,7 @@ test("Workstation page: unit with no equipment, and the exam cockpit's start-exa
   // hasn't landed yet in a parallel run) the cockpit already showing "Finalizar Exame" --
   // same acceptance as the previous test's own wait, since this is the same room.
   await expect(
-    page.getByRole("button", { name: "Iniciar Exame" }).or(page.getByRole("banner").getByRole("button", { name: "Finalizar Exame" }))
+    page.getByRole("button", { name: "Iniciar Exame" }).or(page.getByRole("banner").getByRole("button", { name: "Finalizar Exame" })),
   ).toBeVisible({
     timeout: 30_000,
   });

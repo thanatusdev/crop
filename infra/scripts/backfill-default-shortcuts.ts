@@ -48,7 +48,9 @@ async function main(): Promise<void> {
       data: DEFAULT_MESSAGE_SHORTCUTS.map((shortcut) => ({ tenantId: clinic.id, ...shortcut })),
       skipDuplicates: true,
     });
-    console.log(`${clinic.name}: ${result.count} shortcut(s) created (${DEFAULT_MESSAGE_SHORTCUTS.length - result.count} already existed).`);
+    console.log(
+      `${clinic.name}: ${result.count} shortcut(s) created (${DEFAULT_MESSAGE_SHORTCUTS.length - result.count} already existed).`,
+    );
   }
 
   await prisma.$disconnect();

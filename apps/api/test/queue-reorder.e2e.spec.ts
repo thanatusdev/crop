@@ -21,7 +21,7 @@ async function createOnlineEquipment(
   http: ReturnType<typeof request>,
   adminToken: string,
   prisma: ReturnType<typeof testPrisma>,
-  name: string
+  name: string,
 ): Promise<string> {
   const res = await http
     .post("/equipment")
@@ -51,8 +51,7 @@ describe("Queue reorder (nursing priority reordering)", () => {
     const otherTenant = await createTenant(prisma, `QueueReorderOther-${crypto.randomUUID()}`);
 
     adminToken = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.CLINIC_ADMIN })).accessToken;
-    nurseToken = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "nurse" }))
-      .accessToken;
+    nurseToken = (await createLoggedInUser(app, { tenantId: tenant.id, role: UserRole.NURSING, emailPrefix: "nurse" })).accessToken;
     operatorToken = (
       await createContractedOperator(app, prisma, { clinicTenantId: tenant.id, role: UserRole.OPERATOR, emailPrefix: "operator" })
     ).accessToken;
@@ -67,17 +66,15 @@ describe("Queue reorder (nursing priority reordering)", () => {
   });
 
   async function createQueueEntry(equipmentId: string, patientFirstName: string): Promise<string> {
-    const res = await http
-      .post("/queue")
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ equipmentId, patientFirstName })
-      .expect(201);
+    const res = await http.post("/queue").set("Authorization", `Bearer ${adminToken}`).send({ equipmentId, patientFirstName }).expect(201);
     return res.body.id;
   }
 
   async function listOrder(equipmentId: string): Promise<string[]> {
     const res = await http.get(`/queue?equipmentId=${equipmentId}`).set("Authorization", `Bearer ${nurseToken}`).expect(200);
-    return [...res.body].sort((a: { position: number }, b: { position: number }) => a.position - b.position).map((e: { id: string }) => e.id);
+    return [...res.body]
+      .sort((a: { position: number }, b: { position: number }) => a.position - b.position)
+      .map((e: { id: string }) => e.id);
   }
 
   it("renumbers WAITING entries into contiguous positions matching the new order", async () => {
@@ -140,11 +137,7 @@ describe("Queue reorder (nursing priority reordering)", () => {
     const started = await createQueueEntry(equipmentId, "Now-In-Progress");
     const waiting = await createQueueEntry(equipmentId, "Still-Waiting");
 
-    await http
-      .post("/sessions")
-      .set("Authorization", `Bearer ${operatorToken}`)
-      .send({ equipmentId, queueEntryId: started })
-      .expect(201);
+    await http.post("/sessions").set("Authorization", `Bearer ${operatorToken}`).send({ equipmentId, queueEntryId: started }).expect(201);
 
     const before = await prisma.queueEntry.findMany({
       where: { id: { in: [started, waiting] } },
@@ -214,7 +207,7 @@ describe("Queue reorder (nursing priority reordering)", () => {
 
     const auditRes = await http.get(`/audit?limit=500`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const event = auditRes.body.find(
-      (e: { action: string; resourceId: string }) => e.action === "QUEUE_REORDERED" && e.resourceId === equipmentId
+      (e: { action: string; resourceId: string }) => e.action === "QUEUE_REORDERED" && e.resourceId === equipmentId,
     );
     expect(event).toBeTruthy();
     expect(event.details.previousOrder).toEqual([a, b]);
@@ -253,7 +246,7 @@ describe("Queue reorder (nursing priority reordering)", () => {
 
     const auditRes = await http.get(`/audit?limit=500`).set("Authorization", `Bearer ${adminToken}`).expect(200);
     const denied = auditRes.body.find(
-      (e: { action: string; details: { path?: string } }) => e.action === "PERMISSION_DENIED" && e.details.path === "/queue/reorder"
+      (e: { action: string; details: { path?: string } }) => e.action === "PERMISSION_DENIED" && e.details.path === "/queue/reorder",
     );
     expect(denied).toBeTruthy();
     expect(denied.details.requiredRoles).toContain("NURSING");

@@ -46,4 +46,3 @@ const COMMAND_AND_QUERY_HANDLERS = [
   exports: [EQUIPMENT_REPOSITORY],
 })
 export class EquipmentModule {}
-

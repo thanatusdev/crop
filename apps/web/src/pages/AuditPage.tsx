@@ -78,7 +78,10 @@ export default function AuditPage() {
               </Alert>
             )}
             {verifyResult && (
-              <p role="status" className={cn("mt-2.5 flex items-center gap-1.5 font-semibold", verifyResult.valid ? "text-[#166534]" : "text-destructive")}>
+              <p
+                role="status"
+                className={cn("mt-2.5 flex items-center gap-1.5 font-semibold", verifyResult.valid ? "text-[#166534]" : "text-destructive")}
+              >
                 {verifyResult.valid ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
                 {verifyResult.valid
                   ? t("audit:verifyPass", { count: verifyResult.checkedRows })
@@ -145,4 +148,3 @@ export default function AuditPage() {
     </div>
   );
 }
-

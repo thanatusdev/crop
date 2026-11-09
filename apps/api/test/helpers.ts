@@ -45,7 +45,7 @@ export interface TestUser {
  */
 export async function createLoggedInUser(
   app: INestApplication,
-  params: { tenantId: string; role: UserRole; emailPrefix?: string; firstName?: string; lastName?: string }
+  params: { tenantId: string; role: UserRole; emailPrefix?: string; firstName?: string; lastName?: string },
 ): Promise<TestUser> {
   const prisma = new PrismaClient();
   const email = `${params.emailPrefix ?? "user"}-${crypto.randomUUID()}@test.crop.health`;
@@ -65,7 +65,7 @@ export async function createLoggedInUser(
     await prisma.$disconnect();
     throw new Error(
       `createLoggedInUser: role ${params.role} is not permitted in a ${tenant.type} tenant (see ROLE_TENANT_TYPES). ` +
-        `For an operator-side role working a clinic's equipment, use createContractedOperator() instead.`
+        `For an operator-side role working a clinic's equipment, use createContractedOperator() instead.`,
     );
   }
 
@@ -104,10 +104,7 @@ export async function createLoggedInUser(
   const httpServer = app.getHttpServer();
   const request = (await import("supertest")).default;
 
-  const loginRes = await request(httpServer)
-    .post("/auth/login")
-    .send({ email, password, clientOs: "MACOS" })
-    .expect(200);
+  const loginRes = await request(httpServer).post("/auth/login").send({ email, password, clientOs: "MACOS" }).expect(200);
   const mfaToken = loginRes.body.mfaToken as string;
 
   const verifyCode = new OTPAuth.TOTP({ secret }).generate();
@@ -154,7 +151,7 @@ export async function createLoggedInUser(
 export async function createContractedOperator(
   app: INestApplication,
   prisma: PrismaClient,
-  params: { clinicTenantId: string; role: UserRole; emailPrefix?: string; firstName?: string; lastName?: string }
+  params: { clinicTenantId: string; role: UserRole; emailPrefix?: string; firstName?: string; lastName?: string },
 ): Promise<TestUser> {
   const clinic = await prisma.tenant.findUniqueOrThrow({ where: { id: params.clinicTenantId } });
   if (clinic.type !== "CLINIC") {

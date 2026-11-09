@@ -195,7 +195,7 @@ export default function AdminEquipmentPage() {
         t(statusLabelKeyOf(displayStatusOf(item))),
       ]
         .map(escape)
-        .join(",")
+        .join(","),
     );
     // The BOM is what makes Excel open a UTF-8 CSV as UTF-8 instead of Latin-1, which is the
     // difference between "Ressonância" and "Ressonância" for every accented value here.
@@ -246,7 +246,9 @@ export default function AdminEquipmentPage() {
               })}
             </p>
             {summary.unclassified > 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">{t("adminEquipment:statsTotalUnclassified", { count: summary.unclassified })}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("adminEquipment:statsTotalUnclassified", { count: summary.unclassified })}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -422,7 +424,9 @@ export default function AdminEquipmentPage() {
                               so the last value observed is shown as secondary text rather than
                               as the pill itself, which would claim it is current. */}
                           {status === "inactive" && (
-                            <div className="text-xs text-muted-foreground">{t("adminEquipment:statusInactiveFrozenHint", { status: item.status })}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {t("adminEquipment:statusInactiveFrozenHint", { status: item.status })}
+                            </div>
                           )}
                         </TableCell>
                         <TableCell>
@@ -476,7 +480,10 @@ export default function AdminEquipmentPage() {
                                       }
                                       disabled={busy}
                                       onClick={() =>
-                                        void runAction(item, item.status === EquipmentStatus.MAINTENANCE ? "maintenance/clear" : "maintenance")
+                                        void runAction(
+                                          item,
+                                          item.status === EquipmentStatus.MAINTENANCE ? "maintenance/clear" : "maintenance",
+                                        )
                                       }
                                     >
                                       {item.status === EquipmentStatus.MAINTENANCE ? <CircleCheck /> : <Wrench />}

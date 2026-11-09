@@ -2,7 +2,10 @@ import { Inject, Injectable } from "@nestjs/common";
 import { TenantType, UserRole } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../shared/domain/errors.js";
 import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../tenants/application/ports/tenant-repository.port.js";
-import { USER_CLINIC_MEMBERSHIP_REPOSITORY, type UserClinicMembershipRepositoryPort } from "../../iam/application/ports/user-clinic-membership.port.js";
+import {
+  USER_CLINIC_MEMBERSHIP_REPOSITORY,
+  type UserClinicMembershipRepositoryPort,
+} from "../../iam/application/ports/user-clinic-membership.port.js";
 import { OperatorAccessService } from "../../access/application/operator-access.service.js";
 
 /**
@@ -42,13 +45,10 @@ export class ClinicAccessChecker {
   constructor(
     @Inject(TENANT_REPOSITORY) private readonly tenants: TenantRepositoryPort,
     @Inject(USER_CLINIC_MEMBERSHIP_REPOSITORY) private readonly memberships: UserClinicMembershipRepositoryPort,
-    private readonly operatorAccess: OperatorAccessService
+    private readonly operatorAccess: OperatorAccessService,
   ) {}
 
-  async assertCanAccessClinic(
-    clinicTenantId: string,
-    actor: { userId: string; tenantId: string; role: UserRole } | null
-  ): Promise<void> {
+  async assertCanAccessClinic(clinicTenantId: string, actor: { userId: string; tenantId: string; role: UserRole } | null): Promise<void> {
     const clinic = await this.tenants.findById(clinicTenantId);
     if (!clinic) throw new NotFoundError("Tenant", clinicTenantId);
     if (clinic.type !== TenantType.CLINIC) {

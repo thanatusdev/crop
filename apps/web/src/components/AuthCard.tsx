@@ -33,5 +33,3 @@ export function AuthCard({ tagline, footer, children }: { tagline: string; foote
     </main>
   );
 }
-
-

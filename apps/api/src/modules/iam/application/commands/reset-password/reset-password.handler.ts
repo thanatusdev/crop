@@ -40,7 +40,7 @@ export class ResetPasswordHandler implements ICommandHandler<ResetPasswordComman
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort,
     @Inject(TOKEN_REVOCATION) private readonly revocation: TokenRevocationPort,
     private readonly config: ConfigService,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: ResetPasswordCommand): Promise<void> {
@@ -104,7 +104,7 @@ export class ResetPasswordHandler implements ICommandHandler<ResetPasswordComman
         resourceType: "User",
         resourceId: user.id,
         details: {},
-      })
+      }),
     );
   }
 }

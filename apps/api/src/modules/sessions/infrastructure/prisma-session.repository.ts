@@ -40,11 +40,10 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         const target = err.meta?.target;
         const violatedQueueEntryUniqueness =
-          (Array.isArray(target) && target.includes("queueEntryId")) ||
-          (typeof target === "string" && target.includes("queueEntryId"));
+          (Array.isArray(target) && target.includes("queueEntryId")) || (typeof target === "string" && target.includes("queueEntryId"));
         if (violatedQueueEntryUniqueness) {
           throw new ConflictError(
-            "Este paciente da fila já foi usado em uma sessão. Adicione o paciente à fila novamente para tentar de novo."
+            "Este paciente da fila já foi usado em uma sessão. Adicione o paciente à fila novamente para tentar de novo.",
           );
         }
         throw new ConflictError("Este equipamento já possui uma sessão ativa.");
@@ -101,7 +100,7 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
     sessionId: string,
     controllerUserId: string,
     supervisorId: string | null,
-    expectedCurrentControllerUserId: string
+    expectedCurrentControllerUserId: string,
   ): Promise<boolean> {
     // `updateMany`, not `update`: `update` takes a unique-field `where` and always either
     // applies or throws `RecordNotFound` -- it has no way to express "only if this other
@@ -124,7 +123,7 @@ export class PrismaSessionRepository implements SessionRepositoryPort {
 
   async listActiveInClinicInvolvingTenant(
     clinicTenantId: string,
-    outsideTenantId: string
+    outsideTenantId: string,
   ): Promise<{ session: Session; outsideUserIds: string[] }[]> {
     const rows = await this.prisma.session.findMany({
       where: {

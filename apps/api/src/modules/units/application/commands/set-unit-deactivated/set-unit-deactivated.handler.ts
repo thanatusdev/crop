@@ -27,7 +27,7 @@ export class SetUnitDeactivatedHandler implements ICommandHandler<SetUnitDeactiv
     private readonly clinicAccess: ClinicAccessChecker,
     private readonly enrichment: UnitEnrichmentService,
     @Inject(UNIT_REPOSITORY) private readonly units: UnitRepositoryPort,
-    private readonly commandBus: CommandBus
+    private readonly commandBus: CommandBus,
   ) {}
 
   async execute(command: SetUnitDeactivatedCommand): Promise<EnrichedUnit> {
@@ -53,7 +53,7 @@ export class SetUnitDeactivatedHandler implements ICommandHandler<SetUnitDeactiv
         resourceType: "Unit",
         resourceId: existing.id,
         details: { name: existing.name },
-      })
+      }),
     );
 
     return this.enrichment.enrichOne(updated);

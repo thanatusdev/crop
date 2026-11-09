@@ -38,7 +38,10 @@ import { RequestPasswordResetCommand } from "../application/commands/request-pas
 import { ResetPasswordCommand } from "../application/commands/reset-password/reset-password.command.js";
 import { ChangePasswordCommand } from "../application/commands/change-password/change-password.command.js";
 import { ActivateAccountCommand } from "../application/commands/activate-account/activate-account.command.js";
-import { SwitchActiveClinicCommand, type SwitchActiveClinicResult } from "../application/commands/switch-active-clinic/switch-active-clinic.command.js";
+import {
+  SwitchActiveClinicCommand,
+  type SwitchActiveClinicResult,
+} from "../application/commands/switch-active-clinic/switch-active-clinic.command.js";
 import { ValidatePasswordResetTokenQuery } from "../application/queries/validate-password-reset-token/validate-password-reset-token.query.js";
 import { PreviewInvitationQuery } from "../application/queries/preview-invitation/preview-invitation.query.js";
 import { ListMyClinicsQuery } from "../application/queries/list-my-clinics/list-my-clinics.query.js";
@@ -48,16 +51,14 @@ import { GetMeQuery } from "../application/queries/get-me/get-me.query.js";
 export class AuthController {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly queryBus: QueryBus
+    private readonly queryBus: QueryBus,
   ) {}
 
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ZodValidationPipe(LoginRequestSchema))
   async login(@Body() body: LoginRequest): Promise<LoginResponse> {
-    const result = await this.commandBus.execute<LoginCommand, LoginResult>(
-      new LoginCommand(body.email, body.password, body.clientOs)
-    );
+    const result = await this.commandBus.execute<LoginCommand, LoginResult>(new LoginCommand(body.email, body.password, body.clientOs));
     return result;
   }
 
@@ -155,7 +156,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async switchActiveClinic(
     @CurrentUser() claims: AccessTokenClaims,
-    @Body(new ZodValidationPipe(SwitchActiveClinicRequestSchema)) body: SwitchActiveClinicRequest
+    @Body(new ZodValidationPipe(SwitchActiveClinicRequestSchema)) body: SwitchActiveClinicRequest,
   ): Promise<SwitchActiveClinicResult> {
     return this.commandBus.execute(new SwitchActiveClinicCommand(claims.sub, body.clinicTenantId, claims.clientOs));
   }

@@ -19,7 +19,7 @@ export class AuditFlushScheduler implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
   ) {}
 
   onModuleInit(): void {

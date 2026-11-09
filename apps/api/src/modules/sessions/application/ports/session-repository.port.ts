@@ -32,7 +32,10 @@ export interface SessionRepositoryPort {
    * ids of those users. Backs `SuspendOutsideControlHandler`: when that company's agreement
    * stops covering a device, these are the people who must stop controlling it.
    */
-  listActiveInClinicInvolvingTenant(clinicTenantId: string, outsideTenantId: string): Promise<{ session: Session; outsideUserIds: string[] }[]>;
+  listActiveInClinicInvolvingTenant(
+    clinicTenantId: string,
+    outsideTenantId: string,
+  ): Promise<{ session: Session; outsideUserIds: string[] }[]>;
   countActiveByOperator(operatorId: string): Promise<number>;
   /**
    * Compare-and-swap, not an unconditional write: only applies if the row's current
@@ -49,7 +52,7 @@ export interface SessionRepositoryPort {
     sessionId: string,
     controllerUserId: string,
     supervisorId: string | null,
-    expectedCurrentControllerUserId: string
+    expectedCurrentControllerUserId: string,
   ): Promise<boolean>;
   end(sessionId: string, status: "ENDED" | "ABORTED"): Promise<void>;
 }

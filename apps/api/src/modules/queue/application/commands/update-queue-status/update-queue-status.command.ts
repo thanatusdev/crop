@@ -7,6 +7,6 @@ export class UpdateQueueStatusCommand {
     public readonly queueEntryId: string,
     public readonly status: QueueStatus,
     /** See GetEquipmentQuery.actor. */
-    public readonly actor?: AccessTokenClaims
+    public readonly actor?: AccessTokenClaims,
   ) {}
 }
