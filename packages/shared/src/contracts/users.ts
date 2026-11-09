@@ -52,7 +52,7 @@ export type AdminResetPasswordRequest = z.infer<typeof AdminResetPasswordRequest
  * tenant-scoped PLATFORM_ADMIN is a contradiction in terms -- that role means "operates
  * across every tenant," not "operates within Clinica Alpha." The seed script follows the
  * same rule (it never mints one either). Creating a genuine platform-level operator account
- * isn't a tenant-admin action at all and isn't supported through this endpoint.
+ * isn't a tenant-admin action at all -- see `CreatePlatformAdminRequestSchema` instead.
  *
  * `ASSIGNABLE_ROLES` (see `roles.ts`) spans both organization types -- CLINIC_ADMIN,
  * LOCAL_SUPERVISOR, NURSING, LOCAL_IT for a CLINIC tenant; OPERATOR_ADMIN,
@@ -149,3 +149,16 @@ export const UpdateUserRequestSchema = z.object({
   clinicTenantIds: z.array(z.string().uuid()).optional(),
 });
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
+
+/**
+ * `POST /platform/admins` -- a PLATFORM_ADMIN inviting another one. No `role` (it is always
+ * PLATFORM_ADMIN) and no `tenantId`/`clinicTenantIds`: the new account always lands in the
+ * caller's own PLATFORM tenant, and goes through the same invitation link and MFA enrollment
+ * as every other HTTP-created account.
+ */
+export const CreatePlatformAdminRequestSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+});
+export type CreatePlatformAdminRequest = z.infer<typeof CreatePlatformAdminRequestSchema>;

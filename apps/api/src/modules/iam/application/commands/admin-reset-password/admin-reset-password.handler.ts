@@ -3,6 +3,7 @@ import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { ConfigService } from "@nestjs/config";
 import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
+import { assertCanManageUser } from "../../assert-can-manage-user.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { PASSWORD_HASHER, type PasswordHasherPort } from "../../ports/password-hasher.port.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
@@ -42,6 +43,8 @@ export class AdminResetPasswordHandler implements ICommandHandler<AdminResetPass
     if (!target.belongsToTenant(command.actingAdminTenantId)) {
       throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
+
+    assertCanManageUser(command.actingRole, target.role);
 
     // Same two checks every other password-setting path enforces -- see
     // enforce-password-policy.ts. An admin picking the new password is not exempt from

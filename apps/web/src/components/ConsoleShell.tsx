@@ -9,7 +9,7 @@ import { useAuth } from "../lib/auth-context.js";
 import { computeNavPermissions } from "../lib/nav-permissions.js";
 import { Button } from "./ui/button.js";
 
-export type ConsoleNavKey = "dashboard" | "workstation" | "users" | "clinics" | "operators" | "units" | "equipment" | "nursing" | "agreements" | "audit";
+export type ConsoleNavKey = "dashboard" | "workstation" | "users" | "clinics" | "operators" | "platformAdmins" | "units" | "equipment" | "nursing" | "agreements" | "audit";
 
 /**
  * The shared light-theme sidebar+topbar chrome (Dashboard, Gestores & Usuários, Unidades,
@@ -150,6 +150,7 @@ export function ConsoleShell({
     { key: "users", to: "/admin/users", label: t("shell:navUsers"), visible: nav.canManageUsers },
     { key: "clinics", to: "/superadmin/clinics", label: t("shell:navClinics"), visible: nav.canManagePlatform, count: clinicCount },
     { key: "operators", to: "/superadmin/operadoras", label: t("shell:navOperators"), visible: nav.canManagePlatform, count: operatorCount },
+    { key: "platformAdmins", to: "/superadmin/admins", label: t("shell:navPlatformAdmins"), visible: nav.canManagePlatform },
     { key: "units", to: "/admin/units", label: t("shell:navUnits"), visible: nav.canManageUnits, count: unitCount },
     { key: "equipment", to: "/admin/equipment", label: t("shell:navEquipment"), visible: nav.canManageEquipment },
     { key: "nursing", to: "/enfermagem", label: t("shell:navNursing"), visible: nav.canManageQueue },

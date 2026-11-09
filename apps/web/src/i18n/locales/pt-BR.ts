@@ -179,6 +179,7 @@ const ptBR = {
     navUsers: "Gestores & Usuários",
     navClinics: "Clínicas",
     navOperators: "Operadoras",
+    navPlatformAdmins: "Administradores",
     navUnits: "Unidades",
     navEquipment: "Equipamentos",
     navNursing: "Enfermagem",
@@ -262,6 +263,19 @@ const ptBR = {
     loadError: "Não foi possível carregar os usuários.",
     retry: "Tentar novamente",
     empty: "Nenhum usuário na sua organização ainda.",
+  },
+
+  /** PlatformAdminsPage.tsx -- the platform's own administrators. Field labels, statuses and
+   * row actions reuse `adminUsers`; only what is specific to this screen lives here. */
+  platformAdmins: {
+    heading: "Administradores da Plataforma",
+    subheading: "Quem pode gerenciar clínicas, operadoras e outros administradores. Apenas um administrador da plataforma pode convidar outro.",
+    inviteHeading: "Convidar administrador",
+    invited: "Convite enviado para {{email}}.",
+    inviteError: "Não foi possível enviar o convite.",
+    loadError: "Não foi possível carregar os administradores.",
+    tableCaption: "Administradores da plataforma",
+    you: "(você)",
   },
 
   /** The dedicated create/edit/read-only form for one user, on its own route -- the

@@ -5,6 +5,7 @@ import { PassportModule } from "@nestjs/passport";
 
 import { AuthController } from "./presentation/auth.controller.js";
 import { UsersController } from "./presentation/users.controller.js";
+import { PlatformAdminsController } from "./presentation/platform-admins.controller.js";
 import { JwtAccessStrategy } from "./presentation/strategies/jwt-access.strategy.js";
 import { JwtAuthGuard } from "./presentation/guards/jwt-auth.guard.js";
 import { RolesGuard } from "./presentation/guards/roles.guard.js";
@@ -97,7 +98,7 @@ const COMMAND_AND_QUERY_HANDLERS = [
     // without a cycle. See AccessModule's own docstring.
     AccessModule,
   ],
-  controllers: [AuthController, UsersController],
+  controllers: [AuthController, UsersController, PlatformAdminsController],
   providers: [
     JwtAccessStrategy,
     JwtAuthGuard,

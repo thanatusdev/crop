@@ -149,8 +149,14 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
         resourceType: "User",
         resourceId: target.id,
         // Field *names* only -- same flat rule TENANT_UPDATED/UNIT_UPDATED/EQUIPMENT_UPDATED
-        // already follow.
-        details: { changedFields: Object.keys(command.changes) },
+        // already follow -- except a role change, which also records both values: "role
+        // changed" alone cannot answer who was made an admin.
+        details: {
+          changedFields: Object.keys(command.changes),
+          ...(command.changes.role !== undefined && command.changes.role !== target.role
+            ? { role: { from: target.role, to: command.changes.role } }
+            : {}),
+        },
       })
     );
 

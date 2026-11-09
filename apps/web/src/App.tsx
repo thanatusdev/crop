@@ -25,6 +25,7 @@ import UnitFormPage from "./pages/UnitFormPage.js";
 import AdminClinicsPage from "./pages/AdminClinicsPage.js";
 import ClinicFormPage from "./pages/ClinicFormPage.js";
 import AdminOperatorsPage from "./pages/AdminOperatorsPage.js";
+import PlatformAdminsPage from "./pages/PlatformAdminsPage.js";
 import OperatorFormPage from "./pages/OperatorFormPage.js";
 import LatencyClockPage from "./pages/LatencyClockPage.js";
 
@@ -172,6 +173,7 @@ export default function App() {
               <Route path="/superadmin/operadoras/new" element={<OperatorFormPage />} />
               <Route path="/superadmin/operadoras/:id" element={<OperatorFormPage />} />
               <Route path="/superadmin/operadoras/:id/:mode" element={<OperatorFormPage />} />
+              <Route path="/superadmin/admins" element={<PlatformAdminsPage />} />
             </Route>
             {/* Mirrors AgreementsController's @Roles: the administrator of each side of the
                 contract plus PLATFORM_ADMIN. One route for both sides -- see AgreementsPage's

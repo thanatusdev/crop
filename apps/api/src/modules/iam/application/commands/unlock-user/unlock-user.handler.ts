@@ -2,6 +2,7 @@ import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction } from "@crop/shared";
 import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
+import { assertCanManageUser } from "../../assert-can-manage-user.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { USER_REPOSITORY, type UserRepositoryPort } from "../../ports/user-repository.port.js";
 import { UnlockUserCommand } from "./unlock-user.command.js";
@@ -20,6 +21,8 @@ export class UnlockUserHandler implements ICommandHandler<UnlockUserCommand, voi
     if (!target.belongsToTenant(command.actingAdminTenantId)) {
       throw new ForbiddenError("Este usuário não pertence à sua organização.");
     }
+
+    assertCanManageUser(command.actingRole, target.role);
 
     if (!target.isLocked()) return; // idempotent
 
