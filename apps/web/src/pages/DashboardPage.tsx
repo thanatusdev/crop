@@ -19,6 +19,7 @@ import { api, ApiError } from "../lib/api-client.js";
 import { useAuth } from "../lib/auth-context.js";
 import { createSessionSocket } from "../lib/socket-client.js";
 import { ConsoleShell } from "../components/ConsoleShell.js";
+import { PlatformDashboard } from "../components/dashboard/PlatformDashboard.js";
 import { displayStatusOf, statusLabelKeyOf, tailwindBadgeClassOf } from "../lib/equipment-display.js";
 import { queueStatusBadgeClass, queueStatusLabelKeyOf } from "../lib/queue-display.js";
 import { summarizeDashboard } from "../lib/dashboard-display.js";
@@ -80,6 +81,14 @@ interface EquipmentWithQueue extends EquipmentDto {
  * no longer is.
  */
 export default function DashboardPage() {
+  const { user } = useAuth();
+  // Split at the component boundary, not with an early return below, so none of the
+  // tenant-scoped fetches in `TenantDashboard` ever fire for PLATFORM_ADMIN -- its PLATFORM
+  // tenant owns no equipment, queue or sessions (see PlatformDashboard's own docstring).
+  return user?.role === UserRole.PLATFORM_ADMIN ? <PlatformDashboard /> : <TenantDashboard />;
+}
+
+function TenantDashboard() {
   const { user, switchActiveClinic } = useAuth();
   const { t } = useTranslation(["workstation", "dashboard", "adminEquipment", "nursing"]);
   const navigate = useNavigate();
