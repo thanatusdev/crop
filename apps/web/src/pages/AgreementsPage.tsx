@@ -5,7 +5,6 @@ import {
   UserRole,
   type AgreementCounterpartyOption,
   type AgreementScopeOption,
-  type MyClinic,
   type OperatorAgreementDto,
 } from "@crop/shared";
 import { Plus } from "lucide-react";

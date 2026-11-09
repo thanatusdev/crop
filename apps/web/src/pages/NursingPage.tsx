@@ -8,7 +8,6 @@ import {
   PatientSex,
   PreparationStatus,
   QueueDocumentKind,
-  QueueStatus,
   RT_EVENTS,
   clinicTimeToUtcIso,
   formatClinicTime,

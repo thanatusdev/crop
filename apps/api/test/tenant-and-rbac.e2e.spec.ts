@@ -8,8 +8,6 @@ describe("Multi-tenant isolation and RBAC", () => {
   let app: INestApplication;
   let http: ReturnType<typeof request>;
 
-  let alphaTenantId: string;
-  let betaTenantId: string;
   let alphaAdminToken: string;
   let alphaOperatorToken: string;
   let alphaAuditorToken: string;
@@ -24,8 +22,6 @@ describe("Multi-tenant isolation and RBAC", () => {
 
     const alpha = await createTenant(prisma, `Alpha-${crypto.randomUUID()}`);
     const beta = await createTenant(prisma, `Beta-${crypto.randomUUID()}`);
-    alphaTenantId = alpha.id;
-    betaTenantId = beta.id;
 
     alphaAdminToken = (await createLoggedInUser(app, { tenantId: alpha.id, role: UserRole.CLINIC_ADMIN })).accessToken;
     alphaOperatorToken = (await createContractedOperator(app, prisma, { clinicTenantId: alpha.id, role: UserRole.OPERATOR })).accessToken;

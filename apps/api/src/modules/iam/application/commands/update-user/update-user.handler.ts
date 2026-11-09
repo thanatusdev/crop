@@ -1,7 +1,7 @@
 import { Inject } from "@nestjs/common";
 import { CommandBus, CommandHandler, type ICommandHandler } from "@nestjs/cqrs";
 import { AuditAction, TenantType, UserRole, canGrantRole, isRoleAllowedInTenantType, requiresClinicAssignment, responsibleManagerRoleFor } from "@crop/shared";
-import { ForbiddenError, NotFoundError, ValidationError } from "../../../../../shared/domain/errors.js";
+import { ForbiddenError, NotFoundError } from "../../../../../shared/domain/errors.js";
 import { ROLE_LABELS_PT_BR, TENANT_TYPE_LABELS_PT_BR, labelOf } from "../../../../../shared/domain/pt-br-labels.js";
 import { RecordAuditEventCommand } from "../../../../audit/application/commands/record-audit-event/record-audit-event.command.js";
 import { TENANT_REPOSITORY, type TenantRepositoryPort } from "../../../../tenants/application/ports/tenant-repository.port.js";
